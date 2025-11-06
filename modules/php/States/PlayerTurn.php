@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Bga\Games\ITArenaGame\States;
+namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
-use Bga\Games\ITArenaGame\Game;
+use Bga\Games\itarenagame\Game;
 
 class PlayerTurn extends GameState
 {

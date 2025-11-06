@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Bga\Games\ITArenaGame\States;
+namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
-use Bga\Games\ITArenaGame\Game;
+use Bga\Games\itarenagame\Game;
 
 const ST_END_GAME = 99;
 

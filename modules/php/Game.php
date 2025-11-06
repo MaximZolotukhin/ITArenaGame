@@ -16,9 +16,9 @@
  */
 declare(strict_types=1);
 
-namespace Bga\Games\ITArenaGame;
+namespace Bga\Games\itarenagame;
 
-use Bga\Games\ITArenaGame\States\PlayerTurn;
+use Bga\Games\itarenagame\States\PlayerTurn;
 use Bga\GameFramework\Components\Counters\PlayerCounter;
 
 class Game extends \Bga\GameFramework\Table
@@ -39,7 +39,13 @@ class Game extends \Bga\GameFramework\Table
     public function __construct()
     {
         parent::__construct();
-        $this->initGameStateLabels([]); // mandatory, even if the array is empty
+        $this->initGameStateLabels([
+            // Global game state integers (IDs must be 10..99)
+            // Настройка числа раундов, числа игроков в раунде
+            'round_number' => 10, // Текущий раунд
+            'players_left_in_round' => 11, // Количество игроков в раунде
+            'total_rounds' => 12, // Общее количество раундов
+        ]); // mandatory, even if the array is empty
 
         $this->playerEnergy = $this->counterFactory->createPlayerCounter('energy');
 
@@ -81,9 +87,14 @@ class Game extends \Bga\GameFramework\Table
      */
     public function getGameProgression()
     {
-        // TODO: compute and return the game progression
-
-        return 0;
+        //Мой код для прогресса в процентах
+        $current = (int)$this->getGameStateValue('round_number');// Текущий раунд
+        $total = (int)$this->getGameStateValue('total_rounds');// Общее количество раундов
+        if ($total <= 0) { return 0; }
+        $progress = (int) floor((($current - 1) * 100) / $total);// Прогресс в процентах
+        if ($progress < 0) { $progress = 0; }
+        if ($progress > 99) { $progress = 99; }  // keep <100 until EndScore
+        return $progress;
     }
 
     /**
@@ -138,6 +149,10 @@ class Game extends \Bga\GameFramework\Table
         );
         $this->playerEnergy->fillResult($result);
 
+        // Round info for client banner
+        $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
+        $result['totalRounds'] = (int)$this->getGameStateValue('total_rounds'); // Общее количество раундов
+
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
         return $result;
@@ -181,7 +196,11 @@ class Game extends \Bga\GameFramework\Table
         $this->reattributeColorsBasedOnPreferences($players, $gameinfos["player_colors"]);
         $this->reloadPlayersBasicInfos();
 
+        //Мой код для инициализации глобальных значений
         // Init global values with their initial values.
+        $this->setGameStateInitialValue('total_rounds', 6); // Общее количество раундов
+        $this->setGameStateInitialValue('round_number', 1); // Текущий раунд
+        $this->setGameStateInitialValue('players_left_in_round', count($players)); // Количество игроков в раунде
 
         // Init game statistics.
         //
@@ -192,6 +211,10 @@ class Game extends \Bga\GameFramework\Table
         // $this->playerStats->init('player_teststat1', 0);
 
         // TODO: Setup the initial game situation here.
+        //Мой код для уведомления о начале раунда
+        $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [
+            'round' => (int)$this->getGameStateValue('round_number'), // Текущий раунд
+        ]);
 
         // Activate first player once everything has been initialized and ready.
         $this->activeNextPlayer();
