@@ -41,6 +41,15 @@ class Game extends \Bga\GameFramework\Table
         };
     }
 
+    /** Возвращает название фазы по ключу */
+    public function getPhaseName(string $phaseKey): string
+    {
+        return match ($phaseKey) {
+            'event' => clienttranslate('Событие'),
+            default => '',
+        };
+    }
+
     /** Возвращает список граней кубика (20 значений) */
     private function getCubeFaces(): array
     {
@@ -189,6 +198,9 @@ class Game extends \Bga\GameFramework\Table
         $faces = $this->getCubeFaces(); // Значения граней кубика
         $faceIndex = (int)$this->getGameStateValue('round_cube_face'); // Индекс текущей грани кубика (0..19)
         $result['cubeFace'] = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : ''; // Значение кубика на раунд
+        // Текущее имя фазы из глобальной переменной (переводим ключ в название)
+        $phaseKey = $this->globals->get('current_phase_name', '');
+        $result['phaseName'] = $this->getPhaseName($phaseKey);
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -238,7 +250,10 @@ class Game extends \Bga\GameFramework\Table
         $this->setGameStateInitialValue('total_rounds', 6); // Общее количество раундов
         $this->setGameStateInitialValue('round_number', 1); // Текущий раунд
         $this->setGameStateInitialValue('players_left_in_round', count($players)); // Количество игроков в раунде
-        $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен   
+        $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен
+        // Устанавливаем начальное название фазы, так как сразу переходим в RoundEvent
+        // Используем ключ для перевода на клиенте
+        $this->globals->set('current_phase_name', 'event');   
 
         // Init game statistics.
         //
@@ -249,19 +264,8 @@ class Game extends \Bga\GameFramework\Table
         // $this->playerStats->init('player_teststat1', 0);
 
         // TODO: Setup the initial game situation here.
-        //Мой код для уведомления о начале раунда
-        $cubeFace = $this->rollRoundCube(); // Значение кубика на раунд
-        $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [
-            'round' => (int)$this->getGameStateValue('round_number'), // Текущий раунд
-            'stageName' => $this->getStageName((int)$this->getGameStateValue('round_number')), // Название этапа
-            'cubeFace' => $cubeFace, // Значение кубика на раунд
-            'i18n' => ['stageName'], // Название этапа
-        ]);
-
-        // Activate first player once everything has been initialized and ready.
-        $this->activeNextPlayer();
-
-        return PlayerTurn::class;
+        // Переходим в фазу 1: "Событие" (кубик и объявление раунда)
+        return \Bga\Games\itarenagame\States\RoundEvent::class;
     }
 
     /**

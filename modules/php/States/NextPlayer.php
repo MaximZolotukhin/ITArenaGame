@@ -52,18 +52,11 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 return EndScore::class; // Конец игры
             }
 
-            // Prepare next round counters and notify
+            // Prepare next round counters and go to Phase 1: "Событие"
             $this->game->setGameStateValue('round_number', $nextRound); // Следующий раунд
             $playersCount = count($this->game->loadPlayersBasicInfos());
             $this->game->setGameStateValue('players_left_in_round', $playersCount); // Количество игроков в раунде
-
-            $cubeFace = $this->game->rollRoundCube(); // Значение кубика на раунд
-            $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [   // Следующий раунд
-                'round' => $nextRound,  // Следующий раунд
-                'stageName' => $this->game->getStageName($nextRound), //
-                'cubeFace' => $cubeFace, // Значение кубика на раунд
-                'i18n' => ['stageName'],
-            ]);
+            return RoundEvent::class;
         }
 
         // Move to next active player and continue normal play
