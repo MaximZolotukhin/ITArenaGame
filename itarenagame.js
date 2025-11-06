@@ -232,7 +232,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       //
       const el = document.getElementById('round-banner')
       if (!el) return
-      const title = _('Этап ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total)) // Название этапа
+      const title = _('Раунд ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total))
       const name = stageName || '' // Название этапа
       const text = name ? `${title} — ${name}` : title // Название этапа
       el.textContent = text
