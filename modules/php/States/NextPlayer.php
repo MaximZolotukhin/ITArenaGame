@@ -43,10 +43,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             $totalRounds = (int)$this->game->getGameStateValue('total_rounds'); // Общее количество раундов
             $nextRound = $currentRound + 1; // Следующий раунд
 
-            // Мой код для уведомления о начале следующего раунда
-            $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [ // Следующий раунд
-                'round' => $nextRound, // Следующий раунд
-            ]);
+            // Уведомление о начале следующего раунда отправим ниже, после обновления счетчиков и с именем этапа
             if ($nextRound > $totalRounds) {
                 // Announce end of game and go to EndScore
                 $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), [ // Общее количество раундов
@@ -62,6 +59,8 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
 
             $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [   // Следующий раунд
                 'round' => $nextRound,  // Следующий раунд
+                'stageName' => $this->game->getStageName($nextRound), //
+                'i18n' => ['stageName'],
             ]);
         }
 

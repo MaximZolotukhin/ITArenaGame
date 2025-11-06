@@ -27,6 +27,20 @@ class Game extends \Bga\GameFramework\Table
 
     public PlayerCounter $playerEnergy;
 
+    // Названия этапов
+    public function getStageName(int $round): string
+    {
+        return match ($round) {
+            1 => clienttranslate('Рождение идеи'),
+            2 => clienttranslate('Младенчество'),
+            3 => clienttranslate('Детство'),
+            4 => clienttranslate('Юность'),
+            5 => clienttranslate('Расцвет'),
+            6 => clienttranslate('Стабильность'),
+            default => clienttranslate('Неизвестный этап'),
+        };
+    }
+
     /**
      * Your global variables labels:
      *
@@ -152,6 +166,7 @@ class Game extends \Bga\GameFramework\Table
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
         $result['totalRounds'] = (int)$this->getGameStateValue('total_rounds'); // Общее количество раундов
+        $result['stageName'] = $this->getStageName($result['round']); // Название этапа
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -214,6 +229,8 @@ class Game extends \Bga\GameFramework\Table
         //Мой код для уведомления о начале раунда
         $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [
             'round' => (int)$this->getGameStateValue('round_number'), // Текущий раунд
+            'stageName' => $this->getStageName((int)$this->getGameStateValue('round_number')), // Название этапа
+            'i18n' => ['stageName'], // Название этапа
         ]);
 
         // Activate first player once everything has been initialized and ready.

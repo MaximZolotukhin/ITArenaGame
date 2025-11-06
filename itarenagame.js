@@ -79,7 +79,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       // Мой код для таблицы игроков
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
-      this._renderRoundBanner(gamedatas.round, this.totalRounds) // Текущий раунд
+      this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName) // Текущий раунд, Общее количество раундов, Название этапа
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -219,7 +219,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     // Round updates
     notif_roundStart: async function (args) {
-      this._renderRoundBanner(args.round, this.totalRounds)
+      this._renderRoundBanner(args.round, this.totalRounds, args.stageName) // Текущий раунд, Общее количество раундов, Название этапа
     },
 
     notif_gameEnd: async function (args) {
@@ -228,10 +228,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     // Helpers
-    _renderRoundBanner: function (round, total) {
+    _renderRoundBanner: function (round, total, stageName) {
+      //
       const el = document.getElementById('round-banner')
       if (!el) return
-      const text = _('Раунд ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total))
+      const title = _('Этап ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total)) // Название этапа
+      const name = stageName || '' // Название этапа
+      const text = name ? `${title} — ${name}` : title // Название этапа
       el.textContent = text
     },
     /*
