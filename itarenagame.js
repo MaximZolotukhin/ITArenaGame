@@ -79,7 +79,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       // Мой код для таблицы игроков
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
-      this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName) // Текущий раунд, Общее количество раундов, Название этапа
+      this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace) // Текущий раунд, Общее количество раундов, Название этапа, Значение кубика на раунд
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -219,7 +219,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     // Round updates
     notif_roundStart: async function (args) {
-      this._renderRoundBanner(args.round, this.totalRounds, args.stageName) // Текущий раунд, Общее количество раундов, Название этапа
+      this._renderRoundBanner(args.round, this.totalRounds, args.stageName, args.cubeFace) // Текущий раунд, Общее количество раундов, Название этапа, Значение кубика на раунд
     },
 
     notif_gameEnd: async function (args) {
@@ -228,13 +228,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     // Helpers
-    _renderRoundBanner: function (round, total, stageName) {
+    _renderRoundBanner: function (round, total, stageName, cubeFace) {
+      // Текущий раунд, Общее количество раундов, Название этапа, Значение кубика на раунд
       //
       const el = document.getElementById('round-banner')
       if (!el) return
       const title = _('Раунд ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total))
       const name = stageName || '' // Название этапа
-      const text = name ? `${title} — ${name}` : title // Название этапа
+      const cube = cubeFace ? ` — Кубик: ${cubeFace}` : '' // Значение кубика на раунд
+      const text = (name ? `${title} — ${name}` : title) + cube // Название этапа и значение кубика на раунд
       el.textContent = text
     },
     /*

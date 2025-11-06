@@ -41,6 +41,24 @@ class Game extends \Bga\GameFramework\Table
         };
     }
 
+    /** Возвращает список граней кубика (20 значений) */
+    private function getCubeFaces(): array
+    {
+        return [
+            'P', 'A', 'E', 'I', 'EI', 'AI', 'AE', 'PI', 'PE', 'PA',
+            'AEI', 'PEI', 'PAI', 'PAE', 'S', 'S', 'F', 'F', 'PS', 'SF',
+        ];
+    }
+
+    /** Бросает кубик текущего раунда, сохраняет индекс и возвращает строковое значение */
+    public function rollRoundCube(): string
+    {
+        $faces = $this->getCubeFaces();
+        $index = bga_rand(0, count($faces) - 1);
+        $this->setGameStateValue('round_cube_face', $index);
+        return $faces[$index];
+    }
+
     /**
      * Your global variables labels:
      *
@@ -59,6 +77,7 @@ class Game extends \Bga\GameFramework\Table
             'round_number' => 10, // Текущий раунд
             'players_left_in_round' => 11, // Количество игроков в раунде
             'total_rounds' => 12, // Общее количество раундов
+            'round_cube_face' => 13, // Индекс текущей грани кубика (0..19)
         ]); // mandatory, even if the array is empty
 
         $this->playerEnergy = $this->counterFactory->createPlayerCounter('energy');
@@ -167,6 +186,9 @@ class Game extends \Bga\GameFramework\Table
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
         $result['totalRounds'] = (int)$this->getGameStateValue('total_rounds'); // Общее количество раундов
         $result['stageName'] = $this->getStageName($result['round']); // Название этапа
+        $faces = $this->getCubeFaces(); // Значения граней кубика
+        $faceIndex = (int)$this->getGameStateValue('round_cube_face'); // Индекс текущей грани кубика (0..19)
+        $result['cubeFace'] = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : ''; // Значение кубика на раунд
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -216,6 +238,7 @@ class Game extends \Bga\GameFramework\Table
         $this->setGameStateInitialValue('total_rounds', 6); // Общее количество раундов
         $this->setGameStateInitialValue('round_number', 1); // Текущий раунд
         $this->setGameStateInitialValue('players_left_in_round', count($players)); // Количество игроков в раунде
+        $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен   
 
         // Init game statistics.
         //
@@ -227,9 +250,11 @@ class Game extends \Bga\GameFramework\Table
 
         // TODO: Setup the initial game situation here.
         //Мой код для уведомления о начале раунда
+        $cubeFace = $this->rollRoundCube(); // Значение кубика на раунд
         $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [
             'round' => (int)$this->getGameStateValue('round_number'), // Текущий раунд
             'stageName' => $this->getStageName((int)$this->getGameStateValue('round_number')), // Название этапа
+            'cubeFace' => $cubeFace, // Значение кубика на раунд
             'i18n' => ['stageName'], // Название этапа
         ]);
 
