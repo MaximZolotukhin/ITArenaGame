@@ -57,7 +57,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="event-card-panel__body"></div>
                       </div>
                       <div class="round-panel">
-                        <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
+                        <div class="round-panel__wrapper">
+                          <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
+                          <div class="round-track"></div>
+                        </div>
                       </div>
                       <div class="dice-panel">
                         <img src="${g_gamethemeurl}img/table/dice.png" alt="Dice" class="dice-panel__image" />
@@ -99,6 +102,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
       this.gamedatas = gamedatas
       this.eventCardsData = gamedatas.eventCards || {}
+      this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
 
       // Обновляем отображение кубика
@@ -273,6 +277,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const cube = cubeFace ? ` — ${_('Кубик')}: ${cubeFace}` : ''
       const text = (name ? `${title} — ${name}` : title) + phase + cube
       el.textContent = text
+      this._highlightRoundMarker(round)
     },
     /*
         Example:
@@ -321,6 +326,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (!display) return
       const value = cubeFace ? String(cubeFace).trim() : ''
       display.textContent = value
+    },
+
+    _renderRoundTrack: function (totalRounds) {
+      const track = document.querySelector('.round-track')
+      if (!track) return
+      track.innerHTML = ''
+      for (let i = 1; i <= totalRounds; i++) {
+        const marker = document.createElement('div')
+        marker.className = 'round-track__circle'
+        marker.dataset.round = String(i)
+        marker.innerHTML = `<span>${i}</span>`
+        track.appendChild(marker)
+      }
+      this._highlightRoundMarker(this.gamedatas?.round || 1)
+    },
+
+    _highlightRoundMarker: function (round) {
+      const track = document.querySelector('.round-track')
+      if (!track) return
+      const markers = track.querySelectorAll('.round-track__circle')
+      markers.forEach((marker) => {
+        if (marker.dataset.round === String(round)) {
+          marker.classList.add('round-track__circle--active')
+        } else {
+          marker.classList.remove('round-track__circle--active')
+        }
+      })
     },
 
     _renderEventCards: function (eventCards) {
