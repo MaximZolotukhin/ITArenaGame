@@ -46,12 +46,26 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.getGameAreaElement().insertAdjacentHTML(
         'beforeend',
         `
-                <div id="event-card-panel" class="event-card-panel">
-                  <div class="event-card-panel__header">${_('Карта события')}</div>
-                  <div class="event-card-panel__body"></div>
+                <div class="game-layout">
+                  <div class="main-column">
+                    <div class="banner-container">
+                      <div id="round-banner" class="round-banner"></div>
+                    </div>
+                    <div class="events-and-skills">
+                      <div id="event-card-panel" class="event-card-panel">
+                        <div class="event-card-panel__header">${_('Карта события')}</div>
+                        <div class="event-card-panel__body"></div>
+                      </div>
+                      <div class="round-panel">
+                        <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
+                      </div>
+                      <div class="dice-panel">
+                        <img src="${g_gamethemeurl}img/table/dice.png" alt="Dice" class="dice-panel__image" />
+                      </div>
+                    </div>
+                    <div id="player-tables" class="player-tables"></div>
+                  </div>
                 </div>
-                <div id="round-banner" class="round-banner"></div>
-                <div id="player-tables"></div>
             `
       )
       // Мой код для баннера раунда
@@ -326,9 +340,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this.eventCardsData[typeArg] = cardData
       }
 
+      const imageUrl = cardData?.image_url ? (cardData.image_url.startsWith('http') ? cardData.image_url : `${g_gamethemeurl}${cardData.image_url}`) : ''
+
       const cardHtml = `
         <div class="event-card">
-          ${cardData?.image_url ? `<img src="${cardData.image_url}" alt="${cardData.name || ''}" class="event-card__image" />` : ''}
+          ${imageUrl ? `<img src="${imageUrl}" alt="${cardData?.name || ''}" class="event-card__image" />` : ''}
           <div class="event-card__content">
             <div class="event-card__title">${cardData?.name || _('Карта события')}</div>
             <div class="event-card__description">${cardData?.description || ''}</div>

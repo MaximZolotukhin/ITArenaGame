@@ -42,12 +42,9 @@
            Consequently, don't hesitate to put as many comments as necessary.
 */
 
-
 /* Note: you must not use any @import directive */
 
-
 /********* You can start writing your CSS below this line: **********/
-
 
 /*
     Example of CSS sprites (a black token and a white token, 20x20px each, embedded in the same "tokens.png" 40x20px image):
@@ -67,6 +64,163 @@
     }
 */
 
+.game-layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 15px;
+}
 
+.main-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
+.banner-container {
+  margin-top: 12px;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
 
+.events-and-skills {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 5px;
+  width: 100%;
+}
+
+.event-card-panel {
+  flex: 0 0 25%;
+  max-width: 25%;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.event-card-panel__header {
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.event-card-panel__body {
+  min-height: 120px;
+}
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-card__image {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.event-card__title {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.event-card__description,
+.event-card__effect {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.round-panel {
+  flex: 0 0 60%;
+  max-width: 60%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.round-panel__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.round-banner {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  padding: 16px 24px;
+  background: #ffeb3b;
+  color: #1f1f1f;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.player-sidebar {
+  flex: 0 0 20%;
+  max-width: 20%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-sidebar > div {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.dice-panel {
+  flex: 0 0 15%;
+  max-width: 15%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  margin-left: -10px;
+  margin-right: 5px;
+}
+
+.dice-panel__image {
+  width: 90%;
+  height: auto;
+  display: block;
+}
+
+.player-tables {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 1200px) {
+  .game-layout {
+    flex-direction: column;
+  }
+
+  .event-card-panel,
+  .round-panel,
+  .player-sidebar {
+    flex: 1 1 auto;
+    max-width: 100%;
+    width: 100%;
+  }
+}
