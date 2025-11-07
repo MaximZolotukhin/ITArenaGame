@@ -20,6 +20,7 @@ namespace Bga\Games\itarenagame;
 
 use Bga\Games\itarenagame\States\PlayerTurn;
 use Bga\GameFramework\Components\Counters\PlayerCounter;
+use Bga\Games\itarenagame\EventCardsData;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -201,6 +202,7 @@ class Game extends \Bga\GameFramework\Table
         // Текущее имя фазы из глобальной переменной (переводим ключ в название)
         $phaseKey = $this->globals->get('current_phase_name', '');
         $result['phaseName'] = $this->getPhaseName($phaseKey);
+        $result['eventCards'] = EventCardsData::getAllCards();
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
