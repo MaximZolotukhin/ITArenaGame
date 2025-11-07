@@ -18,15 +18,17 @@ declare(strict_types=1);
 
 namespace Bga\Games\itarenagame;
 
-use Bga\Games\itarenagame\States\PlayerTurn;
-use Bga\GameFramework\Components\Counters\PlayerCounter;
-use Bga\Games\itarenagame\EventCardsData;
+use Bga\Games\itarenagame\States\PlayerTurn; // Добавляем класс PlayerTurn для работы с ходом игрока
+use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем класс PlayerCounter
+use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
+use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
 
 class Game extends \Bga\GameFramework\Table
 {
     public static array $CARD_TYPES;
 
     public PlayerCounter $playerEnergy;
+    public Deck $eventDeck; // Добавляем переменную для работы с колодой карт событий
 
     // Названия этапов
     public function getStageName(int $round): string
@@ -91,6 +93,8 @@ class Game extends \Bga\GameFramework\Table
         ]); // mandatory, even if the array is empty
 
         $this->playerEnergy = $this->counterFactory->createPlayerCounter('energy');
+        $this->eventDeck = $this->deckFactory->createDeck('event_card');
+        $this->eventDeck->init('event_card');
 
         self::$CARD_TYPES = [
             1 => [
@@ -203,6 +207,7 @@ class Game extends \Bga\GameFramework\Table
         $phaseKey = $this->globals->get('current_phase_name', '');
         $result['phaseName'] = $this->getPhaseName($phaseKey);
         $result['eventCards'] = EventCardsData::getAllCards();
+        $result['roundEventCard'] = $this->getRoundEventCard();
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -255,7 +260,11 @@ class Game extends \Bga\GameFramework\Table
         $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен
         // Устанавливаем начальное название фазы, так как сразу переходим в RoundEvent
         // Используем ключ для перевода на клиенте
-        $this->globals->set('current_phase_name', 'event');   
+        $this->globals->set('current_phase_name', 'event');
+
+        $this->eventDeck->autoreshuffle = true;
+        $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
+        $this->eventDeck->shuffle('deck');
 
         // Init game statistics.
         //
@@ -268,6 +277,54 @@ class Game extends \Bga\GameFramework\Table
         // TODO: Setup the initial game situation here.
         // Переходим в фазу 1: "Событие" (кубик и объявление раунда)
         return \Bga\Games\itarenagame\States\RoundEvent::class;
+    }
+
+    private function getRoundEventCard(): ?array
+    {
+        $card = $this->eventDeck->getCardOnTop('table');
+        if ($card === null) {
+            return null;
+        }
+
+        $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+        if ($data !== null) {
+            $card = array_merge($card, $data);
+        }
+
+        return $card;
+    }
+
+    public function prepareRoundEventCard(): ?array
+    {
+        $onTable = $this->eventDeck->getCardsInLocation('table');
+        foreach ($onTable as $tableCard) {
+            $this->eventDeck->moveCard((int)$tableCard['id'], 'discard');
+        }
+ 
+        $card = $this->eventDeck->pickCard('deck', 0);
+        if ($card !== null) {
+            $this->eventDeck->moveCard((int)$card['id'], 'table');
+        }
+ 
+        if ($card === null) {
+            $this->eventDeck->moveAllCardsInLocation('discard', 'deck');
+            $this->eventDeck->shuffle('deck');
+            $card = $this->eventDeck->pickCard('deck', 0);
+            if ($card !== null) {
+                $this->eventDeck->moveCard((int)$card['id'], 'table');
+            }
+        }
+
+        if ($card === null) {
+            return null;
+        }
+
+        $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+        if ($data !== null) {
+            $card = array_merge($card, $data);
+        }
+
+        return $card;
     }
 
     /**

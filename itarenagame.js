@@ -46,7 +46,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.getGameAreaElement().insertAdjacentHTML(
         'beforeend',
         `
-                <!-- Мой код для баннера раунда -->
+                <div id="event-card-panel" class="event-card-panel">
+                  <div class="event-card-panel__header">${_('Карта события')}</div>
+                  <div class="event-card-panel__body"></div>
+                </div>
                 <div id="round-banner" class="round-banner"></div>
                 <div id="player-tables"></div>
             `
@@ -79,7 +82,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       // Мой код для таблицы игроков
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
+      this.gamedatas = gamedatas
+      this.eventCardsData = gamedatas.eventCards || {}
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
+
+      // Обновляем отображение кубика
+      this._updateCubeFace(gamedatas.cubeFace)
+      const initialEventCard = gamedatas.roundEventCard ? [gamedatas.roundEventCard] : []
+      this._renderEventCards(initialEventCard)
+      this._renderRoundEventCards(gamedatas.roundEventCards || [])
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -220,6 +231,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     // Round updates
     notif_roundStart: async function (args) {
       this._renderRoundBanner(args.round, this.totalRounds, args.stageName, args.cubeFace, args.phaseName)
+      this._renderEventCards(args.eventCard ? [args.eventCard] : [])
+      // Обновляем отображение кубика
+      this._updateCubeFace(args.cubeFace)
+      // Обновляем отображение карт события
+      const notifEventCards = args.eventCards && args.eventCards.length ? args.eventCards : args.eventCard ? [args.eventCard] : []
+      console.log('roundStart eventCards', notifEventCards)
+      this._renderEventCards(notifEventCards)
+      this._renderRoundEventCards(args.roundEventCards || [])
     },
 
     notif_gameEnd: async function (args) {
@@ -254,5 +273,80 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         },    
         
         */
+    _renderRoundEventCards: function (roundEventCards) {
+      console.log('renderRoundEventCards', roundEventCards)
+      const container = document.querySelector('.events-cube-section')
+      if (!container) return
+
+      let list = container.querySelector('.round-event-cards')
+      if (!list) {
+        list = document.createElement('div')
+        list.className = 'round-event-cards'
+        container.appendChild(list)
+      }
+
+      list.innerHTML = ''
+
+      if (!roundEventCards || roundEventCards.length === 0) {
+        list.textContent = _('Карта события отсутствует')
+        return
+      }
+
+      roundEventCards.forEach((card) => {
+        const cardDiv = document.createElement('div')
+        cardDiv.className = 'round-event-card'
+        cardDiv.textContent = card.name || card.card_id || _('Карта события')
+        list.appendChild(cardDiv)
+      })
+    },
+
+    _updateCubeFace: function (cubeFace) {
+      console.log('updateCubeFace called', cubeFace)
+    },
+
+    _renderEventCards: function (eventCards) {
+      const panelBody = document.querySelector('#event-card-panel .event-card-panel__body')
+      if (!panelBody) return
+
+      panelBody.innerHTML = ''
+
+      if (!eventCards || eventCards.length === 0) {
+        panelBody.textContent = _('Карта события отсутствует')
+        return
+      }
+
+      const card = eventCards[0]
+      const typeArg = card.card_type_arg || card.card_id
+      let cardData = this._getEventCardData(typeArg)
+      if (!cardData) {
+        cardData = card
+      }
+      if (typeArg && cardData) {
+        this.eventCardsData = this.eventCardsData || {}
+        this.eventCardsData[typeArg] = cardData
+      }
+
+      const cardHtml = `
+        <div class="event-card">
+          ${cardData?.image_url ? `<img src="${cardData.image_url}" alt="${cardData.name || ''}" class="event-card__image" />` : ''}
+          <div class="event-card__content">
+            <div class="event-card__title">${cardData?.name || _('Карта события')}</div>
+            <div class="event-card__description">${cardData?.description || ''}</div>
+            <div class="event-card__effect">${cardData?.effect_description || cardData?.effect || ''}</div>
+          </div>
+        </div>
+      `
+
+      panelBody.insertAdjacentHTML('beforeend', cardHtml)
+    },
+    _getEventCardData: function (cardTypeArg) {
+      if (this.eventCardsData?.[cardTypeArg]) {
+        return this.eventCardsData[cardTypeArg]
+      }
+      if (this.gamedatas?.eventCards?.[cardTypeArg]) {
+        return this.gamedatas.eventCards[cardTypeArg]
+      }
+      return null
+    },
   })
 })
