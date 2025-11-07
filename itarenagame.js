@@ -61,6 +61,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                       </div>
                       <div class="dice-panel">
                         <img src="${g_gamethemeurl}img/table/dice.png" alt="Dice" class="dice-panel__image" />
+                        <div id="cube-face-display" class="dice-panel__value"></div>
                       </div>
                     </div>
                     <div id="player-tables" class="player-tables"></div>
@@ -316,6 +317,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     _updateCubeFace: function (cubeFace) {
       console.log('updateCubeFace called', cubeFace)
+      const display = document.getElementById('cube-face-display')
+      if (!display) return
+      const value = cubeFace ? String(cubeFace).trim() : ''
+      display.textContent = value
     },
 
     _renderEventCards: function (eventCards) {
