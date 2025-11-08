@@ -379,13 +379,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       const imageUrl = cardData?.image_url ? (cardData.image_url.startsWith('http') ? cardData.image_url : `${g_gamethemeurl}${cardData.image_url}`) : ''
 
+      const powerRound = cardData && typeof cardData.power_round !== 'undefined' ? cardData.power_round : '—'
+      const phase = cardData?.phase || '—'
+      const effectText = cardData?.effect_description || cardData?.effect || '—'
+
       const cardHtml = `
         <div class="event-card">
           ${imageUrl ? `<img src="${imageUrl}" alt="${cardData?.name || ''}" class="event-card__image" />` : ''}
           <div class="event-card__content">
             <div class="event-card__title">${cardData?.name || _('Карта события')}</div>
             <div class="event-card__description">${cardData?.description || ''}</div>
-            <div class="event-card__effect">${cardData?.effect_description || cardData?.effect || ''}</div>
+            <div class="event-card__meta">
+              <div class="event-card__meta-item">
+                <span class="event-card__meta-label">${_('Power round')}:</span>
+                <span class="event-card__meta-value">${powerRound}</span>
+              </div>
+              <div class="event-card__meta-item">
+                <span class="event-card__meta-label">${_('Phase')}:</span>
+                <span class="event-card__meta-value">${phase}</span>
+              </div>
+            </div>
+            <div class="event-card__effect">
+              <span class="event-card__meta-label">${_('Effect')}:</span>
+              <span class="event-card__meta-value">${effectText}</span>
+            </div>
           </div>
         </div>
       `
