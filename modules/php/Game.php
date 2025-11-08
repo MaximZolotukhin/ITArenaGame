@@ -345,6 +345,23 @@ class Game extends \Bga\GameFramework\Table
             return [(int)$eligibleCards[$index]['id']];
         }
 
+        if ($round === 4) {
+            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 3; // Может быть только 3
+            }));
+
+            if (empty($eligibleCards)) {
+                $eligibleCards = $deckCards;
+            }
+
+            $index = bga_rand(0, count($eligibleCards) - 1);
+            return [(int)$eligibleCards[$index]['id']];
+        }
+
         if ($round === 3) {
             $firstPool = array_values(array_filter($deckCards, static function (array $card): bool {
                 $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
@@ -385,6 +402,63 @@ class Game extends \Bga\GameFramework\Table
                 if (!empty($secondPool)) {
                     $index = bga_rand(0, count($secondPool) - 1);
                     $selectedIds[] = (int)$secondPool[$index]['id'];
+                }
+            }
+
+            if (empty($selectedIds) && !empty($deckCards)) {
+                $index = bga_rand(0, count($deckCards) - 1);
+                $selectedIds[] = (int)$deckCards[$index]['id'];
+                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => !in_array((int)$card['id'], $selectedIds, true)));
+            }
+
+            if (count($selectedIds) < 2 && !empty($deckCards)) {
+                $index = bga_rand(0, count($deckCards) - 1);
+                $selectedIds[] = (int)$deckCards[$index]['id'];
+            }
+
+            return $selectedIds;
+        }
+
+        if ($round === 5 || $round === 6) {
+            $powerTwoPool = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 2;
+            }));
+
+            $powerThreePool = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 3;
+            }));
+
+            $selectedIds = [];
+
+            if (!empty($powerTwoPool)) {
+                $index = bga_rand(0, count($powerTwoPool) - 1);
+                $selectedIds[] = (int)$powerTwoPool[$index]['id'];
+                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => (int)$card['id'] !== $selectedIds[0]));
+            }
+
+            if (!empty($powerThreePool)) {
+                $powerThreePool = array_values(array_filter($deckCards, static function (array $card) use ($selectedIds): bool {
+                    if (in_array((int)$card['id'], $selectedIds, true)) {
+                        return false;
+                    }
+                    $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                    if ($data === null) {
+                        return false;
+                    }
+                    return (int)($data['power_round'] ?? 0) === 3;
+                }));
+
+                if (!empty($powerThreePool)) {
+                    $index = bga_rand(0, count($powerThreePool) - 1);
+                    $selectedIds[] = (int)$powerThreePool[$index]['id'];
                 }
             }
 
