@@ -262,7 +262,7 @@ class Game extends \Bga\GameFramework\Table
         // Используем ключ для перевода на клиенте
         $this->globals->set('current_phase_name', 'event');
 
-        $this->eventDeck->autoreshuffle = true;
+        $this->eventDeck->autoreshuffle = false;
         $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
         $this->eventDeck->shuffle('deck');
 
@@ -304,15 +304,6 @@ class Game extends \Bga\GameFramework\Table
         $card = $this->eventDeck->pickCard('deck', 0);
         if ($card !== null) {
             $this->eventDeck->moveCard((int)$card['id'], 'table');
-        }
- 
-        if ($card === null) {
-            $this->eventDeck->moveAllCardsInLocation('discard', 'deck');
-            $this->eventDeck->shuffle('deck');
-            $card = $this->eventDeck->pickCard('deck', 0);
-            if ($card !== null) {
-                $this->eventDeck->moveCard((int)$card['id'], 'table');
-            }
         }
 
         if ($card === null) {
