@@ -207,7 +207,9 @@ class Game extends \Bga\GameFramework\Table
         $phaseKey = $this->globals->get('current_phase_name', '');
         $result['phaseName'] = $this->getPhaseName($phaseKey);
         $result['eventCards'] = EventCardsData::getAllCards();
-        $result['roundEventCard'] = $this->getRoundEventCard();
+        $roundEventCards = $this->getRoundEventCards();
+        $result['roundEventCards'] = $roundEventCards;
+        $result['roundEventCard'] = $roundEventCards[0] ?? null;
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -279,22 +281,24 @@ class Game extends \Bga\GameFramework\Table
         return \Bga\Games\itarenagame\States\RoundEvent::class;
     }
 
-    private function getRoundEventCard(): ?array
+    private function getRoundEventCards(): array
     {
-        $card = $this->eventDeck->getCardOnTop('table');
-        if ($card === null) {
-            return null;
+        $cards = $this->eventDeck->getCardsInLocation('table');
+        $result = [];
+
+        foreach ($cards as $card) {
+            $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+            if ($data !== null) {
+                $card = array_merge($card, $data);
+            }
+
+            $result[] = $card;
         }
 
-        $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-        if ($data !== null) {
-            $card = array_merge($card, $data);
-        }
-
-        return $card;
+        return $result;
     }
 
-    public function prepareRoundEventCard(): ?array
+    public function prepareRoundEventCard(): array
     {
         $onTable = $this->eventDeck->getCardsInLocation('table');
         foreach ($onTable as $tableCard) {
@@ -302,24 +306,27 @@ class Game extends \Bga\GameFramework\Table
         }
 
         $round = (int)$this->getGameStateValue('round_number');
-        $cardId = $this->selectEventCardIdForRound($round);
-        if ($cardId === null) {
-            return null;
+
+        $cardIds = $this->selectEventCardIdsForRound($round);
+        if (empty($cardIds)) {
+            return [];
         }
 
-        $this->eventDeck->moveCard($cardId, 'table');
+        foreach ($cardIds as $cardId) {
+            $this->eventDeck->moveCard($cardId, 'table');
+        }
 
-        return $this->getRoundEventCard();
+        return $this->getRoundEventCards();
     }
 
-    private function selectEventCardIdForRound(int $round): ?int
+    private function selectEventCardIdsForRound(int $round): array
     {
         $deckCards = array_values($this->eventDeck->getCardsInLocation('deck'));
         if (empty($deckCards)) {
-            return null;
+            return [];
         }
 
-        $eligibleCards = $deckCards;
+        $eligibleCardsSets = [];
 
         if ($round === 1 || $round === 2) {
             $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
@@ -333,10 +340,70 @@ class Game extends \Bga\GameFramework\Table
             if (empty($eligibleCards)) {
                 $eligibleCards = $deckCards;
             }
+
+            $index = bga_rand(0, count($eligibleCards) - 1);
+            return [(int)$eligibleCards[$index]['id']];
         }
 
-        $index = bga_rand(0, count($eligibleCards) - 1);
-        return (int)$eligibleCards[$index]['id'];
+        if ($round === 3) {
+            $firstPool = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 1;
+            }));
+
+            $secondPool = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 2;
+            }));
+
+            $selectedIds = [];
+
+            if (!empty($firstPool)) {
+                $index = bga_rand(0, count($firstPool) - 1);
+                $selectedIds[] = (int)$firstPool[$index]['id'];
+                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => (int)$card['id'] !== $selectedIds[0]));
+            }
+
+            if (!empty($secondPool)) {
+                $secondPool = array_values(array_filter($deckCards, static function (array $card) use ($selectedIds): bool {
+                    if (in_array((int)$card['id'], $selectedIds, true)) {
+                        return false;
+                    }
+                    $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                    if ($data === null) {
+                        return false;
+                    }
+                    return (int)($data['power_round'] ?? 0) === 2;
+                }));
+
+                if (!empty($secondPool)) {
+                    $index = bga_rand(0, count($secondPool) - 1);
+                    $selectedIds[] = (int)$secondPool[$index]['id'];
+                }
+            }
+
+            if (empty($selectedIds) && !empty($deckCards)) {
+                $index = bga_rand(0, count($deckCards) - 1);
+                $selectedIds[] = (int)$deckCards[$index]['id'];
+                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => !in_array((int)$card['id'], $selectedIds, true)));
+            }
+
+            if (count($selectedIds) < 2 && !empty($deckCards)) {
+                $index = bga_rand(0, count($deckCards) - 1);
+                $selectedIds[] = (int)$deckCards[$index]['id'];
+            }
+
+            return $selectedIds;
+        }
+
+        $index = bga_rand(0, count($deckCards) - 1);
+        return [(int)$deckCards[$index]['id']];
     }
 
     /**

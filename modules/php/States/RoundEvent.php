@@ -27,7 +27,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
     {
         $round = (int)$this->game->getGameStateValue('round_number'); // Текущий раунд
 
-        $eventCard = $this->game->prepareRoundEventCard();
+        $eventCards = $this->game->prepareRoundEventCard();
 
         // Бросаем кубик этой фазы
         $cubeFace = $this->game->rollRoundCube(); // Значение кубика на раунд
@@ -41,7 +41,8 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             'stageName' => $this->game->getStageName($round), // Название этапа
             'cubeFace' => $cubeFace, // Значение кубика на раунд
             'phaseName' => $this->game->getPhaseName('event'), // Название фазы
-            'eventCard' => $eventCard,
+            'roundEventCards' => $eventCards,
+            'eventCard' => $eventCards[0] ?? null,
             'i18n' => ['stageName', 'phaseName'], // Название этапа и фазы
         ]); // Уведомление о начале раунда
 

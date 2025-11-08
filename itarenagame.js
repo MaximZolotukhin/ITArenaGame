@@ -107,9 +107,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       // Обновляем отображение кубика
       this._updateCubeFace(gamedatas.cubeFace)
-      const initialEventCard = gamedatas.roundEventCard ? [gamedatas.roundEventCard] : []
-      this._renderEventCards(initialEventCard)
-      this._renderRoundEventCards(gamedatas.roundEventCards || [])
+      const initialEventCards = gamedatas.roundEventCards || []
+      this._renderEventCards(initialEventCards)
+      this._renderRoundEventCards(initialEventCards)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -250,14 +250,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     // Round updates
     notif_roundStart: async function (args) {
       this._renderRoundBanner(args.round, this.totalRounds, args.stageName, args.cubeFace, args.phaseName)
-      this._renderEventCards(args.eventCard ? [args.eventCard] : [])
       // Обновляем отображение кубика
       this._updateCubeFace(args.cubeFace)
-      // Обновляем отображение карт события
-      const notifEventCards = args.eventCards && args.eventCards.length ? args.eventCards : args.eventCard ? [args.eventCard] : []
-      console.log('roundStart eventCards', notifEventCards)
-      this._renderEventCards(notifEventCards)
-      this._renderRoundEventCards(args.roundEventCards || [])
+      const eventCards = args.roundEventCards || (args.eventCard ? [args.eventCard] : [])
+      console.log('roundStart eventCards', eventCards)
+      this._renderEventCards(eventCards)
+      this._renderRoundEventCards(eventCards)
     },
 
     notif_gameEnd: async function (args) {
@@ -366,48 +364,51 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
 
-      const card = eventCards[0]
-      const typeArg = card.card_type_arg || card.card_id
-      let cardData = this._getEventCardData(typeArg)
-      if (!cardData) {
-        cardData = card
-      }
-      if (typeArg && cardData) {
-        this.eventCardsData = this.eventCardsData || {}
-        this.eventCardsData[typeArg] = cardData
-      }
+      const cardsHtml = eventCards
+        .map((card, index) => {
+          const typeArg = card.card_type_arg || card.card_id
+          let cardData = this._getEventCardData(typeArg)
+          if (!cardData) {
+            cardData = card
+          }
+          if (typeArg && cardData) {
+            this.eventCardsData = this.eventCardsData || {}
+            this.eventCardsData[typeArg] = cardData
+          }
 
-      const imageUrl = cardData?.image_url ? (cardData.image_url.startsWith('http') ? cardData.image_url : `${g_gamethemeurl}${cardData.image_url}`) : ''
+          const imageUrl = cardData?.image_url ? (cardData.image_url.startsWith('http') ? cardData.image_url : `${g_gamethemeurl}${cardData.image_url}`) : ''
+          const powerRound = cardData && typeof cardData.power_round !== 'undefined' ? cardData.power_round : '—'
+          const phase = cardData?.phase || '—'
+          const effectText = cardData?.effect_description || cardData?.effect || '—'
 
-      const powerRound = cardData && typeof cardData.power_round !== 'undefined' ? cardData.power_round : '—'
-      const phase = cardData?.phase || '—'
-      const effectText = cardData?.effect_description || cardData?.effect || '—'
-
-      const cardHtml = `
-        <div class="event-card">
-          ${imageUrl ? `<img src="${imageUrl}" alt="${cardData?.name || ''}" class="event-card__image" />` : ''}
-          <div class="event-card__content">
-            <div class="event-card__title">${cardData?.name || _('Карта события')}</div>
-            <div class="event-card__description">${cardData?.description || ''}</div>
-            <div class="event-card__meta">
-              <div class="event-card__meta-item">
-                <span class="event-card__meta-label">${_('Power round')}:</span>
-                <span class="event-card__meta-value">${powerRound}</span>
-              </div>
-              <div class="event-card__meta-item">
-                <span class="event-card__meta-label">${_('Phase')}:</span>
-                <span class="event-card__meta-value">${phase}</span>
+          return `
+            <div class="event-card">
+              <div class="event-card__badge">${_('Карта')} ${index + 1}</div>
+              ${imageUrl ? `<img src="${imageUrl}" alt="${cardData?.name || ''}" class="event-card__image" />` : ''}
+              <div class="event-card__content">
+                <div class="event-card__title">${cardData?.name || _('Карта события')}</div>
+                <div class="event-card__description">${cardData?.description || ''}</div>
+                <div class="event-card__meta">
+                  <div class="event-card__meta-item">
+                    <span class="event-card__meta-label">${_('Power round')}:</span>
+                    <span class="event-card__meta-value">${powerRound}</span>
+                  </div>
+                  <div class="event-card__meta-item">
+                    <span class="event-card__meta-label">${_('Phase')}:</span>
+                    <span class="event-card__meta-value">${phase}</span>
+                  </div>
+                </div>
+                <div class="event-card__effect">
+                  <span class="event-card__meta-label">${_('Effect')}:</span>
+                  <span class="event-card__meta-value">${effectText}</span>
+                </div>
               </div>
             </div>
-            <div class="event-card__effect">
-              <span class="event-card__meta-label">${_('Effect')}:</span>
-              <span class="event-card__meta-value">${effectText}</span>
-            </div>
-          </div>
-        </div>
-      `
+          `
+        })
+        .join('')
 
-      panelBody.insertAdjacentHTML('beforeend', cardHtml)
+      panelBody.innerHTML = cardsHtml
     },
     _getEventCardData: function (cardTypeArg) {
       if (this.eventCardsData?.[cardTypeArg]) {
