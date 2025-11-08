@@ -321,26 +321,13 @@ class Game extends \Bga\GameFramework\Table
 
         $eligibleCards = $deckCards;
 
-        if ($round === 1) {
+        if ($round === 1 || $round === 2) {
             $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
                 $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
                 if ($data === null) {
                     return false;
                 }
                 return (int)($data['power_round'] ?? 0) === 1;
-            }));
-
-            if (empty($eligibleCards)) {
-                $eligibleCards = $deckCards;
-            }
-        } elseif ($round === 2) {
-            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                $power = (int)($data['power_round'] ?? 0);
-                return $power === 1 || $power === 2;
             }));
 
             if (empty($eligibleCards)) {
