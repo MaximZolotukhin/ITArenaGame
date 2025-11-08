@@ -300,22 +300,56 @@ class Game extends \Bga\GameFramework\Table
         foreach ($onTable as $tableCard) {
             $this->eventDeck->moveCard((int)$tableCard['id'], 'discard');
         }
- 
-        $card = $this->eventDeck->pickCard('deck', 0);
-        if ($card !== null) {
-            $this->eventDeck->moveCard((int)$card['id'], 'table');
-        }
 
-        if ($card === null) {
+        $round = (int)$this->getGameStateValue('round_number');
+        $cardId = $this->selectEventCardIdForRound($round);
+        if ($cardId === null) {
             return null;
         }
 
-        $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-        if ($data !== null) {
-            $card = array_merge($card, $data);
+        $this->eventDeck->moveCard($cardId, 'table');
+
+        return $this->getRoundEventCard();
+    }
+
+    private function selectEventCardIdForRound(int $round): ?int
+    {
+        $deckCards = array_values($this->eventDeck->getCardsInLocation('deck'));
+        if (empty($deckCards)) {
+            return null;
         }
 
-        return $card;
+        $eligibleCards = $deckCards;
+
+        if ($round === 1) {
+            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                return (int)($data['power_round'] ?? 0) === 1;
+            }));
+
+            if (empty($eligibleCards)) {
+                $eligibleCards = $deckCards;
+            }
+        } elseif ($round === 2) {
+            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
+                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+                if ($data === null) {
+                    return false;
+                }
+                $power = (int)($data['power_round'] ?? 0);
+                return $power === 1 || $power === 2;
+            }));
+
+            if (empty($eligibleCards)) {
+                $eligibleCards = $deckCards;
+            }
+        }
+
+        $index = bga_rand(0, count($eligibleCards) - 1);
+        return (int)$eligibleCards[$index]['id'];
     }
 
     /**
