@@ -95,6 +95,19 @@ class PlayerTurn extends GameState
         return NextPlayer::class;
     }
 
+    #[PossibleAction]
+    public function actFinishTurn(int $activePlayerId)
+    {
+        $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+        ]);
+
+        $this->game->giveExtraTime($activePlayerId);
+
+        return NextPlayer::class;
+    }
+
     /**
      * This method is called each time it is the turn of a player who has quit the game (= "zombie" player).
      * You can do whatever you want in order to make sure the turn of this player ends appropriately
