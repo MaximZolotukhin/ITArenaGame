@@ -323,6 +323,9 @@ class Game extends \Bga\GameFramework\Table
                 'value' => $value,
                 'name' => $coinData['name'],
                 'label' => $coinData['short_label'],
+                'display_label' => $value === 1
+                    ? clienttranslate('Баджерс')
+                    : ($coinData['short_label'] ?? ''),
                 'initial_quantity' => (int)$coinData['quantity'],
                 'available_quantity' => $available,
                 'image_url' => $coinData['image_url'],

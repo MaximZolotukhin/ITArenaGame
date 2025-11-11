@@ -98,9 +98,72 @@
   width: 100%;
 }
 
+.money-and-project {
+  margin-top: 16px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.player-money-panel,
+.project-board-panel,
+.bank {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-money-panel {
+  flex: 0 0 15%;
+  max-width: 15%;
+}
+
+.project-board-panel {
+  flex: 0 0 65%;
+  max-width: 65%;
+  position: relative;
+}
+
+.bank {
+  flex: 0 0 15%;
+  max-width: 15%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-money-panel__header,
+.project-board-panel__header {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.player-money-panel__body,
+.project-board-panel__body {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.project-board-panel__image {
+  width: 85%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+}
 .event-card-panel {
-  flex: 0 0 25%;
-  max-width: 25%;
+  flex: 0 0 20%;
+  max-width: 20%;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   padding: 12px;
@@ -198,19 +261,18 @@
 
 .badgers-panel__coin {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
   align-items: center;
-  padding: 10px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.08);
-  min-width: 90px;
+  min-width: 120px;
 }
 
 .badgers-panel__image {
-  width: 56px;
-  height: 56px;
+  width: 54px;
+  height: 54px;
   object-fit: contain;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.12);
@@ -222,25 +284,21 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: center;
-  text-align: center;
 }
 
 .badgers-panel__label {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .badgers-panel__counts {
-  display: flex;
-  gap: 10px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .round-panel {
-  flex: 0 0 60%;
-  max-width: 60%;
+  flex: 0 0 65%;
+  max-width: 65%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -367,14 +425,12 @@
   gap: 12px;
 }
 
-.bank {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-start;
-}
-
 @media (max-width: 1200px) {
   .game-layout {
+    flex-direction: column;
+  }
+
+  .money-and-project {
     flex-direction: column;
   }
 
@@ -392,7 +448,11 @@
     margin: 0 auto;
   }
 
+  .player-money-panel,
+  .project-board-panel,
   .bank {
-    justify-content: center;
+    flex: 1 1 auto;
+    max-width: 100%;
+    width: 100%;
   }
 }

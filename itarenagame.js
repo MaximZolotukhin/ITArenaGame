@@ -67,10 +67,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div id="cube-face-display" class="dice-panel__value"></div>
                       </div>
                     </div>
-                    <div class="bank">
-                      <div class="badgers-panel">
-                        <div class="badgers-panel__header">${_('Баджерсы')}</div>
-                        <div class="badgers-panel__body"></div>
+                    <div class="money-and-project">
+                    <!-- Деньги игрока -->
+                      <div class="player-money-panel">
+                        <div class="player-money-panel__header">${_('Деньги игрока')}</div>
+                        <div class="player-money-panel__body"></div>
+                      </div>
+                      <!-- планшет проектов -->
+                      <div class="project-board-panel">
+                        <div class="project-board-panel__header">${_('Планшет проектов')}</div>
+                        <div class="project-board-panel__body">
+                          <img src="${g_gamethemeurl}img/table/project_table.png" alt="${_('Планшет проектов')}" class="project-board-panel__image" />
+                        </div>
+                      </div>
+                      <!-- банк -->
+                      <div class="bank">
+                        <div class="badgers-panel">
+                          <div class="badgers-panel__header">${_('Баджерсы')}</div>
+                          <div class="badgers-panel__body"></div>
+                        </div>
                       </div>
                     </div>
                     <div id="player-tables" class="player-tables"></div>
@@ -443,23 +458,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const html = coins
         .map((coin) => {
           const imageUrl = coin.image_url ? (coin.image_url.startsWith('http') ? coin.image_url : `${g_gamethemeurl}${coin.image_url}`) : ''
-          const label = coin.label || coin.name || coin.value || ''
+          const label = coin.display_label || coin.label || coin.name || coin.value || ''
           const available = typeof coin.available_quantity === 'number' ? coin.available_quantity : coin.available_quantity ?? ''
           const initial = typeof coin.initial_quantity === 'number' ? coin.initial_quantity : coin.initial_quantity ?? ''
+          const counts = available !== '' && initial !== '' ? `${available}/${initial}` : ''
 
           return `
             <div class="badgers-panel__coin" data-value="${coin.value ?? ''}">
               ${imageUrl ? `<img src="${imageUrl}" alt="${coin.name || ''}" class="badgers-panel__image" />` : ''}
               <div class="badgers-panel__info">
                 <div class="badgers-panel__label">${label}</div>
-                <div class="badgers-panel__counts">
-                  <span class="badgers-panel__count">
-                    ${_('В наличии')}: <strong>${available}</strong>
-                  </span>
-                  <span class="badgers-panel__initial">
-                    ${_('Всего')}: <strong>${initial}</strong>
-                  </span>
-                </div>
+                ${counts ? `<div class="badgers-panel__counts">${counts}</div>` : ''}
               </div>
             </div>
           `
