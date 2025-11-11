@@ -122,6 +122,9 @@
 .player-money-panel {
   flex: 0 0 15%;
   max-width: 15%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .project-board-panel {
@@ -152,6 +155,25 @@
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.player-money-panel__balance {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.player-money-panel__icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.player-money-panel__amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .project-board-panel__image {

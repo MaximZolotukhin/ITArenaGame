@@ -136,6 +136,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderEventCards(initialEventCards)
       this._renderRoundEventCards(initialEventCards)
       this._renderBadgers(gamedatas.badgers || [])
+      this._renderPlayerMoney(gamedatas.players) // Отображаем деньги игрока
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -283,6 +284,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('roundStart eventCards', eventCards)
       this._renderEventCards(eventCards)
       this._renderRoundEventCards(eventCards)
+      if (args.players) {
+        // Обновляем деньги игрока
+        Object.entries(args.players).forEach(([playerId, data]) => {
+          // Обновляем деньги игрока
+          if (!this.gamedatas.players[playerId]) {
+            // Если игрок не найден, добавляем его
+            this.gamedatas.players[playerId] = data
+          } else {
+            // Если игрок найден, обновляем его данные
+            Object.assign(this.gamedatas.players[playerId], data)
+          }
+        })
+        this._renderPlayerMoney(this.gamedatas.players) // Обновляем деньги игрока
+      }
     },
 
     notif_gameEnd: async function (args) {
@@ -480,6 +495,59 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         .join('')
 
       panelBody.innerHTML = html
+    },
+    _renderPlayerMoney: function (players) {
+      // Обновляем деньги игрока
+      const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
+      if (!panelBody) return
+
+      const playerId = this.player_id // Идентификатор игрока
+      if (!playerId) {
+        // Если игрок не найден, очищаем панель
+        panelBody.innerHTML = '' // Очищаем панель
+        return
+      }
+
+      const playerData = this._findPlayerData(players, playerId) // Получаем данные игрока
+      if (!playerData) {
+        // Если игрок не найден, очищаем панель
+        panelBody.innerHTML = ''
+        return
+      }
+
+      const amount = Number(playerData.badgers ?? 0) || 0 // Количество баджерсов
+      const coinData = this._getBestCoinForAmount(amount)
+      const imageUrl = coinData?.image_url ? (coinData.image_url.startsWith('http') ? coinData.image_url : `${g_gamethemeurl}${coinData.image_url}`) : `${g_gamethemeurl}img/money/1.png`
+
+      panelBody.innerHTML = `
+        <div class="player-money-panel__balance">
+          <img src="${imageUrl}" alt="${coinData?.name || _('Баджерсы')}" class="player-money-panel__icon" />
+          <span class="player-money-panel__amount">${amount}</span>
+        </div>
+      `
+    },
+    _findPlayerData: function (players, playerId) {
+      if (!players) return null
+      const stringId = String(playerId)
+      return players[stringId] || players[playerId] || null
+    },
+    _getBestCoinForAmount: function (amount) {
+      if (!this.badgersData || !this.badgersData.length || amount <= 0) {
+        return null
+      }
+
+      const coins = [...this.badgersData]
+        .map((coin) => ({ ...coin, value: Number(coin.value || coin.amount || 0) }))
+        .filter((coin) => coin.value > 0)
+        .sort((a, b) => a.value - b.value)
+
+      for (let i = coins.length - 1; i >= 0; i--) {
+        if (amount >= coins[i].value) {
+          return coins[i]
+        }
+      }
+
+      return coins[0] || null
     },
   })
 })

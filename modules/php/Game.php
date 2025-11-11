@@ -29,6 +29,7 @@ class Game extends \Bga\GameFramework\Table
     public static array $CARD_TYPES;
 
     public PlayerCounter $playerEnergy;
+    public PlayerCounter $playerBadgers; // Добавляем переменную для работы с баджерсами
     public Deck $eventDeck; // Добавляем переменную для работы с колодой карт событий
 
     // Названия этапов
@@ -98,6 +99,7 @@ class Game extends \Bga\GameFramework\Table
         ]); // mandatory, even if the array is empty
 
         $this->playerEnergy = $this->counterFactory->createPlayerCounter('energy');
+        $this->playerBadgers = $this->counterFactory->createPlayerCounter('badgers');
         $this->eventDeck = $this->deckFactory->createDeck('event_card');
         $this->eventDeck->init('event_card');
 
@@ -200,6 +202,7 @@ class Game extends \Bga\GameFramework\Table
             "SELECT `player_id` `id`, `player_score` `score` FROM `player`"
         );
         $this->playerEnergy->fillResult($result);
+        $this->playerBadgers->fillResult($result);
 
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
@@ -228,7 +231,9 @@ class Game extends \Bga\GameFramework\Table
      */
     protected function setupNewGame($players, $options = [])
     {
-        $this->playerEnergy->initDb(array_keys($players), initialValue: 2);
+        $playerIds = array_keys($players); // Идентификаторы игроков
+        $this->playerEnergy->initDb($playerIds, initialValue: 2);
+        $this->playerBadgers->initDb($playerIds, initialValue: 0);
 
         // Set the colors of the players with HTML color code. The default below is red/green/blue/orange/brown. The
         // number of colors defined here must correspond to the maximum number of players allowed for the gams.
@@ -277,6 +282,8 @@ class Game extends \Bga\GameFramework\Table
         $this->eventDeck->autoreshuffle = false;
         $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
         $this->eventDeck->shuffle('deck');
+
+        $this->distributeInitialBadgers($playerIds); // Распределяем начальные баджерсы между игроками
 
         // Init game statistics.
         //
@@ -335,6 +342,97 @@ class Game extends \Bga\GameFramework\Table
         usort($coins, static fn(array $a, array $b): int => $a['value'] <=> $b['value']);
 
         return $coins;
+    }
+
+    private function distributeInitialBadgers(array $playerIds, int $amountPerPlayer = 5): void // Распределяем начальные баджерсы между игроками
+    {
+        if (empty($playerIds) || $amountPerPlayer <= 0) {
+            return;
+        }
+
+        if ($this->getTotalBadgersValue() < $amountPerPlayer * count($playerIds)) {
+            return;
+        }
+
+        foreach ($playerIds as $playerId) {
+            if (!$this->withdrawBadgersFromBank($amountPerPlayer)) {
+                break;
+            }
+
+            $this->playerBadgers->inc((int)$playerId, $amountPerPlayer);
+        }
+    }
+
+    private function withdrawBadgersFromBank(int $amount): bool // Снимаем баджерсы с банка
+    {
+        if ($amount <= 0) {
+            return true;
+        }
+
+        $available = [];
+        foreach (BadgersData::getDenominations() as $value => $coinData) {
+            $available[$value] = (int)$this->getGameStateValue('badgers_supply_' . $value);
+        }
+
+        $denominations = array_keys($available);
+        rsort($denominations);
+
+        $combination = $this->findBadgersCombination($amount, $available, $denominations, 0);
+        if ($combination === null) {
+            return false;
+        }
+
+        foreach ($combination as $value => $count) {
+            if ($count <= 0) {
+                continue;
+            }
+            $current = (int)$this->getGameStateValue('badgers_supply_' . $value);
+            $this->setGameStateValue('badgers_supply_' . $value, max(0, $current - $count));
+        }
+
+        return true;
+    }
+
+    private function findBadgersCombination(int $amount, array $available, array $values, int $index): ?array // Находим комбинацию баджерсов для снятия
+    {
+        if ($amount === 0) {
+            return [];
+        }
+
+        if (!isset($values[$index])) {
+            return null;
+        }
+
+        $value = (int)$values[$index];
+        $maxCount = min($available[$value] ?? 0, intdiv($amount, $value));
+
+        for ($count = $maxCount; $count >= 0; $count--) {
+            $remaining = $amount - ($count * $value);
+            $nextAvailable = $available;
+            if ($count > 0) {
+                $nextAvailable[$value] -= $count;
+            }
+
+            $result = $this->findBadgersCombination($remaining, $nextAvailable, $values, $index + 1);
+            if ($result !== null) {
+                if ($count > 0) {
+                    $result[$value] = ($result[$value] ?? 0) + $count;
+                }
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    private function getTotalBadgersValue(): int // Возвращаем общее количество баджерсов
+    {
+        $total = 0;
+        foreach (BadgersData::getDenominations() as $value => $coinData) {
+            $total += $value * (int)$this->getGameStateValue('badgers_supply_' . $value);
+        }
+
+        return $total;
     }
 
     public function prepareRoundEventCard(): array
