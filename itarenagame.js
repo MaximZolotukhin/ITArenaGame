@@ -75,6 +75,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                     <!-- Деньги игрока -->
                       <div class="player-money-panel">
                         <div class="player-money-panel__header">${_('Деньги игрока')}</div>
+                        <div class="player-money-panel__color-badge"></div>
                         <div class="player-money-panel__body"></div>
                       </div>
                       <!-- планшет проектов -->
@@ -126,7 +127,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Мой код для таблицы игроков
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
       this.gamedatas = gamedatas
-      this.eventCardsData = gamedatas.eventCards || {}
+      this.gamedatas.gamestate = this.gamedatas.gamestate || {} // Обновляем состояние игры
+      this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
       this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
 
@@ -136,7 +138,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderEventCards(initialEventCards)
       this._renderRoundEventCards(initialEventCards)
       this._renderBadgers(gamedatas.badgers || [])
-      this._renderPlayerMoney(gamedatas.players) // Отображаем деньги игрока
+      const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
+      this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -168,6 +171,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
            */
 
         case 'dummy':
+          break
+        case 'PlayerTurn':
+          if (!this.gamedatas.gamestate) {
+            this.gamedatas.gamestate = {}
+          }
+          const activeId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+          this.gamedatas.gamestate.active_player = activeId
+          this._renderPlayerMoney(this.gamedatas.players, activeId)
           break
       }
     },
@@ -296,7 +307,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             Object.assign(this.gamedatas.players[playerId], data)
           }
         })
-        this._renderPlayerMoney(this.gamedatas.players) // Обновляем деньги игрока
+        const activeFromNotif = this._extractActivePlayerId(args) // Идентификатор активного игрока
+        if (activeFromNotif !== null) {
+          // Если идентификатор активного игрока не равен null
+          this.gamedatas.gamestate = this.gamedatas.gamestate || {}
+          this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
+        }
+        const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
+        this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
       }
     },
 
@@ -496,12 +514,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       panelBody.innerHTML = html
     },
-    _renderPlayerMoney: function (players) {
+    _renderPlayerMoney: function (players, targetPlayerId) {
       // Обновляем деньги игрока
       const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
       if (!panelBody) return
 
-      const playerId = this.player_id // Идентификатор игрока
+      const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+      const playerId = targetPlayerId ?? fallbackId // Идентификатор игрока
       if (!playerId) {
         // Если игрок не найден, очищаем панель
         panelBody.innerHTML = '' // Очищаем панель
@@ -518,6 +537,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const amount = Number(playerData.badgers ?? 0) || 0 // Количество баджерсов
       const coinData = this._getBestCoinForAmount(amount)
       const imageUrl = coinData?.image_url ? (coinData.image_url.startsWith('http') ? coinData.image_url : `${g_gamethemeurl}${coinData.image_url}`) : `${g_gamethemeurl}img/money/1.png`
+      let color = String(playerData.color || '').trim()
+      if (color && !color.startsWith('#')) {
+        color = `#${color.replace(/^#+/, '')}`
+      }
+      const panel = panelBody.closest('.player-money-panel')
+      if (panel) {
+        panel.style.setProperty('--player-money-color', color || 'rgba(255,255,255,0.6)')
+        panel.setAttribute('data-player-id', String(playerId))
+        const colorBadge = panel.querySelector('.player-money-panel__color-badge')
+        if (colorBadge) {
+          colorBadge.style.backgroundColor = color || 'rgba(255, 255, 255, 0.4)'
+        }
+      }
 
       panelBody.innerHTML = `
         <div class="player-money-panel__balance">
@@ -548,6 +580,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       return coins[0] || null
+    },
+    _getActivePlayerIdFromDatas: function (datas) {
+      // Идентификатор активного игрока
+      if (!datas) return null
+      const state = datas.gamestate || datas.gamestateData || {}
+      if (typeof state.active_player !== 'undefined' && state.active_player !== null) {
+        const value = Number(state.active_player)
+        return Number.isNaN(value) ? null : value
+      }
+      if (typeof datas.active_player !== 'undefined' && datas.active_player !== null) {
+        const value = Number(datas.active_player)
+        return Number.isNaN(value) ? null : value
+      }
+      return null
+    },
+    _extractActivePlayerId: function (args) {
+      // Идентификатор активного игрока
+      if (!args) return null
+      if (typeof args.activePlayerId !== 'undefined' && args.activePlayerId !== null) {
+        const value = Number(args.activePlayerId)
+        return Number.isNaN(value) ? null : value
+      }
+      if (typeof args.active_player !== 'undefined' && args.active_player !== null) {
+        const value = Number(args.active_player)
+        return Number.isNaN(value) ? null : value
+      }
+      return null
     },
   })
 })

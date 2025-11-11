@@ -33,7 +33,8 @@ class PlayerTurn extends GameState
         // Get some values from the current game situation from the database.
 
         return [
-            "playableCardsIds" => [1, 2],
+            "playableCardsIds" => [1, 2], // Идентификаторы доступных карт
+            "activePlayerId" => $this->game->getActivePlayerId(), // Идентификатор активного игрока
         ];
     }    
 

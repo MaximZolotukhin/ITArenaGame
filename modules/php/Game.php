@@ -199,10 +199,18 @@ class Game extends \Bga\GameFramework\Table
         // Get information about players.
         // NOTE: you can retrieve some extra field you added for "player" table in `dbmodel.sql` if you need it.
         $result["players"] = $this->getCollectionFromDb(
-            "SELECT `player_id` `id`, `player_score` `score` FROM `player`"
+            "SELECT `player_id` `id`, `player_score` `score`, `player_color` `color` FROM `player`"
         );
         $this->playerEnergy->fillResult($result);
         $this->playerBadgers->fillResult($result);
+
+        $basicInfos = $this->loadPlayersBasicInfos();
+        foreach ($result["players"] as &$player) {
+            $playerId = (int)($player['id'] ?? 0);
+            $color = $this->resolvePlayerColor($player, $basicInfos, $playerId); // Цвет игрока
+            $player['color'] = $color;
+        }
+        unset($player);
 
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
@@ -342,6 +350,28 @@ class Game extends \Bga\GameFramework\Table
         usort($coins, static fn(array $a, array $b): int => $a['value'] <=> $b['value']);
 
         return $coins;
+    }
+
+    // Определяем цвет игрока
+    private function resolvePlayerColor(array $player, array $basicInfos, int $playerId): string
+    {
+        $color = (string)($player['color'] ?? '');
+
+        if ($color === '' && isset($basicInfos[$playerId]['player_color'])) {
+            $color = (string)$basicInfos[$playerId]['player_color'];
+        }
+
+        if ($color === '') {
+            $color = (string)$this->getPlayerColorById($playerId);
+        }
+
+        if ($color !== '') {
+            $color = '#' . ltrim($color, '#');
+        } else {
+            $color = '#FFFFFF';
+        }
+
+        return $color;
     }
 
     private function distributeInitialBadgers(array $playerIds, int $amountPerPlayer = 5): void // Распределяем начальные баджерсы между игроками

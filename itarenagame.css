@@ -125,6 +125,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-left: 10px;
+  border: 2px solid var(--player-money-color, rgba(255, 255, 255, 0.2));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2), 0 0 10px var(--player-money-color, transparent);
+}
+
+.player-money-panel__color-badge {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--player-money-color, rgba(255, 255, 255, 0.3));
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.25);
 }
 
 .project-board-panel {
