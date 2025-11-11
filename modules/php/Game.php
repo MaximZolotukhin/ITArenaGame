@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace Bga\Games\itarenagame;
 
+use Bga\Games\itarenagame\BadgersData;
 use Bga\Games\itarenagame\States\PlayerTurn; // Добавляем класс PlayerTurn для работы с ходом игрока
 use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем класс PlayerCounter
 use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
@@ -57,8 +58,7 @@ class Game extends \Bga\GameFramework\Table
     private function getCubeFaces(): array
     {
         return [
-            'P', 'A', 'E', 'I', 'EI', 'AI', 'AE', 'PI', 'PE', 'PA',
-            'AEI', 'PEI', 'PAI', 'PAE', 'S', 'S', 'F', 'F', 'PS', 'SF',
+            'P', 'A', 'E', 'I', 'P', 'A', 'E', 'I', 'P', 'A', 'E', 'I', 'SF', 'SF', 'PA', 'PE', 'PI', 'AE', 'AI', 'EI'
         ];
     }
 
@@ -90,6 +90,11 @@ class Game extends \Bga\GameFramework\Table
             'players_left_in_round' => 11, // Количество игроков в раунде
             'total_rounds' => 12, // Общее количество раундов
             'round_cube_face' => 13, // Индекс текущей грани кубика (0..19)
+            'badgers_supply_1' => 20,
+            'badgers_supply_2' => 21,
+            'badgers_supply_3' => 22,
+            'badgers_supply_5' => 23,
+            'badgers_supply_10' => 24,
         ]); // mandatory, even if the array is empty
 
         $this->playerEnergy = $this->counterFactory->createPlayerCounter('energy');
@@ -210,6 +215,7 @@ class Game extends \Bga\GameFramework\Table
         $roundEventCards = $this->getRoundEventCards();
         $result['roundEventCards'] = $roundEventCards;
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
+        $result['badgers'] = $this->getBadgersSupply();
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -264,6 +270,10 @@ class Game extends \Bga\GameFramework\Table
         // Используем ключ для перевода на клиенте
         $this->globals->set('current_phase_name', 'event');
 
+        foreach (BadgersData::getInitialSupply() as $value => $quantity) {
+            $this->setGameStateInitialValue('badgers_supply_' . $value, $quantity);
+        }
+
         $this->eventDeck->autoreshuffle = false;
         $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
         $this->eventDeck->shuffle('deck');
@@ -296,6 +306,32 @@ class Game extends \Bga\GameFramework\Table
         }
 
         return $result;
+    }
+
+    /**
+     * Возвращает данные по доступной валюте "Баджерс".
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getBadgersSupply(): array
+    {
+        $coins = [];
+
+        foreach (BadgersData::getDenominations() as $value => $coinData) {
+            $available = (int)$this->getGameStateValue('badgers_supply_' . $value);
+            $coins[] = [
+                'value' => $value,
+                'name' => $coinData['name'],
+                'label' => $coinData['short_label'],
+                'initial_quantity' => (int)$coinData['quantity'],
+                'available_quantity' => $available,
+                'image_url' => $coinData['image_url'],
+            ];
+        }
+
+        usort($coins, static fn(array $a, array $b): int => $a['value'] <=> $b['value']);
+
+        return $coins;
     }
 
     public function prepareRoundEventCard(): array

@@ -51,7 +51,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                     <div class="banner-container">
                       <div id="round-banner" class="round-banner"></div>
                     </div>
-                    <div class="events-and-skills">
+                    <div class="events-and-skills"> <!-- Планшет навыков и событий -->
                       <div id="event-card-panel" class="event-card-panel">
                         <div class="event-card-panel__header">${_('Карта события')}</div>
                         <div class="event-card-panel__body"></div>
@@ -65,6 +65,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                       <div class="dice-panel">
                         <img src="${g_gamethemeurl}img/table/dice.png" alt="Dice" class="dice-panel__image" />
                         <div id="cube-face-display" class="dice-panel__value"></div>
+                      </div>
+                    </div>
+                    <div class="bank">
+                      <div class="badgers-panel">
+                        <div class="badgers-panel__header">${_('Баджерсы')}</div>
+                        <div class="badgers-panel__body"></div>
                       </div>
                     </div>
                     <div id="player-tables" class="player-tables"></div>
@@ -110,6 +116,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const initialEventCards = gamedatas.roundEventCards || []
       this._renderEventCards(initialEventCards)
       this._renderRoundEventCards(initialEventCards)
+      this._renderBadgers(gamedatas.badgers || [])
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -419,6 +426,47 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return this.gamedatas.eventCards[cardTypeArg]
       }
       return null
+    },
+    _renderBadgers: function (badgers) {
+      const panelBody = document.querySelector('.badgers-panel__body')
+      if (!panelBody) return
+
+      this.badgersData = Array.isArray(badgers) ? badgers : []
+      panelBody.innerHTML = ''
+
+      if (!this.badgersData.length) {
+        panelBody.textContent = _('Монеты отсутствуют')
+        return
+      }
+
+      const coins = [...this.badgersData].sort((a, b) => (a.value || 0) - (b.value || 0))
+      const html = coins
+        .map((coin) => {
+          const imageUrl = coin.image_url ? (coin.image_url.startsWith('http') ? coin.image_url : `${g_gamethemeurl}${coin.image_url}`) : ''
+          const label = coin.label || coin.name || coin.value || ''
+          const available = typeof coin.available_quantity === 'number' ? coin.available_quantity : coin.available_quantity ?? ''
+          const initial = typeof coin.initial_quantity === 'number' ? coin.initial_quantity : coin.initial_quantity ?? ''
+
+          return `
+            <div class="badgers-panel__coin" data-value="${coin.value ?? ''}">
+              ${imageUrl ? `<img src="${imageUrl}" alt="${coin.name || ''}" class="badgers-panel__image" />` : ''}
+              <div class="badgers-panel__info">
+                <div class="badgers-panel__label">${label}</div>
+                <div class="badgers-panel__counts">
+                  <span class="badgers-panel__count">
+                    ${_('В наличии')}: <strong>${available}</strong>
+                  </span>
+                  <span class="badgers-panel__initial">
+                    ${_('Всего')}: <strong>${initial}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+          `
+        })
+        .join('')
+
+      panelBody.innerHTML = html
     },
   })
 })
