@@ -143,6 +143,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .player-money-panel__body,
@@ -300,13 +301,22 @@
   flex: 0 0 65%;
   max-width: 65%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 8px;
 }
 
 .round-panel__wrapper {
   position: relative;
   width: 100%;
+}
+
+.round-panel__header {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .round-panel__image {
@@ -389,15 +399,29 @@
   flex: 0 0 15%;
   max-width: 15%;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   padding: 12px;
   box-sizing: border-box;
   margin-left: -10px;
   margin-right: 5px;
+}
+
+.dice-panel__header {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.dice-panel__body {
   position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .dice-panel__image {

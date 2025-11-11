@@ -57,14 +57,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="event-card-panel__body"></div>
                       </div>
                       <div class="round-panel">
+                        <div class="round-panel__header">${_('Планшет событий')}</div>
                         <div class="round-panel__wrapper">
                           <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
                           <div class="round-track"></div>
                         </div>
                       </div>
                       <div class="dice-panel">
+                        <div class="dice-panel__header">${_('Кость PAEI')}</div>
+                        <div class="dice-panel__body">
                         <img src="${g_gamethemeurl}img/table/dice.png" alt="Dice" class="dice-panel__image" />
                         <div id="cube-face-display" class="dice-panel__value"></div>
+                        </div>
                       </div>
                     </div>
                     <div class="money-and-project">
