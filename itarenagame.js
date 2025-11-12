@@ -93,6 +93,51 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         </div>
                       </div>
                     </div>
+                    <!-- Планшет игрока и его проектов -->
+                    <div class="players-table">
+                      <div class="players-table__body">
+                        <div class="it-projects">
+                          <div class="it-projects__header">${_('IT проекты')}</div>
+                          <div class="it-projects__columns">
+                            <div class="completed-projects">
+                              <div class="completed-projects__header">${_('Выполненные проекты')}</div>
+                              <div class="completed-projects__body"></div>
+                            </div>
+                            <div class="parts-of-projects">
+                              <div class="parts-of-projects__header">${_('Части проектов')}</div>
+                              <div class="parts-of-projects__body"></div>
+                            </div>
+                          </div>
+                          <div class="founder-card">
+                            <div class="founder-card__header">${_('Основатель')}</div>
+                            <div class="founder-card__body"></div>
+                          </div>
+                        </div>
+                        <div class="player-personal-board">
+                          <div class="player-personal-board__header">${_('Планшет игрока')}</div>
+                          <div class="player-personal-board__body">
+                            <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" />
+                          </div>
+                        </div>
+                        <div class="hiring-employees">
+                          <div class="hiring-employees__header">${_('Найм сотрудников')}</div>
+                          <div class="hiring-employees__body">
+                            <div class="sales-department">
+                              <div class="sales-department__header">${_('Отдел продаж')}</div>
+                              <div class="sales-department__body"></div>
+                            </div>
+                            <div class="back-office">
+                              <div class="back-office__header">${_('Бэк офис')}</div>
+                              <div class="back-office__body"></div>
+                            </div>
+                            <div class="technical-department">
+                              <div class="technical-department__header">${_('Техотдел')}</div>
+                              <div class="technical-department__body"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div id="player-tables" class="player-tables"></div>
                   </div>
                 </div>
