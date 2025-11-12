@@ -491,22 +491,14 @@ class Game extends \Bga\GameFramework\Table
         }
 
         $availableIds = array_keys($founders);
+        if (count($availableIds) < count($playerIds)) {
+            throw new \RuntimeException('Not enough founder cards to assign unique founders to all players.');
+        }
         shuffle($availableIds);
 
-        $index = 0;
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
-            if (!isset($availableIds[$index])) {
-                shuffle($availableIds);
-                $index = 0;
-                if (!isset($availableIds[$index])) {
-                    break;
-                }
-            }
-
-            $cardId = (int)$availableIds[$index];
-            $index++;
-
+            $cardId = (int)array_shift($availableIds);
             $this->setFounderForPlayer($playerId, $cardId);
         }
     }
