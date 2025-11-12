@@ -23,6 +23,19 @@ namespace Bga\Games\itarenagame;
  */
 class FoundersData
 {
+    /*
+    Отделы: sales-department - Отдел продаж
+            back-office - Бэк офис
+            technical-department - Техотдел
+            universal - Универсальный
+
+    Цвета
+    #FFFF00 - Желтый
+     #0000FF - Синий
+     #008000 - Зеленый 
+    #800000 -  Красный 
+     */
+
     /**
      * @var array<int, array<string, mixed>>
      */
@@ -33,9 +46,10 @@ class FoundersData
             'typeName' => 'Основатель', // Тип карты название на русском
             'price' => null, // Цена карты
             'name' => 'Дмитрий', // Имя основателя
-            'color' => '#ffd700', // Цвет основателя
+            'color' => '#FFFF00', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
             'effect' => '', // Эффект
+            'department' => 'universal', // Отдел
             'effectDescription' => 'Четкий старт. Возьмите 4Б, 3 карты, 3 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
             'management' => 'A', // Управление
@@ -46,168 +60,57 @@ class FoundersData
         ],
         2 => [
             'id' => 2,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Владимир', // Имя основателя
+            'color' => '#000080', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'technical-department', // Отдел
+            'effectDescription' => 'Технологии Бескодов. В фазу "спринт" улучшите минимальный трек в техотделе на 1 пункт', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'P', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Vladimir.png', // Изображение
         ],
         3 => [
             'id' => 3,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Нелли', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'universal', // Отдел
+            'effectDescription' => 'Везунчик. Вместо штрафа за карту события в фазу "Итоги" получите 1Б', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
+            'management' => 'I', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Nellie.png', // Изображение
         ],
         4 => [
             'id' => 4,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        5 => [
-            'id' => 5,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        6 => [
-            'id' => 6,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        7 => [
-            'id' => 7,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        8 => [
-            'id' => 8,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        9 => [
-            'id' => 9,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        10 => [
-            'id' => 10,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        11 => [
-            'id' => 11,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
-        ],
-        12 => [
-            'id' => 12,
-            'type' => 'founder',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Роман', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'sales-department', // Отдел
+            'effectDescription' => 'Пассионарий. Получите 2Б из банка за каждый выполненный IT проект', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'E', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Roman.png', // Изображение
         ],
     ];
 
@@ -224,12 +127,13 @@ class FoundersData
             'color' => '',
             'speciality' => '',
             'effect' => '',
+            'department' => 'universal',
             'starterOrFinisher' => '',
             'management' => '',
             'firstGame' => false,
             'additionalSkill' => '',
             'victoryPoints' => 0,
-            'img' => '',
+            'img' => 'img/founder/Dmitry.png',
         ];
     }
 

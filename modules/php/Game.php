@@ -23,6 +23,7 @@ use Bga\Games\itarenagame\States\PlayerTurn; // Добавляем класс Pl
 use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем класс PlayerCounter
 use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
 use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
+use Bga\Games\itarenagame\FoundersData;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -31,6 +32,8 @@ class Game extends \Bga\GameFramework\Table
     public PlayerCounter $playerEnergy;
     public PlayerCounter $playerBadgers; // Добавляем переменную для работы с баджерсами
     public Deck $eventDeck; // Добавляем переменную для работы с колодой карт событий
+
+    private array $founderAssignments = [];
 
     // Названия этапов
     public function getStageName(int $round): string
@@ -205,10 +208,14 @@ class Game extends \Bga\GameFramework\Table
         $this->playerBadgers->fillResult($result);
 
         $basicInfos = $this->loadPlayersBasicInfos();
+        $foundersByPlayer = $this->getFoundersByPlayer();
         foreach ($result["players"] as &$player) {
             $playerId = (int)($player['id'] ?? 0);
             $color = $this->resolvePlayerColor($player, $basicInfos, $playerId); // Цвет игрока
             $player['color'] = $color;
+            if (isset($foundersByPlayer[$playerId])) { // Если игрок имеет основателя
+                $player['founder'] = $foundersByPlayer[$playerId];
+            }
         }
         unset($player);
 
@@ -227,6 +234,7 @@ class Game extends \Bga\GameFramework\Table
         $result['roundEventCards'] = $roundEventCards;
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
         $result['badgers'] = $this->getBadgersSupply();
+        $result['founders'] = $foundersByPlayer; // Данные по основателям игроков
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -292,6 +300,7 @@ class Game extends \Bga\GameFramework\Table
         $this->eventDeck->shuffle('deck');
 
         $this->distributeInitialBadgers($playerIds); // Распределяем начальные баджерсы между игроками
+        $this->assignInitialFounders($playerIds); // Выдаем карты основателей игрокам
 
         // Init game statistics.
         //
@@ -463,6 +472,83 @@ class Game extends \Bga\GameFramework\Table
         }
 
         return $total;
+    }
+
+    private function assignInitialFounders(array $playerIds): void // Выдаем карты основателей игрокам
+    {
+        if (empty($playerIds)) {
+            return;
+        }
+
+        $existing = $this->getFoundersByPlayer();
+        if (!empty($existing)) {
+            return;
+        }
+
+        $founders = FoundersData::getAllCards();
+        if (empty($founders)) {
+            return;
+        }
+
+        $availableIds = array_keys($founders);
+        shuffle($availableIds);
+
+        $index = 0;
+        foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            if (!isset($availableIds[$index])) {
+                shuffle($availableIds);
+                $index = 0;
+                if (!isset($availableIds[$index])) {
+                    break;
+                }
+            }
+
+            $cardId = (int)$availableIds[$index];
+            $index++;
+
+            $this->setFounderForPlayer($playerId, $cardId);
+        }
+    }
+
+    private function setFounderForPlayer(int $playerId, int $cardId): void
+    {
+        $this->founderAssignments[$playerId] = $cardId;
+        $this->globals->set('founder_player_' . $playerId, $cardId);
+    }
+
+    public function getFoundersByPlayer(): array
+    {
+        if (!empty($this->founderAssignments)) {
+            return $this->expandFounders($this->founderAssignments);
+        }
+
+        $result = [];
+        foreach ($this->loadPlayersBasicInfos() as $playerId => $info) {
+            $value = $this->globals->get('founder_player_' . (int)$playerId, null);
+            if ($value !== null) {
+                $result[(int)$playerId] = (int)$value;
+            }
+        }
+
+        if (!empty($result)) {
+            $this->founderAssignments = $result;
+        }
+
+        return $this->expandFounders($result);
+    }
+
+    private function expandFounders(array $assignments): array
+    {
+        $result = [];
+        foreach ($assignments as $playerId => $cardId) {
+            $card = FoundersData::getCard((int)$cardId);
+            if ($card !== null) {
+                $result[(int)$playerId] = $card;
+            }
+        }
+
+        return $result;
     }
 
     public function prepareRoundEventCard(): array

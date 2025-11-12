@@ -43,6 +43,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             'phaseName' => $this->game->getPhaseName('event'), // Название фазы
             'roundEventCards' => $eventCards,
             'eventCard' => $eventCards[0] ?? null,
+            'founders' => $this->game->getFoundersByPlayer(),
             'i18n' => ['stageName', 'phaseName'], // Название этапа и фазы
         ]); // Уведомление о начале раунда
 

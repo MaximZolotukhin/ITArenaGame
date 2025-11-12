@@ -108,10 +108,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                               <div class="parts-of-projects__body"></div>
                             </div>
                           </div>
-                          <div class="founder-card">
-                            <div class="founder-card__header">${_('Основатель')}</div>
-                            <div class="founder-card__body"></div>
-                          </div>
                         </div>
                         <div class="player-personal-board">
                           <div class="player-personal-board__header">${_('Планшет игрока')}</div>
@@ -124,15 +120,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="hiring-employees__body">
                             <div class="sales-department">
                               <div class="sales-department__header">${_('Отдел продаж')}</div>
-                              <div class="sales-department__body"></div>
+                              <div class="sales-department__body" data-department="sales-department"></div>
                             </div>
                             <div class="back-office">
                               <div class="back-office__header">${_('Бэк офис')}</div>
-                              <div class="back-office__body"></div>
+                              <div class="back-office__body" data-department="back-office"></div>
                             </div>
                             <div class="technical-department">
                               <div class="technical-department__header">${_('Техотдел')}</div>
-                              <div class="technical-department__body"></div>
+                              <div class="technical-department__body" data-department="technical-department"></div>
                             </div>
                           </div>
                         </div>
@@ -173,6 +169,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
       this.gamedatas = gamedatas
       this.gamedatas.gamestate = this.gamedatas.gamestate || {} // Обновляем состояние игры
+      this.gamedatas.founders = gamedatas.founders || {}
+      Object.entries(this.gamedatas.founders).forEach(([playerId, founder]) => {
+        if (this.gamedatas.players?.[playerId]) {
+          this.gamedatas.players[playerId].founder = founder
+        }
+      })
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
       this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
@@ -185,6 +187,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderBadgers(gamedatas.badgers || [])
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
+      this._renderFounderCard(gamedatas.players, initialActiveId)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -224,6 +227,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           const activeId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
           this.gamedatas.gamestate.active_player = activeId
           this._renderPlayerMoney(this.gamedatas.players, activeId)
+          this._renderFounderCard(this.gamedatas.players, activeId)
           break
       }
     },
@@ -358,8 +362,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.gamedatas.gamestate = this.gamedatas.gamestate || {}
           this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
         }
+        if (args.founders) {
+          this.gamedatas.founders = args.founders
+          Object.entries(args.founders).forEach(([playerId, founder]) => {
+            if (this.gamedatas.players[playerId]) {
+              this.gamedatas.players[playerId].founder = founder
+            }
+          })
+        }
         const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
         this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
+        this._renderFounderCard(this.gamedatas.players, activeId)
       }
     },
 
@@ -602,6 +615,60 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         <div class="player-money-panel__balance">
           <img src="${imageUrl}" alt="${coinData?.name || _('Баджерсы')}" class="player-money-panel__icon" />
           <span class="player-money-panel__amount">${amount}</span>
+        </div>
+      `
+      this._renderFounderCard(players, playerId)
+    },
+    _renderFounderCard: function (players, targetPlayerId) {
+      const containers = {
+        'sales-department': document.querySelector('.sales-department__body'),
+        'back-office': document.querySelector('.back-office__body'),
+        'technical-department': document.querySelector('.technical-department__body'),
+      }
+
+      Object.values(containers).forEach((container) => {
+        if (container) {
+          container.innerHTML = ''
+        }
+      })
+
+      const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+      const playerId = targetPlayerId ?? fallbackId
+
+      const playerData = this._findPlayerData(players, playerId)
+      if (!playerData || !playerData.founder) {
+        if (containers['sales-department']) {
+          containers['sales-department'].innerHTML = `<div class="founder-card founder-card--placeholder">${_('Карта основателя не выбрана')}</div>`
+        }
+        return
+      }
+
+      const founder = playerData.founder
+      const rawDepartment = String(founder.department || '')
+        .trim()
+        .toLowerCase()
+      let department = rawDepartment
+      if (!containers[department]) {
+        department = rawDepartment === 'universal' ? 'sales-department' : 'sales-department'
+      }
+
+      const container = containers[department]
+      if (!container) {
+        return
+      }
+
+      const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
+      const name = founder.name || ''
+      const speciality = founder.speciality || founder.typeName || ''
+      const effect = founder.effectDescription || founder.effect || ''
+      const effectText = effect || _('Описание отсутствует')
+
+      container.innerHTML = `
+        <div class="founder-card" data-department="${department}">
+          ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
+          <div class="founder-card__name">${name || _('Без имени')}</div>
+          ${speciality ? `<div class="founder-card__speciality">${speciality}</div>` : ''}
+          <div class="founder-card__effect">${effectText}</div>
         </div>
       `
     },
