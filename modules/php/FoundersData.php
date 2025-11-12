@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Bga\Games\itarenagame;
 
 /**
- * Данные карт лидеров.
+ * Данные карт основателей.
  *
  * Структура полей:
  *  - type: string
@@ -17,11 +17,11 @@ namespace Bga\Games\itarenagame;
  *  - starterOrFinisher: string (char)
  *  - management: string (char)
  *  - firstGame: bool
- *  - additionalSkill: string (char)
+ *  - additionalSkill: string (char|null)
  *  - victoryPoints: int
  *  - img: string
  */
-class LeaderCardsData
+class FoundersData
 {
     /**
      * @var array<int, array<string, mixed>>
@@ -29,22 +29,24 @@ class LeaderCardsData
     private const CARDS = [
         1 => [
             'id' => 1,
-            'type' => 'leader',
-            'price' => null,
-            'name' => '',
-            'color' => '',
-            'speciality' => '',
-            'effect' => '',
-            'starterOrFinisher' => '',
-            'management' => '',
-            'firstGame' => false,
-            'additionalSkill' => '',
-            'victoryPoints' => 0,
-            'img' => '',
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Дмитрий', // Имя основателя
+            'color' => '#ffd700', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'effectDescription' => 'Четкий старт. Возьмите 4Б, 3 карты, 3 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'A', // Управление
+            'firstGame' => true, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Dmitry.png', // Изображение
         ],
         2 => [
             'id' => 2,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -59,7 +61,7 @@ class LeaderCardsData
         ],
         3 => [
             'id' => 3,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -74,7 +76,7 @@ class LeaderCardsData
         ],
         4 => [
             'id' => 4,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -89,7 +91,7 @@ class LeaderCardsData
         ],
         5 => [
             'id' => 5,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -104,7 +106,7 @@ class LeaderCardsData
         ],
         6 => [
             'id' => 6,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -119,7 +121,7 @@ class LeaderCardsData
         ],
         7 => [
             'id' => 7,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -134,7 +136,7 @@ class LeaderCardsData
         ],
         8 => [
             'id' => 8,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -149,7 +151,7 @@ class LeaderCardsData
         ],
         9 => [
             'id' => 9,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -164,7 +166,7 @@ class LeaderCardsData
         ],
         10 => [
             'id' => 10,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -179,7 +181,7 @@ class LeaderCardsData
         ],
         11 => [
             'id' => 11,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -194,7 +196,7 @@ class LeaderCardsData
         ],
         12 => [
             'id' => 12,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
@@ -216,7 +218,7 @@ class LeaderCardsData
     {
         return [
             'id' => $id,
-            'type' => 'leader',
+            'type' => 'founder',
             'price' => null,
             'name' => '',
             'color' => '',
