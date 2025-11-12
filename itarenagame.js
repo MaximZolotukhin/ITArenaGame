@@ -116,7 +116,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="player-personal-board">
                           <div class="player-personal-board__header">${_('Планшет игрока')}</div>
                           <div class="player-personal-board__body">
-                            <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" />
+                            <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
                           </div>
                         </div>
                         <div class="hiring-employees">
@@ -596,6 +596,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }
 
+      this._updatePlayerBoardImage(color)
+
       panelBody.innerHTML = `
         <div class="player-money-panel__balance">
           <img src="${imageUrl}" alt="${coinData?.name || _('Баджерсы')}" class="player-money-panel__icon" />
@@ -625,6 +627,41 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       return coins[0] || null
+    },
+    _updatePlayerBoardImage: function (color) {
+      const boardImage = document.querySelector('.player-personal-board__image')
+      if (!boardImage) return
+
+      const normalized = this._normalizeColor(color)
+      const src = this._getBoardImageForColor(normalized) || boardImage.dataset.defaultSrc || boardImage.src
+      boardImage.src = src
+    },
+    _normalizeColor: function (color) {
+      if (!color) return ''
+      const trimmed = String(color).trim()
+      if (!trimmed) return ''
+      if (trimmed.startsWith('#')) {
+        return `#${trimmed.slice(1).toLowerCase()}`
+      }
+      return `#${trimmed.replace(/^#+/, '').toLowerCase()}`
+    },
+    _getBoardImageForColor: function (normalizedColor) {
+      if (!normalizedColor) return null
+
+      const map = {
+        '#ffd700': 'player-table-yellow.png',
+        '#ff0000': 'player-table-red.png',
+        '#00ff00': 'player-table-green.png',
+        '#008000': 'player-table-green.png',
+        '#0000ff': 'player-table-blue.png',
+        '#000080': 'player-table-blue.png',
+        '#00a000': 'player-table-green.png',
+        '#ffa500': 'player-table-yellow.png',
+        '#ffff00': 'player-table-yellow.png',
+      }
+
+      const fileName = map[normalizedColor]
+      return fileName ? `${g_gamethemeurl}img/table/${fileName}` : null
     },
     _getActivePlayerIdFromDatas: function (datas) {
       // Идентификатор активного игрока
