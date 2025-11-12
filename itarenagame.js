@@ -119,15 +119,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="hiring-employees__header">${_('Найм сотрудников')}</div>
                           <div class="hiring-employees__body">
                             <div class="sales-department">
-                              <div class="sales-department__header">${_('Отдел продаж')}</div>
                               <div class="sales-department__body" data-department="sales-department"></div>
                             </div>
                             <div class="back-office">
-                              <div class="back-office__header">${_('Бэк офис')}</div>
                               <div class="back-office__body" data-department="back-office"></div>
                             </div>
                             <div class="technical-department">
-                              <div class="technical-department__header">${_('Техотдел')}</div>
                               <div class="technical-department__body" data-department="technical-department"></div>
                             </div>
                           </div>
@@ -196,6 +193,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.setupNotifications()
 
       console.log('Ending game setup')
+
+      this._setupCardZoom()
     },
 
     ///////////////////////////////////////////////////
@@ -528,6 +527,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       panelBody.innerHTML = cardsHtml
     },
+    _setupCardZoom: function () {
+      const container = document.querySelector('.game-layout')
+      if (!container) return
+
+      container.addEventListener('click', (event) => {
+        const target = event.target
+        if (!(target instanceof HTMLElement)) return
+
+        const card = target.closest('.event-card, .founder-card, .employee-card, .badge-card')
+        if (!card || !(card instanceof HTMLElement)) return
+
+        card.classList.toggle('card-zoomed')
+      })
+    },
     _getEventCardData: function (cardTypeArg) {
       if (this.eventCardsData?.[cardTypeArg]) {
         return this.eventCardsData[cardTypeArg]
@@ -666,11 +679,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       container.innerHTML = `
         <div class="founder-card" data-department="${department}">
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
-          <div class="founder-card__name">${name || _('Без имени')}</div>
-          ${speciality ? `<div class="founder-card__speciality">${speciality}</div>` : ''}
-          <div class="founder-card__effect">${effectText}</div>
-        </div>
-      `
+         </div>
+       `
     },
     _findPlayerData: function (players, playerId) {
       if (!players) return null
