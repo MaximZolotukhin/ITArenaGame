@@ -130,6 +130,24 @@ class FoundersData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Michael_Alistair.png', // Изображение
         ],
+        6 => [
+            'id' => 6,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Эмиль', // Имя основателя
+            'color' => '#FFFF00', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'universal', // Отдел
+            'effectDescription' => 'Оптимизатор. Улучшение отделов для вас, бонус трека x2', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
+            'management' => 'P', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Emil.png', // Изображение
+        ],
     ];
 
     /**
@@ -146,6 +164,7 @@ class FoundersData
             'speciality' => '',
             'effect' => '',
             'department' => 'universal',
+            'effectDescription' => '',
             'starterOrFinisher' => '',
             'management' => '',
             'firstGame' => false,
@@ -156,7 +175,7 @@ class FoundersData
     }
 
     /**
-     * Возвращает все карты основателей.
+     * Возвращает все карты лидеров.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -166,10 +185,11 @@ class FoundersData
     }
 
     /**
-     * Возвращает данные конкретной карты основателя.
+     * Возвращает данные конкретной карты-лидера.
      */
     public static function getCard(int $id): ?array
     {
         return self::CARDS[$id] ?? null;
     }
 }
+

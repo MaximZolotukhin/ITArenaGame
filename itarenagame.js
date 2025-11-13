@@ -95,7 +95,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                     </div>
                     <!-- Планшет игрока и его проектов -->
                     <div class="players-table">
-                      <!-- <div class="players-table__header">${_('IT проекты')}</div> -->
+                      <!--<div class="players-table__header">${_('IT проекты')}</div>-->
                       <div class="players-table__body">
                         <div class="it-projects">
                           <div class="it-projects__header">${_('IT проекты')}</div>
@@ -120,19 +120,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="hiring-employees__header">${_('Найм сотрудников')}</div>
                           <div class="hiring-employees__body">
                             <div class="sales-department">
-                              <div class="sales-department__body" data-department="sales-department" data-drop-label="${_('Отдел продаж')}"></div>
+                              <div class="sales-department__body" data-department="sales-department"></div>
                             </div>
-                            <div class="back-office department-slot" data-drop-label="${_('Бэк офис')}">
-                              <div class="back-office__body" data-department="back-office" data-drop-label="${_('Бэк офис')}"></div>
+                            <div class="back-office">
+                              <div class="back-office__body" data-department="back-office"></div>
                             </div>
-                            <div class="technical-department department-slot" data-drop-label="${_('Техотдел')}">
-                              <div class="technical-department__body" data-department="technical-department" data-drop-label="${_('Техотдел')}"></div>
+                            <div class="technical-department">
+                              <div class="technical-department__body" data-department="technical-department"></div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <!-- Руки игрока -->
                     <div class="active-player-hand" id="active-player-hand" hidden>
                        <div class="active-player-hand__header">${_('Руки игрока')}</div>
                       <div class="active-player-hand__body">
@@ -178,7 +177,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       // Мой код для таблицы игроков
       this.totalRounds = gamedatas.totalRounds // Общее количество раундов
-      this.gamedatas = gamedatas
+      this.gamedatas = gamedatas // Обновляем данные игры
       this.gamedatas.gamestate = this.gamedatas.gamestate || {} // Обновляем состояние игры
       this.gamedatas.founders = gamedatas.founders || {}
       Object.entries(this.gamedatas.founders).forEach(([playerId, founder]) => {
@@ -200,6 +199,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
       this._renderFounderCard(gamedatas.players, initialActiveId)
       this._toggleActivePlayerHand(initialActiveId)
+      this._updateHandHighlight(initialActiveId)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -210,7 +210,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('Ending game setup')
 
       this._setupCardZoom()
-      this._setupFounderPlacement() // Мой код для размещения основателя
+      this._setupHandInteractions()
     },
 
     ///////////////////////////////////////////////////
@@ -244,6 +244,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._renderPlayerMoney(this.gamedatas.players, activeId)
           this._renderFounderCard(this.gamedatas.players, activeId)
           this._toggleActivePlayerHand(activeId)
+          this._updateHandHighlight(activeId)
           break
       }
     },
@@ -372,6 +373,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             Object.assign(this.gamedatas.players[playerId], data)
           }
         })
+        const activeFromNotif = this._extractActivePlayerId(args) // Идентификатор активного игрока
+        if (activeFromNotif !== null) {
+          // Если идентификатор активного игрока не равен null
+          this.gamedatas.gamestate = this.gamedatas.gamestate || {}
+          this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
+        }
         if (args.founders) {
           this.gamedatas.founders = args.founders
           Object.entries(args.founders).forEach(([playerId, founder]) => {
@@ -380,47 +387,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             }
           })
         }
-        const activeFromNotif = this._extractActivePlayerId(args) // Идентификатор активного игрока
-        if (activeFromNotif !== null) {
-          // Если идентификатор активного игрока не равен null
-          this.gamedatas.gamestate = this.gamedatas.gamestate || {}
-          this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
-        }
         const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
         this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
         this._renderFounderCard(this.gamedatas.players, activeId)
         this._toggleActivePlayerHand(activeId)
-      }
-    },
-
-    notif_founderPlaced: async function (args) {
-      // Уведомление о размещении карты основателя
-      const playerId = Number(args.player_id || args.playerId) // Идентификатор игрока
-      const founder = args.founder || null // Данные карты основателя
-
-      if (founder) {
-        if (!this.gamedatas.founders) {
-          // Если данные карт основателей не найдены
-          this.gamedatas.founders = {} // Устанавливаем данные карт основателей
-        }
-        this.gamedatas.founders[playerId] = founder // Устанавливаем данные карты основателя для игрока
-
-        if (this.gamedatas.players?.[playerId]) {
-          this.gamedatas.players[playerId].founder = founder // Устанавливаем данные карты основателя для игрока
-        }
-      }
-
-      const activeId = this._getActivePlayerIdFromDatas(this.gamedatas) // Идентификатор активного игрока
-      if (activeId !== null && Number(activeId) === playerId) {
-        this._renderFounderCard(this.gamedatas.players, playerId) // Рендерим карту основателя
-      }
-
-      if (Number(playerId) === Number(this.player_id)) {
-        const handContainer = document.getElementById('active-player-hand-cards')
-        if (handContainer) {
-          handContainer.classList.remove('active-player-hand__center--selecting') // Убираем выделение руки игрока
-        }
-        this._setDepartmentHighlight(false) // Сбрасываем выделение отдела
+        this._updateHandHighlight(activeId)
       }
     },
 
@@ -700,6 +671,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       this.pendingFounderMove = null // Сбрасываем ожидание перемещения карты основателя
       this._setDepartmentHighlight(false) // Сбрасываем выделение отдела
+      this._setHandHighlight(false)
 
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId
@@ -724,16 +696,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
       const name = founder.name || ''
       const speciality = founder.speciality || founder.typeName || ''
+      const effect = founder.effectDescription || founder.effect || ''
+      const effectText = effect || _('Описание отсутствует')
 
       const cardMarkup = `
-        <div class="founder-card" data-player-id="${playerId}" data-founder-id="${founder.id}" data-department="${department}">
+        <div class="founder-card" data-department="${department}">
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
         </div>
       `
 
       if (rawDepartment === 'universal' && handContainer) {
-        handContainer.dataset.playerId = String(playerId) // Устанавливаем идентификатор игрока в руке игрока
-        handContainer.innerHTML = cardMarkup // Устанавливаем разметку карты основателя в руке игрока
+        handContainer.innerHTML = cardMarkup
       } else {
         const container = containers[department] || containers['sales-department']
         if (container) {
@@ -805,6 +778,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
         container.hidden = true
+        this._setDepartmentHighlight(false)
         return
       }
 
@@ -837,144 +811,123 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       return null
     },
-    _setupFounderPlacement: function () {
-      // Настройка размещения карты основателя
-      if (this._founderPlacementSetup) {
-        // Если настройка размещения карты основателя уже выполнена
+    _setupHandInteractions: function () {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) {
         return
       }
-      this._founderPlacementSetup = true // Устанавливаем флаг настройки размещения карты основателя
-      this.pendingFounderMove = null // Сбрасываем ожидание перемещения карты основателя
 
-      const handContainer = document.getElementById('active-player-hand-cards') // Получаем контейнер руки игрока
-      if (handContainer) {
-        // Если контейнер руки игрока найден
-        handContainer.addEventListener('click', (event) => {
-          // Добавляем обработчик клика на контейнер руки игрока
-          const card = event.target.closest('.founder-card')
-          if (!card) return
-          const playerId = Number(card.dataset.playerId)
-          if (Number(playerId) !== Number(this.player_id)) {
-            return
-          }
+      handContainer.addEventListener('click', () => {
+        const card = handContainer.querySelector('.founder-card')
+        if (!card) {
+          return
+        }
 
-          const playerData = this._findPlayerData(this.gamedatas.players, playerId)
-          if (!playerData || !playerData.founder) {
-            return
-          }
-
-          this.pendingFounderMove = {
-            playerId,
-          }
-
-          handContainer.classList.add('active-player-hand__center--selecting')
-          this._setDepartmentHighlight(true)
-        })
-      }
-
+        const isActive = card.classList.toggle('founder-card--active')
+        this._setDepartmentHighlight(isActive)
+        this._setHandHighlight(isActive)
+      })
       ;['sales-department', 'back-office', 'technical-department'].forEach((department) => {
+        // Добавляем обработчики кликов для отделов
         const container = document.querySelector(`.${department}__body`)
-        if (!container) return
+        if (!container) {
+          return
+        }
 
         container.addEventListener('click', () => {
-          if (!this.pendingFounderMove || Number(this.pendingFounderMove.playerId) !== Number(this.player_id)) {
+          const activeCard = handContainer?.querySelector('.founder-card--active')
+          if (!activeCard) {
             return
           }
 
-          const playerData = this._findPlayerData(this.gamedatas.players, this.pendingFounderMove.playerId)
-          if (!playerData || !playerData.founder) {
-            this.pendingFounderMove = null
-            this._setDepartmentHighlight(false)
-            if (handContainer) handContainer.classList.remove('active-player-hand__center--selecting')
+          if (!container.classList.contains('department-highlight')) {
             return
           }
 
-          const cleanup = () => {
-            // Очистка ожидания перемещения карты основателя
-            this.pendingFounderMove = null
-            this._setDepartmentHighlight(false)
-            if (handContainer) handContainer.classList.remove('active-player-hand__center--selecting')
+          container.innerHTML = ''
+          container.appendChild(activeCard)
+          activeCard.classList.remove('founder-card--active')
+          activeCard.classList.remove('card-zoomed')
+          const img = activeCard.querySelector('.founder-card__image')
+          if (img) {
+            img.style.transform = 'scale(1)'
+          }
+          activeCard.dataset.department = department
+
+          const playerData = this._findPlayerData(this.gamedatas.players, this.player_id)
+          if (playerData?.founder) {
+            playerData.founder.department = department
           }
 
-          this._showFounderConfirmDialog(
-            department,
-            () => {
-              this.bgaPerformAction('actPlaceFounder', { department }).then(
-                // Выполняем действие по размещению карты основателя
-                () => {
-                  cleanup() // Очистка ожидания перемещения карты основателя
-                },
-                () => {
-                  cleanup()
-                }
-              )
-            },
-            () => {
-              cleanup()
-            }
-          )
+          this._setHandHighlight(false)
+          this._setDepartmentHighlight(false)
         })
       })
     },
     _setDepartmentHighlight: function (enabled) {
-      // Установка выделения отдела
       ;['sales-department', 'back-office', 'technical-department'].forEach((department) => {
         const container = document.querySelector(`.${department}__body`)
         if (!container) return
         if (enabled) {
           container.classList.add('department-highlight')
-          container.parentElement?.classList.add('department-highlight')
+          container.setAttribute('data-highlight-label', this._getDepartmentLabel(department))
         } else {
           container.classList.remove('department-highlight')
-          container.parentElement?.classList.remove('department-highlight')
+          container.removeAttribute('data-highlight-label')
         }
       })
     },
-    _showFounderConfirmDialog: function (department, onConfirm, onCancel) {
-      // Показываем диалог подтверждения перемещения карты основателя
-      const overlay = document.createElement('div')
-      overlay.className = 'founder-dialog'
-
-      const dialog = document.createElement('div')
-      dialog.className = 'founder-dialog__content'
-
-      const title = document.createElement('div')
-      title.className = 'founder-dialog__title'
-      title.textContent = _('Перемещение карты основателя')
-
-      const body = document.createElement('div')
-      body.className = 'founder-dialog__body'
-      const deptNameMap = {
-        'sales-department': _('Отдел продаж'),
-        'back-office': _('Бэк офис'),
-        'technical-department': _('Техотдел'),
+    _getDepartmentLabel: function (department) {
+      return (
+        {
+          'sales-department': _('Отдел продаж'),
+          'back-office': _('Бэк офис'),
+          'technical-department': _('Техотдел'),
+        }[department] || department
+      )
+    },
+    _setHandHighlight: function (enabled) {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) {
+        return
       }
-      const departmentName = deptNameMap[department] || department
-      body.textContent = _('Вы хотите переместить карту в ${department}?').replace('${department}', departmentName)
 
-      const buttons = document.createElement('div')
-      buttons.className = 'founder-dialog__buttons'
+      if (enabled) {
+        handContainer.classList.add('active-player-hand__center--selecting')
+      } else {
+        handContainer.classList.remove('active-player-hand__center--selecting')
+        const card = handContainer.querySelector('.founder-card--active')
+        if (card) {
+          card.classList.remove('founder-card--active')
+        }
+      }
+    },
+    _updateHandHighlight: function (playerId) {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) {
+        return
+      }
 
-      const yesBtn = document.createElement('button')
-      yesBtn.className = 'founder-dialog__button founder-dialog__button--confirm'
-      yesBtn.textContent = _('Да')
-      yesBtn.addEventListener('click', () => {
-        document.body.removeChild(overlay)
-        onConfirm?.()
-      })
+      if (Number(playerId) !== Number(this.player_id)) {
+        this._setHandHighlight(false)
+        this._setDepartmentHighlight(false)
+        return
+      }
 
-      const noBtn = document.createElement('button')
-      noBtn.className = 'founder-dialog__button founder-dialog__button--cancel'
-      noBtn.textContent = _('Нет')
-      noBtn.addEventListener('click', () => {
-        document.body.removeChild(overlay)
-        onCancel?.()
-      })
-
-      buttons.append(yesBtn, noBtn)
-      dialog.append(title, body, buttons)
-      overlay.append(dialog)
-      document.body.append(overlay)
+      const hasCard = !!handContainer.querySelector('.founder-card')
+      if (!hasCard) {
+        this._setHandHighlight(false)
+        this._setDepartmentHighlight(false)
+      }
     },
   })
 })
+
+function _updateHandSelection(handContainer, enabled) {
+  if (!handContainer) return
+  if (enabled) {
+    handContainer.classList.add('active-player-hand__center--selecting')
+  } else {
+    handContainer.classList.remove('active-player-hand__center--selecting')
+  }
+}

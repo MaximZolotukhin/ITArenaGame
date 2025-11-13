@@ -97,15 +97,7 @@ class PlayerTurn extends GameState
     }
 
     #[PossibleAction]
-    public function actPlaceFounder(string $department, int $activePlayerId) // Размещаем карту основателя для игрока
-    {
-        $this->game->placeFounder($activePlayerId, $department); // Размещаем карту основателя для игрока
-
-        return null;
-    }
-
-    #[PossibleAction]
-    public function actFinishTurn(int $activePlayerId)
+    public function actFinishTurn(int $activePlayerId) // конец хода игрока
     {
         $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
             'player_id' => $activePlayerId,
