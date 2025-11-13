@@ -95,6 +95,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                     </div>
                     <!-- Планшет игрока и его проектов -->
                     <div class="players-table">
+                      <div class="players-table__header">${_('IT проекты')}</div>
                       <div class="players-table__body">
                         <div class="it-projects">
                           <div class="it-projects__header">${_('IT проекты')}</div>
@@ -128,6 +129,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                               <div class="technical-department__body" data-department="technical-department"></div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="active-player-hand" id="active-player-hand" hidden>
+                       <div class="active-player-hand__header">${_('Руки игрока')}</div>
+                      <div class="active-player-hand__body">
+                        <div class="active-player-hand__side active-player-hand__side--left">
+                          <img src="${g_gamethemeurl}img/table/hand-right.png" alt="${_('Рука игрока')}" class="active-player-hand__image active-player-hand__image--left" />
+                        </div>
+                        <div class="active-player-hand__center" id="active-player-hand-cards"></div>
+                        <div class="active-player-hand__side active-player-hand__side--right">
+                          <img src="${g_gamethemeurl}img/table/hand-right.png" alt="${_('Рука игрока')}" class="active-player-hand__image" />
                         </div>
                       </div>
                     </div>
@@ -185,6 +198,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
       this._renderFounderCard(gamedatas.players, initialActiveId)
+      this._toggleActivePlayerHand(initialActiveId)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -227,6 +241,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.gamedatas.gamestate.active_player = activeId
           this._renderPlayerMoney(this.gamedatas.players, activeId)
           this._renderFounderCard(this.gamedatas.players, activeId)
+          this._toggleActivePlayerHand(activeId)
           break
       }
     },
@@ -372,6 +387,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
         this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
         this._renderFounderCard(this.gamedatas.players, activeId)
+        this._toggleActivePlayerHand(activeId)
       }
     },
 
@@ -739,6 +755,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       const fileName = map[normalizedColor]
       return fileName ? `${g_gamethemeurl}img/table/${fileName}` : null
+    },
+    _toggleActivePlayerHand: function (activePlayerId) {
+      const container = document.getElementById('active-player-hand')
+      if (!container) return
+
+      if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
+        container.hidden = true
+        return
+      }
+
+      container.hidden = false
     },
     _getActivePlayerIdFromDatas: function (datas) {
       // Идентификатор активного игрока

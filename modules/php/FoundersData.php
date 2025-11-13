@@ -112,6 +112,24 @@ class FoundersData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Roman.png', // Изображение
         ],
+        5 => [
+            'id' => 5,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Михаил Алистер', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'sales-department', // Отдел
+            'effectDescription' => 'Пассионарий. Получите 2Б из банка за каждый выполненный IT проект', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'E', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Michael_Alistair.png', // Изображение
+        ],
     ];
 
     /**
