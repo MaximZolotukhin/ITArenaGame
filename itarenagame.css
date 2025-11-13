@@ -240,12 +240,6 @@
   text-align: center;
 }
 
-.founder-card--placeholder {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
-  font-style: italic;
-}
-
 .founder-card__image {
   width: 100%;
   max-width: 180px;

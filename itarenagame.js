@@ -654,12 +654,16 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         'back-office': document.querySelector('.back-office__body'),
         'technical-department': document.querySelector('.technical-department__body'),
       }
+      const handContainer = document.getElementById('active-player-hand-cards')
 
       Object.values(containers).forEach((container) => {
         if (container) {
           container.innerHTML = ''
         }
       })
+      if (handContainer) {
+        handContainer.innerHTML = ''
+      }
 
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId
@@ -678,12 +682,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         .toLowerCase()
       let department = rawDepartment
       if (!containers[department]) {
-        department = rawDepartment === 'universal' ? 'sales-department' : 'sales-department'
-      }
-
-      const container = containers[department]
-      if (!container) {
-        return
+        department = rawDepartment
       }
 
       const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
@@ -692,11 +691,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const effect = founder.effectDescription || founder.effect || ''
       const effectText = effect || _('Описание отсутствует')
 
-      container.innerHTML = `
+      const cardMarkup = `
         <div class="founder-card" data-department="${department}">
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
-         </div>
-       `
+        </div>
+      `
+
+      if (rawDepartment === 'universal' && handContainer) {
+        handContainer.innerHTML = cardMarkup
+      } else {
+        const container = containers[department] || containers['sales-department']
+        if (container) {
+          container.innerHTML = cardMarkup
+        }
+      }
     },
     _findPlayerData: function (players, playerId) {
       if (!players) return null
