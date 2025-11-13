@@ -148,6 +148,42 @@ class FoundersData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Emil.png', // Изображение
         ],
+        7 => [
+            'id' => 7,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Вардгес', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'sales-department', // Отдел
+            'effectDescription' => 'Семья это все! Возьмите 7Б из банка и возьмите 7 карт из колоды найма', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'A', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Vardges.png', // Изображение
+        ],
+        8 => [
+            'id' => 8,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Виталий', // Имя основателя
+            'color' => '#0000FF', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => '', // Эффект
+            'department' => 'technical-department', // Отдел
+            'effectDescription' => 'Комбинатор. Бонус IT проектов для вас приносит 7 ресурса', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
+            'management' => 'A', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Vitaly.png', // Изображение
+        ],
     ];
 
     /**
