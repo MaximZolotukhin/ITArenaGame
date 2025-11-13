@@ -23,7 +23,8 @@ use Bga\Games\itarenagame\States\PlayerTurn; // Добавляем класс Pl
 use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем класс PlayerCounter
 use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
 use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
-use Bga\Games\itarenagame\FoundersData;
+use Bga\Games\itarenagame\FoundersData; // Добавляем класс FoundersData для работы с картами основателей
+use Bga\GameFramework\UserException; // Добавляем класс UserException для работы с ошибками
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -499,48 +500,134 @@ class Game extends \Bga\GameFramework\Table
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
             $cardId = (int)array_shift($availableIds);
-            $this->setFounderForPlayer($playerId, $cardId);
+            $this->setFounderForPlayer($playerId, $cardId, $founders[$cardId]['department'] ?? 'universal'); // Устанавливаем карту основателя для игрока
         }
     }
 
-    private function setFounderForPlayer(int $playerId, int $cardId): void
+    private function setFounderForPlayer(int $playerId, int $cardId, ?string $department = null): void // Устанавливаем карту основателя для игрока
     {
-        $this->founderAssignments[$playerId] = $cardId;
-        $this->globals->set('founder_player_' . $playerId, $cardId);
+        $card = FoundersData::getCard($cardId); // Получаем данные карты основателя
+        if ($card === null) {
+            return;
+        }
+
+        if ($department === null || $department === '') {
+            $department = $card['department'] ?? 'universal';
+        }
+
+        $assignment = [
+            'cardId' => $cardId,
+            'department' => $department,
+        ];
+
+        $this->founderAssignments[$playerId] = $assignment;
+        $this->globals->set('founder_player_card_' . $playerId, $cardId);
+        $this->globals->set('founder_player_department_' . $playerId, $department);
     }
 
     public function getFoundersByPlayer(): array
     {
-        if (!empty($this->founderAssignments)) {
-            return $this->expandFounders($this->founderAssignments);
+        $assignments = $this->loadFounderAssignments(); // Загружаем данные по размещению карт основателей
+        $this->founderAssignments = $assignments;
+
+        return $this->expandFounders($assignments); // Разворачиваем данные по размещению карт основателей
+    }
+
+    private function expandFounders(array $assignments): array // Разворачиваем данные по размещению карт основателей
+    {
+        $result = [];
+        foreach ($assignments as $playerId => $assignment) { // Для каждого игрока
+            $cardId = (int)($assignment['cardId'] ?? 0);
+            if ($cardId <= 0) {
+                continue;
+            }
+
+            $card = FoundersData::getCard($cardId); // Получаем данные карты основателя
+            if ($card === null) {
+                continue;
+            }
+
+            $department = (string)($assignment['department'] ?? ($card['department'] ?? 'universal')); // Получаем отдел карты основателя
+            $card['department'] = $department; // Устанавливаем отдел карты основателя
+            $result[(int)$playerId] = $card; // Устанавливаем данные карты основателя для игрока
+        }
+
+        return $result;
+    }
+
+    private function loadFounderAssignments(): array // Загружаем данные по размещению карт основателей
+    {
+        if (!empty($this->founderAssignments)) { // Если данные по размещению карт основателей уже загружены
+            return $this->founderAssignments;
         }
 
         $result = [];
         foreach ($this->loadPlayersBasicInfos() as $playerId => $info) {
-            $value = $this->globals->get('founder_player_' . (int)$playerId, null);
-            if ($value !== null) {
-                $result[(int)$playerId] = (int)$value;
+            $cardValue = $this->globals->get('founder_player_card_' . (int)$playerId, null); // Получаем данные карты основателя для игрока
+            if ($cardValue === null) {
+                continue;
             }
-        }
 
-        if (!empty($result)) {
-            $this->founderAssignments = $result;
-        }
-
-        return $this->expandFounders($result);
-    }
-
-    private function expandFounders(array $assignments): array
-    {
-        $result = [];
-        foreach ($assignments as $playerId => $cardId) {
-            $card = FoundersData::getCard((int)$cardId);
-            if ($card !== null) {
-                $result[(int)$playerId] = $card;
-            }
+            $department = $this->globals->get('founder_player_department_' . (int)$playerId, null); // Получаем отдел карты основателя для игрока
+            $assignment = [
+                'cardId' => (int)$cardValue, // Устанавливаем идентификатор карты основателя
+                'department' => $department !== null ? (string)$department : null, // Устанавливаем отдел карты основателя
+            ];
+            $result[(int)$playerId] = $assignment; // Устанавливаем данные по размещению карты основателя для игрока
         }
 
         return $result;
+    }
+
+    public function placeFounder(int $playerId, string $department): void // Размещаем карту основателя для игрока
+    {
+        $department = strtolower(trim($department)); // Преобразуем отдел в нижний регистр
+        $validDepartments = ['sales-department', 'back-office', 'technical-department'];
+        if (!in_array($department, $validDepartments, true)) { // Если отдел не является допустимым 
+            throw new UserException('Invalid department');
+        }
+
+        $assignments = $this->loadFounderAssignments(); // Загружаем данные по размещению карт основателей
+        if (!isset($assignments[$playerId])) {
+            throw new UserException('Founder not assigned'); // Если карта основателя не назначена
+        }
+
+        $cardId = (int)($assignments[$playerId]['cardId'] ?? 0); // Получаем идентификатор карты основателя
+        if ($cardId <= 0) {
+            throw new UserException('Founder not assigned'); // Если карта основателя не назначена
+        }
+
+        $this->setFounderForPlayer($playerId, $cardId, $department);//
+
+        $founder = FoundersData::getCard($cardId);
+        if ($founder === null) {
+            return; // Если карта основателя не найдена 
+        }
+
+        $founder['department'] = $department;
+
+        $this->notifyAllPlayers(
+            'founderPlaced',
+            clienttranslate('${player_name} размещает карту основателя в ${department_name}'),
+            [
+                'player_id' => $playerId,
+                'player_name' => $this->getPlayerNameById($playerId),
+                'department' => $department,
+                'department_name' => $this->getDepartmentName($department),
+                'founder' => $founder,
+                'i18n' => ['department_name'],
+            ]
+        );
+    }
+
+    private function getDepartmentName(string $department): string // Возвращаем название отдела
+    {
+        return match ($department) {
+            'sales-department' => clienttranslate('Отдел продаж'),
+            'back-office' => clienttranslate('Бэк офис'),
+            'technical-department' => clienttranslate('Техотдел'),
+            default => $department,
+        };
     }
 
     public function prepareRoundEventCard(): array

@@ -156,7 +156,7 @@ class FoundersData
     }
 
     /**
-     * Возвращает все карты лидеров.
+     * Возвращает все карты основателей.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -166,11 +166,10 @@ class FoundersData
     }
 
     /**
-     * Возвращает данные конкретной карты-лидера.
+     * Возвращает данные конкретной карты основателя.
      */
     public static function getCard(int $id): ?array
     {
         return self::CARDS[$id] ?? null;
     }
 }
-
