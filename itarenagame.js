@@ -180,11 +180,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.gamedatas = gamedatas // Обновляем данные игры
       this.gamedatas.gamestate = this.gamedatas.gamestate || {} // Обновляем состояние игры
       this.gamedatas.founders = gamedatas.founders || {}
-      Object.entries(this.gamedatas.founders).forEach(([playerId, founder]) => {
-        if (this.gamedatas.players?.[playerId]) {
-          this.gamedatas.players[playerId].founder = founder
-        }
-      })
+      this.localFounders = this.localFounders || {}
+      this._applyLocalFounders()
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
       this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
@@ -373,12 +370,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             Object.assign(this.gamedatas.players[playerId], data)
           }
         })
-        const activeFromNotif = this._extractActivePlayerId(args) // Идентификатор активного игрока
-        if (activeFromNotif !== null) {
-          // Если идентификатор активного игрока не равен null
-          this.gamedatas.gamestate = this.gamedatas.gamestate || {}
-          this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
-        }
         if (args.founders) {
           this.gamedatas.founders = args.founders
           Object.entries(args.founders).forEach(([playerId, founder]) => {
@@ -386,6 +377,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               this.gamedatas.players[playerId].founder = founder
             }
           })
+        }
+        this._applyLocalFounders()
+        const activeFromNotif = this._extractActivePlayerId(args) // Идентификатор активного игрока
+        if (activeFromNotif !== null) {
+          // Если идентификатор активного игрока не равен null
+          this.gamedatas.gamestate = this.gamedatas.gamestate || {}
+          this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
         }
         const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
         this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
@@ -700,12 +698,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const effectText = effect || _('Описание отсутствует')
 
       const cardMarkup = `
-        <div class="founder-card" data-department="${department}">
+        <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
         </div>
       `
 
       if (rawDepartment === 'universal' && handContainer) {
+        handContainer.dataset.playerId = String(playerId)
         handContainer.innerHTML = cardMarkup
       } else {
         const container = containers[department] || containers['sales-department']
@@ -844,23 +843,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             return
           }
 
-          container.innerHTML = ''
-          container.appendChild(activeCard)
-          activeCard.classList.remove('founder-card--active')
-          activeCard.classList.remove('card-zoomed')
-          const img = activeCard.querySelector('.founder-card__image')
-          if (img) {
-            img.style.transform = 'scale(1)'
-          }
-          activeCard.dataset.department = department
+          const ownerId = Number(activeCard.dataset.playerId || handContainer?.dataset.playerId || this.player_id)
 
-          const playerData = this._findPlayerData(this.gamedatas.players, this.player_id)
+          const playerData = this._findPlayerData(this.gamedatas.players, ownerId)
           if (playerData?.founder) {
             playerData.founder.department = department
           }
+          if (!this.gamedatas.founders) {
+            this.gamedatas.founders = {}
+          }
+          if (this.gamedatas.founders[ownerId]) {
+            this.gamedatas.founders[ownerId].department = department
+          }
+          this.localFounders = this.localFounders || {}
+          this.localFounders[ownerId] = department
 
           this._setHandHighlight(false)
           this._setDepartmentHighlight(false)
+          this._renderFounderCard(this.gamedatas.players, ownerId)
+          this._updateHandHighlight(ownerId)
         })
       })
     },
@@ -919,6 +920,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._setHandHighlight(false)
         this._setDepartmentHighlight(false)
       }
+    },
+    _applyLocalFounders: function () {
+      if (!this.localFounders) {
+        return
+      }
+
+      Object.entries(this.localFounders).forEach(([playerId, department]) => {
+        if (this.gamedatas?.players?.[playerId]?.founder) {
+          this.gamedatas.players[playerId].founder.department = department
+        }
+        if (this.gamedatas?.founders?.[playerId]) {
+          this.gamedatas.founders[playerId].department = department
+        }
+      })
     },
   })
 })
