@@ -398,6 +398,47 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (el) el.textContent = _('Игра окончена')
     },
 
+    notif_founderPlaced: async function (args) {
+      // Обновляем данные о размещении карты основателя
+      const playerId = Number(args.player_id || 0)
+      const department = String(args.department || '').trim().toLowerCase()
+      const founder = args.founder || null
+
+      if (playerId > 0 && founder) {
+        // Обновляем данные в gamedatas
+        if (!this.gamedatas.players[playerId]) {
+          this.gamedatas.players[playerId] = {}
+        }
+        if (!this.gamedatas.players[playerId].founder) {
+          this.gamedatas.players[playerId].founder = {}
+        }
+        // Сначала обновляем данные карты, затем устанавливаем отдел
+        Object.assign(this.gamedatas.players[playerId].founder, founder)
+        // Устанавливаем отдел после обновления данных, чтобы он не перезаписывался
+        this.gamedatas.players[playerId].founder.department = department
+
+        // Обновляем данные в founders
+        if (!this.gamedatas.founders) {
+          this.gamedatas.founders = {}
+        }
+        this.gamedatas.founders[playerId] = { ...founder, department: department }
+
+        // Обновляем локальные данные
+        this.localFounders = this.localFounders || {}
+        this.localFounders[playerId] = department
+
+        // Обновляем отображение карты основателя только если это активный игрок
+        const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
+        if (activePlayerId && Number(activePlayerId) === Number(playerId)) {
+          // Это карта активного игрока, обновляем отображение
+          this._renderFounderCard(this.gamedatas.players, playerId)
+          this._updateHandHighlight(playerId)
+        }
+        // Если карта была размещена другим игроком, данные обновлены, но отображение не меняется
+        // так как на экране показывается только карта активного игрока
+      }
+    },
+
     // Helpers
     _renderRoundBanner: function (round, total, stageName, cubeFace, phaseName) {
       // Текущий раунд, Общее количество раундов, Название этапа, Значение кубика на раунд
@@ -817,9 +858,21 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       handContainer.addEventListener('click', () => {
+        // Проверяем, что это активный игрок
+        const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
+        if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
+          return // Только активный игрок может управлять картами
+        }
+
         const card = handContainer.querySelector('.founder-card')
         if (!card) {
           return
+        }
+
+        // Проверяем, что карта принадлежит текущему игроку
+        const cardOwnerId = Number(card.dataset.playerId || handContainer?.dataset.playerId || 0)
+        if (cardOwnerId !== Number(this.player_id)) {
+          return // Карта не принадлежит текущему игроку
         }
 
         const isActive = card.classList.toggle('founder-card--active')
@@ -834,6 +887,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
 
         container.addEventListener('click', () => {
+          // Проверяем, что это активный игрок
+          const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
+          if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
+            return // Только активный игрок может размещать карты
+          }
+
           const activeCard = handContainer?.querySelector('.founder-card--active')
           if (!activeCard) {
             return
@@ -843,25 +902,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             return
           }
 
-          const ownerId = Number(activeCard.dataset.playerId || handContainer?.dataset.playerId || this.player_id)
+          const ownerId = Number(activeCard.dataset.playerId || handContainer?.dataset.playerId || 0)
+          
+          // Проверяем, что карта принадлежит текущему игроку
+          if (ownerId !== Number(this.player_id)) {
+            return // Карта не принадлежит текущему игроку
+          }
 
-          const playerData = this._findPlayerData(this.gamedatas.players, ownerId)
-          if (playerData?.founder) {
-            playerData.founder.department = department
-          }
-          if (!this.gamedatas.founders) {
-            this.gamedatas.founders = {}
-          }
-          if (this.gamedatas.founders[ownerId]) {
-            this.gamedatas.founders[ownerId].department = department
-          }
-          this.localFounders = this.localFounders || {}
-          this.localFounders[ownerId] = department
-
+          // Вызываем серверное действие для размещения карты
           this._setHandHighlight(false)
           this._setDepartmentHighlight(false)
-          this._renderFounderCard(this.gamedatas.players, ownerId)
-          this._updateHandHighlight(ownerId)
+          
+          this.bgaPerformAction('actPlaceFounder', {
+            department: department,
+          }, (result) => {
+            // Действие успешно выполнено
+            console.log('Founder placed successfully:', result)
+          })
         })
       })
     },

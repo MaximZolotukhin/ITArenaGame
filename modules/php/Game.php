@@ -503,10 +503,29 @@ class Game extends \Bga\GameFramework\Table
         }
     }
 
-    private function setFounderForPlayer(int $playerId, int $cardId): void
+    private function setFounderForPlayer(int $playerId, int $cardId, ?string $department = null): void
     {
         $this->founderAssignments[$playerId] = $cardId;
         $this->globals->set('founder_player_' . $playerId, $cardId);
+        if ($department !== null) {
+            $this->globals->set('founder_department_' . $playerId, $department);
+        }
+    }
+
+    public function placeFounder(int $playerId, string $department): void
+    {
+        $validDepartments = ['sales-department', 'back-office', 'technical-department'];
+        $department = strtolower(trim($department));
+        if (!in_array($department, $validDepartments, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Invalid department'));
+        }
+
+        $cardId = $this->globals->get('founder_player_' . $playerId, null);
+        if ($cardId === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Founder not assigned to player'));
+        }
+
+        $this->setFounderForPlayer($playerId, (int)$cardId, $department);
     }
 
     public function getFoundersByPlayer(): array
@@ -536,6 +555,18 @@ class Game extends \Bga\GameFramework\Table
         foreach ($assignments as $playerId => $cardId) {
             $card = FoundersData::getCard((int)$cardId);
             if ($card !== null) {
+                // Загружаем отдел из globals, если он был установлен
+                // Если не установлен в globals, используем отдел из данных карты
+                $department = $this->globals->get('founder_department_' . (int)$playerId, null);
+                if ($department !== null) {
+                    $card['department'] = $department;
+                } elseif (isset($card['department'])) {
+                    // Отдел уже есть в данных карты (например, 'universal')
+                    // Оставляем как есть
+                } else {
+                    // Если отдела нет ни в globals, ни в данных карты, устанавливаем 'universal' по умолчанию
+                    $card['department'] = 'universal';
+                }
                 $result[(int)$playerId] = $card;
             }
         }
