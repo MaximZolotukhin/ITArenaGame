@@ -50,6 +50,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                   <div class="main-column">
                     <div class="banner-container">
                       <div id="round-banner" class="round-banner"></div>
+                      <div id="game-mode-banner" class="game-mode-banner"></div>
                     </div>
                     <div class="events-and-skills"> <!-- Планшет навыков и событий -->
                       <div id="event-card-panel" class="event-card-panel">
@@ -183,8 +184,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this.localFounders = this.localFounders || {}
       this._applyLocalFounders()
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
+
+      // Режим игры (1 - Обучающий, 2 - Основной)
+      this.gameMode = gamedatas.gameMode || 1
+      this.isTutorialMode = gamedatas.isTutorialMode !== undefined ? gamedatas.isTutorialMode : this.gameMode === 1
+
+      console.log('Game mode:', this.gameMode === 1 ? 'Tutorial' : 'Main', 'isTutorialMode:', this.isTutorialMode)
       this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
+      this._renderGameModeBanner()
 
       // Обновляем отображение кубика
       this._updateCubeFace(gamedatas.cubeFace)
@@ -472,6 +480,27 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const text = (name ? `${title} — ${name}` : title) + phase + cube
       el.textContent = text
       this._highlightRoundMarker(round)
+    },
+    _renderGameModeBanner: function () {
+      // Отображает индикатор режима игры
+      const el = document.getElementById('game-mode-banner')
+      if (!el) return
+
+      const isTutorial = this.isTutorialMode
+      const modeText = isTutorial ? _('Режим: Обучающий') : _('Режим: Основной')
+      const modeClass = isTutorial ? 'game-mode-banner--tutorial' : 'game-mode-banner--main'
+      const modeValue = this.gameMode || 1
+
+      // Добавляем детальную информацию для отладки
+      el.textContent = modeText
+      el.className = `game-mode-banner ${modeClass}`
+      el.title = `Режим игры: ${modeText}\nЗначение: ${modeValue} (1=Обучающий, 2=Основной)\n\n⚠️ Для выбора режима игры создайте новую игру и нажмите "Customize your settings..." при создании.`
+
+      console.log('Game mode banner rendered:', {
+        isTutorial: isTutorial,
+        gameMode: this.gameMode,
+        modeText: modeText,
+      })
     },
     /*
         Example:

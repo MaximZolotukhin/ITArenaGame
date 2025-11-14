@@ -35,6 +35,63 @@ class Game extends \Bga\GameFramework\Table
 
     private array $founderAssignments = [];
 
+    // Константы режимов игры (соответствуют gameoptions.json)
+    public const GAME_MODE_TUTORIAL = 1; // Обучающий режим
+    public const GAME_MODE_MAIN = 2; // Основной режим
+
+    /**
+     * Получает режим игры из опций таблицы
+     * @return int Режим игры (GAME_MODE_TUTORIAL или GAME_MODE_MAIN)
+     */
+    public function getGameMode(): int
+    {
+        $mode = $this->tableOptions->get(100); // 100 - ID опции в gameoptions.json
+        
+        // Логирование для отладки
+        error_log('Game::getGameMode() - Raw option value: ' . var_export($mode, true) . ' (type: ' . gettype($mode) . ')');
+        
+        // Проверяем на null или не установленное значение
+        if ($mode === null || $mode === false || $mode === 0 || $mode === '0' || $mode === '') {
+            // Если опция не установлена, используем обучающий режим по умолчанию
+            error_log('Game::getGameMode() - Option not set or invalid, defaulting to TUTORIAL');
+            return self::GAME_MODE_TUTORIAL;
+        }
+        
+        // Преобразуем в число (обрабатываем и строки, и числа)
+        $modeInt = (int)$mode;
+        
+        error_log('Game::getGameMode() - Parsed mode value: ' . $modeInt . ' (1=TUTORIAL, 2=MAIN)');
+        
+        // Убеждаемся, что возвращаем валидное значение
+        // 1 = Обучающий (TUTORIAL)
+        // 2 = Основной (MAIN)
+        if ($modeInt === self::GAME_MODE_TUTORIAL) {
+            error_log('Game::getGameMode() - Returning TUTORIAL mode (1)');
+            return self::GAME_MODE_TUTORIAL;
+        }
+        
+        if ($modeInt === self::GAME_MODE_MAIN) {
+            error_log('Game::getGameMode() - Returning MAIN mode (2)');
+            return self::GAME_MODE_MAIN;
+        }
+        
+        // Если значение неожиданное, используем обучающий режим по умолчанию
+        error_log('Game::getGameMode() - Unexpected mode value: ' . $modeInt . ', defaulting to TUTORIAL');
+        return self::GAME_MODE_TUTORIAL;
+    }
+
+    /**
+     * Проверяет, является ли текущий режим игры обучающим
+     * @return bool
+     */
+    public function isTutorialMode(): bool
+    {
+        $mode = $this->getGameMode();
+        $isTutorial = $mode === self::GAME_MODE_TUTORIAL;
+        error_log('Game::isTutorialMode() - Mode: ' . $mode . ', isTutorial: ' . ($isTutorial ? 'true' : 'false'));
+        return $isTutorial;
+    }
+
     // Названия этапов
     public function getStageName(int $round): string
     {
@@ -235,6 +292,8 @@ class Game extends \Bga\GameFramework\Table
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
         $result['badgers'] = $this->getBadgersSupply();
         $result['founders'] = $foundersByPlayer; // Данные по основателям игроков
+        $result['gameMode'] = $this->getGameMode(); // Режим игры (1 - Обучающий, 2 - Основной)
+        $result['isTutorialMode'] = $this->isTutorialMode(); // Является ли режим обучающим
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -490,9 +549,20 @@ class Game extends \Bga\GameFramework\Table
             return;
         }
 
+        // В обучающем режиме используем только основателей с firstGame = true
+        $isTutorial = $this->isTutorialMode();
+        if ($isTutorial) {
+            $founders = array_filter($founders, function ($founder) {
+                return isset($founder['firstGame']) && $founder['firstGame'] === true;
+            });
+        }
+
         $availableIds = array_keys($founders);
+        if (empty($availableIds)) {
+            throw new \RuntimeException('No founder cards available for assignment.');
+        }
         if (count($availableIds) < count($playerIds)) {
-            throw new \RuntimeException('Not enough founder cards to assign unique founders to all players.');
+            throw new \RuntimeException('Not enough founder cards to assign unique founders to all players. Available: ' . count($availableIds) . ', Required: ' . count($playerIds));
         }
         shuffle($availableIds);
 

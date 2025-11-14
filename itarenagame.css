@@ -670,6 +670,34 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
+.banner-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.game-mode-banner {
+  display: inline-block;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin: 0 auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.game-mode-banner--tutorial {
+  background: #4caf50;
+  color: #ffffff;
+}
+
+.game-mode-banner--main {
+  background: #2196f3;
+  color: #ffffff;
+}
+
 .player-sidebar {
   flex: 0 0 20%;
   max-width: 20%;
