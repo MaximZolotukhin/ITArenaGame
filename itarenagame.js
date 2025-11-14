@@ -758,19 +758,45 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const effect = founder.effectDescription || founder.effect || ''
       const effectText = effect || _('Описание отсутствует')
 
-      const cardMarkup = `
-        <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
-          ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
-        </div>
-      `
+      // Определяем, показывать ли карту или рубашку
+      const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
+      const isMyTurn = activePlayerId && Number(activePlayerId) === Number(this.player_id) && Number(playerId) === Number(this.player_id)
 
-      if (rawDepartment === 'universal' && handContainer) {
-        handContainer.dataset.playerId = String(playerId)
-        handContainer.innerHTML = cardMarkup
-      } else {
+      // Если карта в отделе, показываем её всегда
+      if (rawDepartment !== 'universal') {
         const container = containers[department] || containers['sales-department']
         if (container) {
+          const cardMarkup = `
+            <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
+              ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
+            </div>
+          `
           container.innerHTML = cardMarkup
+        }
+        return
+      }
+
+      // Если карта на руке (universal), проверяем, показывать ли её или рубашку
+      if (handContainer) {
+        handContainer.dataset.playerId = String(playerId)
+
+        if (isMyTurn) {
+          // Это мой ход, показываю свою карту
+          const cardMarkup = `
+            <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
+              ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
+            </div>
+          `
+          handContainer.innerHTML = cardMarkup
+        } else {
+          // Это ход другого игрока или не мой ход, показываю рубашку
+          const backImageUrl = `${g_gamethemeurl}img/back-cards.png`
+          const backCardMarkup = `
+            <div class="founder-card founder-card--back" data-player-id="${playerId}" data-department="${department}">
+              <img src="${backImageUrl}" alt="${_('Рубашка карты')}" class="founder-card__image" />
+            </div>
+          `
+          handContainer.innerHTML = backCardMarkup
         }
       }
     },
@@ -836,13 +862,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const container = document.getElementById('active-player-hand')
       if (!container) return
 
-      if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
+      // Рука всегда видна, когда есть активный игрок (чтобы все видели рубашки, если это не их ход)
+      if (!activePlayerId) {
         container.hidden = true
         this._setDepartmentHighlight(false)
         return
       }
 
+      // Показываем руку активного игрока всем игрокам
       container.hidden = false
+
+      // Убираем подсветку отделов, если это не мой ход
+      if (Number(activePlayerId) !== Number(this.player_id)) {
+        this._setDepartmentHighlight(false)
+      }
     },
     _getActivePlayerIdFromDatas: function (datas) {
       // Идентификатор активного игрока
@@ -887,6 +920,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const card = handContainer.querySelector('.founder-card')
         if (!card) {
           return
+        }
+
+        // Проверяем, что это не рубашка карты
+        if (card.classList.contains('founder-card--back')) {
+          return // Рубашка карты не кликабельна
         }
 
         // Проверяем, что карта принадлежит текущему игроку
