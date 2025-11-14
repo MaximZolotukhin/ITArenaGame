@@ -551,10 +551,43 @@ class Game extends \Bga\GameFramework\Table
 
         // В обучающем режиме используем только основателей с firstGame = true
         $isTutorial = $this->isTutorialMode();
+        error_log('assignInitialFounders - isTutorialMode: ' . ($isTutorial ? 'true' : 'false'));
+        error_log('assignInitialFounders - Total founders before filter: ' . count($founders));
+        
         if ($isTutorial) {
-            $founders = array_filter($founders, function ($founder) {
-                return isset($founder['firstGame']) && $founder['firstGame'] === true;
-            });
+            $foundersBeforeFilter = count($founders);
+            error_log('assignInitialFounders - Tutorial mode: filtering founders with firstGame = true');
+            
+            // Фильтруем только карты с firstGame = true (строгая проверка)
+            $filteredFounders = [];
+            foreach ($founders as $cardId => $founder) {
+                $hasFirstGame = isset($founder['firstGame']);
+                $firstGameValue = $hasFirstGame ? $founder['firstGame'] : null;
+                $firstGameType = $hasFirstGame ? gettype($founder['firstGame']) : 'not set';
+                
+                // Строгая проверка: только true (булево), 1 (число) или '1' (строка)
+                $isTrue = $hasFirstGame && (
+                    $founder['firstGame'] === true || 
+                    $founder['firstGame'] === 1 || 
+                    $founder['firstGame'] === '1'
+                );
+                
+                $founderId = $founder['id'] ?? $cardId;
+                $founderName = $founder['name'] ?? 'unknown';
+                
+                if ($isTrue) {
+                    $filteredFounders[$cardId] = $founder;
+                    error_log('assignInitialFounders - Keeping founder ID ' . $founderId . ' (' . $founderName . ') - firstGame: ' . var_export($firstGameValue, true) . ' (type: ' . $firstGameType . ')');
+                } else {
+                    error_log('assignInitialFounders - Filtering out founder ID ' . $founderId . ' (' . $founderName . ') - firstGame: ' . var_export($firstGameValue, true) . ' (type: ' . $firstGameType . ')');
+                }
+            }
+            
+            $founders = $filteredFounders;
+            $foundersAfterFilter = count($founders);
+            error_log('assignInitialFounders - Total founders after filter: ' . $foundersAfterFilter . ' (filtered out: ' . ($foundersBeforeFilter - $foundersAfterFilter) . ')');
+        } else {
+            error_log('assignInitialFounders - NOT tutorial mode, using all founders');
         }
 
         $availableIds = array_keys($founders);
@@ -564,11 +597,33 @@ class Game extends \Bga\GameFramework\Table
         if (count($availableIds) < count($playerIds)) {
             throw new \RuntimeException('Not enough founder cards to assign unique founders to all players. Available: ' . count($availableIds) . ', Required: ' . count($playerIds));
         }
+        
+        // Дополнительная проверка в обучающем режиме: убеждаемся, что все карты имеют firstGame = true
+        if ($isTutorial) {
+            foreach ($availableIds as $cardId) {
+                $founder = $founders[$cardId] ?? null;
+                if ($founder === null) {
+                    error_log('assignInitialFounders - WARNING: Founder ID ' . $cardId . ' not found in filtered array!');
+                    continue;
+                }
+                $firstGame = $founder['firstGame'] ?? null;
+                $name = $founder['name'] ?? 'unknown';
+                if (!($firstGame === true || $firstGame === 1 || $firstGame === '1')) {
+                    error_log('assignInitialFounders - ERROR: Founder ID ' . $cardId . ' (' . $name . ') has firstGame = ' . var_export($firstGame, true) . ' but should be true!');
+                    throw new \RuntimeException('Invalid founder card in tutorial mode: ID ' . $cardId . ' (' . $name . ') has firstGame = ' . var_export($firstGame, true));
+                }
+                error_log('assignInitialFounders - Verified founder ID ' . $cardId . ' (' . $name . ') - firstGame: ' . var_export($firstGame, true));
+            }
+        }
+        
         shuffle($availableIds);
 
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
             $cardId = (int)array_shift($availableIds);
+            $founder = $founders[$cardId] ?? null;
+            $founderName = $founder['name'] ?? 'unknown';
+            error_log('assignInitialFounders - Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
             $this->setFounderForPlayer($playerId, $cardId);
         }
     }
