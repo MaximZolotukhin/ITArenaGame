@@ -279,13 +279,24 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         switch (stateName) {
           case 'PlayerTurn':
             const playableCardsIds = args.playableCardsIds // returned by the argPlayerTurn
+            const mustPlaceFounder = args.mustPlaceFounder === true // Обязательно ли разместить карту основателя
 
             // Add test action buttons in the action status bar, simulating a card click:
             // Мой код для кнопок действий
             playableCardsIds.forEach((cardId) => this.statusBar.addActionButton(_('Play card with id ${card_id}').replace('${card_id}', cardId), () => this.onCardClick(cardId)))
 
             this.statusBar.addActionButton(_('Pass'), () => this.bgaPerformAction('actPass'), { color: 'secondary' })
-            this.statusBar.addActionButton(_('Завершить ход'), () => this.bgaPerformAction('actFinishTurn'), { primary: true })
+
+            // Кнопка завершения хода: блокируется, если нужно разместить карту основателя
+            const finishTurnButton = this.statusBar.addActionButton(_('Завершить ход'), () => this.bgaPerformAction('actFinishTurn'), {
+              primary: true,
+              disabled: mustPlaceFounder,
+              tooltip: mustPlaceFounder ? _('Вы должны разместить карту основателя в один из отделов перед завершением хода') : undefined,
+              id: 'finish-turn-button', // ID для обновления состояния кнопки
+            })
+
+            // Сохраняем ссылку на кнопку для обновления состояния после размещения карты
+            this.finishTurnButton = finishTurnButton
             break
         }
       }
@@ -401,7 +412,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     notif_founderPlaced: async function (args) {
       // Обновляем данные о размещении карты основателя
       const playerId = Number(args.player_id || 0)
-      const department = String(args.department || '').trim().toLowerCase()
+      const department = String(args.department || '')
+        .trim()
+        .toLowerCase()
       const founder = args.founder || null
 
       if (playerId > 0 && founder) {
@@ -433,6 +446,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Это карта активного игрока, обновляем отображение
           this._renderFounderCard(this.gamedatas.players, playerId)
           this._updateHandHighlight(playerId)
+
+          // Обновляем состояние кнопки завершения хода: разблокируем, так как карта размещена
+          if (this.finishTurnButton && this.finishTurnButton instanceof HTMLElement) {
+            this.finishTurnButton.disabled = false
+            this.finishTurnButton.title = ''
+            this.finishTurnButton.classList.remove('disabled')
+          }
         }
         // Если карта была размещена другим игроком, данные обновлены, но отображение не меняется
         // так как на экране показывается только карта активного игрока
@@ -903,7 +923,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           }
 
           const ownerId = Number(activeCard.dataset.playerId || handContainer?.dataset.playerId || 0)
-          
+
           // Проверяем, что карта принадлежит текущему игроку
           if (ownerId !== Number(this.player_id)) {
             return // Карта не принадлежит текущему игроку
@@ -912,13 +932,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Вызываем серверное действие для размещения карты
           this._setHandHighlight(false)
           this._setDepartmentHighlight(false)
-          
-          this.bgaPerformAction('actPlaceFounder', {
-            department: department,
-          }, (result) => {
-            // Действие успешно выполнено
-            console.log('Founder placed successfully:', result)
-          })
+
+          this.bgaPerformAction(
+            'actPlaceFounder',
+            {
+              department: department,
+            },
+            (result) => {
+              // Действие успешно выполнено
+              console.log('Founder placed successfully:', result)
+            }
+          )
         })
       })
     },

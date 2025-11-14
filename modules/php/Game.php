@@ -528,6 +528,24 @@ class Game extends \Bga\GameFramework\Table
         $this->setFounderForPlayer($playerId, (int)$cardId, $department);
     }
 
+    /**
+     * Проверяет, есть ли у игрока универсальная карта основателя на руках
+     * (не размещенная в отдел)
+     */
+    public function hasUnplacedUniversalFounder(int $playerId): bool
+    {
+        $founders = $this->getFoundersByPlayer();
+        if (!isset($founders[$playerId])) {
+            return false;
+        }
+
+        $founder = $founders[$playerId];
+        $department = strtolower(trim($founder['department'] ?? ''));
+        
+        // Если отдел 'universal', значит карта еще на руках
+        return $department === 'universal';
+    }
+
     public function getFoundersByPlayer(): array
     {
         if (!empty($this->founderAssignments)) {

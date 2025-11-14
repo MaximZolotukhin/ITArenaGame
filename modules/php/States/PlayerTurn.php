@@ -31,10 +31,14 @@ class PlayerTurn extends GameState
     public function getArgs(): array
     {
         // Get some values from the current game situation from the database.
+        $activePlayerIdRaw = $this->game->getActivePlayerId();
+        $activePlayerId = is_int($activePlayerIdRaw) ? $activePlayerIdRaw : (int)$activePlayerIdRaw;
+        $mustPlaceFounder = $this->game->hasUnplacedUniversalFounder($activePlayerId);
 
         return [
             "playableCardsIds" => [1, 2], // Идентификаторы доступных карт
-            "activePlayerId" => $this->game->getActivePlayerId(), // Идентификатор активного игрока
+            "activePlayerId" => $activePlayerId, // Идентификатор активного игрока
+            "mustPlaceFounder" => $mustPlaceFounder, // Обязательно ли разместить карту основателя
         ];
     }    
 
@@ -122,6 +126,11 @@ class PlayerTurn extends GameState
     #[PossibleAction]
     public function actFinishTurn(int $activePlayerId) // конец хода игрока
     {
+        // Проверяем, есть ли у игрока неразмещенная универсальная карта основателя
+        if ($this->game->hasUnplacedUniversalFounder($activePlayerId)) {
+            throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));
+        }
+
         $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
             'player_id' => $activePlayerId,
             'player_name' => $this->game->getPlayerNameById($activePlayerId),
