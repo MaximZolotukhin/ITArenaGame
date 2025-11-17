@@ -294,6 +294,14 @@ class Game extends \Bga\GameFramework\Table
         $result['founders'] = $foundersByPlayer; // Данные по основателям игроков
         $result['gameMode'] = $this->getGameMode(); // Режим игры (1 - Обучающий, 2 - Основной)
         $result['isTutorialMode'] = $this->isTutorialMode(); // Является ли режим обучающим
+        
+        // В основном режиме передаем карты на выбор для текущего игрока (если еще не выбрал)
+        if (!$this->isTutorialMode()) {
+            $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
+            if (!empty($founderOptions)) {
+                $result['founderOptions'] = $founderOptions; // Карты на выбор для текущего игрока
+            }
+        }
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -370,8 +378,18 @@ class Game extends \Bga\GameFramework\Table
         // $this->playerStats->init('player_teststat1', 0);
 
         // TODO: Setup the initial game situation here.
-        // Переходим в фазу 1: "Событие" (кубик и объявление раунда)
-        return \Bga\Games\itarenagame\States\RoundEvent::class;
+        // В основном режиме сначала игроки выбирают карты основателей
+        // В обучающем режиме сразу переходим к событию раунда
+        $isTutorial = $this->isTutorialMode();
+        if ($isTutorial) {
+            // Обучающий режим: сразу переходим в фазу "Событие"
+            return \Bga\Games\itarenagame\States\RoundEvent::class;
+        } else {
+            // Основной режим: сначала игроки выбирают карты основателей
+            // Устанавливаем первого активного игрока перед переходом в состояние выбора
+            $this->activeNextPlayer();
+            return \Bga\Games\itarenagame\States\FounderSelection::class;
+        }
     }
 
     private function getRoundEventCards(): array
@@ -618,13 +636,35 @@ class Game extends \Bga\GameFramework\Table
         
         shuffle($availableIds);
 
-        foreach ($playerIds as $playerId) {
-            $playerId = (int)$playerId;
-            $cardId = (int)array_shift($availableIds);
-            $founder = $founders[$cardId] ?? null;
-            $founderName = $founder['name'] ?? 'unknown';
-            error_log('assignInitialFounders - Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
-            $this->setFounderForPlayer($playerId, $cardId);
+        if ($isTutorial) {
+            // В обучающем режиме: раздаем по одной карте каждому игроку
+            foreach ($playerIds as $playerId) {
+                $playerId = (int)$playerId;
+                $cardId = (int)array_shift($availableIds);
+                $founder = $founders[$cardId] ?? null;
+                $founderName = $founder['name'] ?? 'unknown';
+                error_log('assignInitialFounders - Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
+                $this->setFounderForPlayer($playerId, $cardId);
+            }
+        } else {
+            // В основном режиме: раздаем по 3 карты каждому игроку для выбора
+            foreach ($playerIds as $playerId) {
+                $playerId = (int)$playerId;
+                $playerOptions = [];
+                
+                // Берем 3 карты для этого игрока
+                for ($i = 0; $i < 3; $i++) {
+                    if (empty($availableIds)) {
+                        throw new \RuntimeException('Not enough founder cards for player ' . $playerId . '. Need 3, but only ' . count($availableIds) . ' available.');
+                    }
+                    $cardId = (int)array_shift($availableIds);
+                    $playerOptions[] = $cardId;
+                }
+                
+                // Сохраняем опции для игрока в globals
+                $this->globals->set('founder_options_' . $playerId, json_encode($playerOptions));
+                error_log('assignInitialFounders - Assigned 3 founder options to player ' . $playerId . ': ' . implode(', ', $playerOptions));
+            }
         }
     }
 
@@ -635,6 +675,92 @@ class Game extends \Bga\GameFramework\Table
         if ($department !== null) {
             $this->globals->set('founder_department_' . $playerId, $department);
         }
+    }
+
+    /**
+     * Получает карты основателей на выбор для игрока (только для основного режима)
+     * @param int $playerId
+     * @return array Массив карт основателей
+     */
+    public function getFounderOptionsForPlayer(int $playerId): array
+    {
+        $optionsJson = $this->globals->get('founder_options_' . $playerId, null);
+        if ($optionsJson === null) {
+            return [];
+        }
+
+        $cardIds = json_decode($optionsJson, true);
+        if (!is_array($cardIds)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($cardIds as $cardId) {
+            $card = FoundersData::getCard((int)$cardId);
+            if ($card !== null) {
+                $result[] = $card;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Выбирает карту основателя для игрока (только для основного режима)
+     * @param int $playerId
+     * @param int $cardId
+     */
+    public function selectFounderForPlayer(int $playerId, int $cardId): void
+    {
+        // Проверяем, что карта доступна для выбора
+        $options = $this->getFounderOptionsForPlayer($playerId);
+        $availableIds = array_column($options, 'id');
+        
+        if (!in_array($cardId, $availableIds, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Invalid founder card selected'));
+        }
+
+        // Проверяем, что карта еще не выбрана
+        $existingCardId = $this->globals->get('founder_player_' . $playerId, null);
+        if ($existingCardId !== null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Founder already selected'));
+        }
+
+        // Получаем данные карты, чтобы проверить её department
+        $founderCard = FoundersData::getCard($cardId);
+        $founderDepartment = $founderCard['department'] ?? 'universal';
+        
+        // Если карта не универсальная, автоматически размещаем её в соответствующий отдел
+        // Если универсальная, оставляем на руке (department='universal')
+        if ($founderDepartment !== 'universal') {
+            // Автоматически размещаем карту в отдел
+            $this->setFounderForPlayer($playerId, $cardId, $founderDepartment);
+        } else {
+            // Оставляем на руке для ручного размещения
+            $this->setFounderForPlayer($playerId, $cardId, 'universal');
+        }
+
+        // Удаляем опции выбора (они больше не нужны - две другие карты уходят в сброс)
+        $this->globals->set('founder_options_' . $playerId, null);
+    }
+
+    /**
+     * Проверяет, все ли игроки выбрали карты основателей
+     * @return bool
+     */
+    public function allPlayersSelectedFounders(): bool
+    {
+        $playerIds = array_keys($this->loadPlayersBasicInfos());
+        
+        foreach ($playerIds as $playerId) {
+            $cardId = $this->globals->get('founder_player_' . (int)$playerId, null);
+            if ($cardId === null) {
+                // Игрок еще не выбрал карту
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     public function placeFounder(int $playerId, string $department): void

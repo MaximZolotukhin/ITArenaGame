@@ -28,6 +28,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
     function onEnteringState(int $activePlayerId) {
         // Give some extra time to the active player when he completed an action
         $this->game->giveExtraTime($activePlayerId);
+        
         // Мой код для уведомления о конце раунда
         $this->notify->all('roundEnd', clienttranslate('Конец раунда ${round}'), [
             'round' => (int)$this->game->getGameStateValue('round_number'), // Текущий раунд
@@ -59,6 +60,42 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             return RoundEvent::class;
         }
 
+        // Проверяем, есть ли еще игроки, которые не выбрали карты основателей (для основного режима)
+        $isTutorial = $this->game->isTutorialMode();
+        
+        if (!$isTutorial) {
+            // Основной режим: проверяем, все ли игроки выбрали карты
+            $allPlayersSelected = $this->game->allPlayersSelectedFounders();
+            
+            if (!$allPlayersSelected) {
+                // Еще есть игроки без выбранных карт - переходим к выбору карты
+                $this->game->activeNextPlayer();
+                $nextPlayerId = $this->game->getActivePlayerId();
+                
+                // Проверяем, выбрал ли следующий игрок карту
+                $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
+                if ($nextPlayerFounder === null) {
+                    // Игрок еще не выбрал карту - переходим к выбору
+                    return FounderSelection::class;
+                } else {
+                    // Игрок уже выбрал карту - переходим к его ходу
+                    return PlayerTurn::class;
+                }
+            } else {
+                // Все игроки выбрали карты - проверяем, все ли завершили свои ходы
+                if ($remaining === 0) {
+                    // Все игроки завершили свои ходы - переходим к RoundEvent
+                    // Это начало первого раунда после выбора карт
+                    return RoundEvent::class;
+                } else {
+                    // Еще есть игроки, которые не завершили ходы - продолжаем обычную игру
+                    $this->game->activeNextPlayer();
+                    return PlayerTurn::class;
+                }
+            }
+        }
+        
+        // Обучающий режим: обычный переход к следующему игроку
         // Move to next active player and continue normal play
         // Мой код для перехода к следующему игроку
         $this->game->activeNextPlayer();
