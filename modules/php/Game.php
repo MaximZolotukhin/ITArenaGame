@@ -24,6 +24,7 @@ use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем �
 use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
 use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
 use Bga\Games\itarenagame\FoundersData;
+use Bga\Games\itarenagame\SpecialistsData;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -116,7 +117,7 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /** Возвращает список граней кубика (20 значений) */
-    private function getCubeFaces(): array
+    public function getCubeFaces(): array
     {
         return [
             'P', 'A', 'E', 'I', 'P', 'A', 'E', 'I', 'P', 'A', 'E', 'I', 'SF', 'SF', 'PA', 'PE', 'PI', 'AE', 'AI', 'EI'
@@ -283,6 +284,9 @@ class Game extends \Bga\GameFramework\Table
         $faces = $this->getCubeFaces(); // Значения граней кубика
         $faceIndex = (int)$this->getGameStateValue('round_cube_face'); // Индекс текущей грани кубика (0..19)
         $result['cubeFace'] = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : ''; // Значение кубика на раунд
+        
+        // Логирование для отладки
+        error_log('Game::getAllDatas() - cubeFace: ' . var_export($result['cubeFace'], true) . ', faceIndex: ' . $faceIndex);
         // Текущее имя фазы из глобальной переменной (переводим ключ в название)
         $phaseKey = $this->globals->get('current_phase_name', '');
         $result['phaseName'] = $this->getPhaseName($phaseKey);
@@ -366,9 +370,6 @@ class Game extends \Bga\GameFramework\Table
         $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
         $this->eventDeck->shuffle('deck');
 
-        $this->distributeInitialBadgers($playerIds); // Распределяем начальные баджерсы между игроками
-        $this->assignInitialFounders($playerIds); // Выдаем карты основателей игрокам
-
         // Init game statistics.
         //
         // NOTE: statistics used in this file must be defined in your `stats.inc.php` file.
@@ -378,18 +379,9 @@ class Game extends \Bga\GameFramework\Table
         // $this->playerStats->init('player_teststat1', 0);
 
         // TODO: Setup the initial game situation here.
-        // В основном режиме сначала игроки выбирают карты основателей
-        // В обучающем режиме сразу переходим к событию раунда
-        $isTutorial = $this->isTutorialMode();
-        if ($isTutorial) {
-            // Обучающий режим: сразу переходим в фазу "Событие"
-            return \Bga\Games\itarenagame\States\RoundEvent::class;
-        } else {
-            // Основной режим: сначала игроки выбирают карты основателей
-            // Устанавливаем первого активного игрока перед переходом в состояние выбора
-            $this->activeNextPlayer();
-            return \Bga\Games\itarenagame\States\FounderSelection::class;
-        }
+        // Переходим в состояние подготовки игры
+        // Вся логика подготовки (раздача денег, карт, установка планшетов) будет в GameSetup
+        return \Bga\Games\itarenagame\States\GameSetup::class;
     }
 
     private function getRoundEventCards(): array
@@ -460,7 +452,7 @@ class Game extends \Bga\GameFramework\Table
         return $color;
     }
 
-    private function distributeInitialBadgers(array $playerIds, int $amountPerPlayer = 5): void // Распределяем начальные баджерсы между игроками
+    public function distributeInitialBadgers(array $playerIds, int $amountPerPlayer = 5): void // Распределяем начальные баджерсы между игроками
     {
         if (empty($playerIds) || $amountPerPlayer <= 0) {
             return;
@@ -551,7 +543,7 @@ class Game extends \Bga\GameFramework\Table
         return $total;
     }
 
-    private function assignInitialFounders(array $playerIds): void // Выдаем карты основателей игрокам
+    public function assignInitialFounders(array $playerIds): void // Выдаем карты основателей игрокам
     {
         if (empty($playerIds)) {
             return;
@@ -1057,4 +1049,110 @@ class Game extends \Bga\GameFramework\Table
         $this->cards->moveCard($card['id'], 'hand', $playerId);
     }
     */
+
+    /**
+     * Раздает стартовые карты специалистов игрокам
+     * @param array $playerIds Массив ID игроков
+     */
+    public function distributeStartingSpecialistCards(array $playerIds): void
+    {
+        if (empty($playerIds)) {
+            return;
+        }
+
+        // Получаем все карты специалистов
+        $allSpecialists = SpecialistsData::getAllCards();
+        
+        // Фильтруем только стартовые карты (starterOrFinisher = 'S')
+        $startingSpecialists = [];
+        foreach ($allSpecialists as $cardId => $card) {
+            if (isset($card['starterOrFinisher']) && $card['starterOrFinisher'] === 'S') {
+                $startingSpecialists[$cardId] = $card;
+            }
+        }
+
+        if (empty($startingSpecialists)) {
+            error_log('distributeStartingSpecialistCards - No starting specialist cards found');
+            return;
+        }
+
+        // Раздаем по одной стартовой карте каждому игроку
+        $availableIds = array_keys($startingSpecialists);
+        shuffle($availableIds);
+
+        foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            if (empty($availableIds)) {
+                // Если карт не хватает, перемешиваем заново
+                $availableIds = array_keys($startingSpecialists);
+                shuffle($availableIds);
+            }
+            
+            $cardId = (int)array_shift($availableIds);
+            $card = $startingSpecialists[$cardId] ?? null;
+            
+            if ($card !== null) {
+                // Сохраняем карту специалиста для игрока в globals
+                $playerSpecialists = json_decode($this->globals->get('specialist_cards_' . $playerId, '[]'), true);
+                if (!is_array($playerSpecialists)) {
+                    $playerSpecialists = [];
+                }
+                $playerSpecialists[] = $cardId;
+                $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
+                
+                error_log('distributeStartingSpecialistCards - Assigned specialist card ' . $cardId . ' to player ' . $playerId);
+            }
+        }
+    }
+
+    /**
+     * Раздает стартовые проекты игрокам
+     * @param array $playerIds Массив ID игроков
+     */
+    public function distributeStartingProjects(array $playerIds): void
+    {
+        if (empty($playerIds)) {
+            return;
+        }
+
+        // TODO: Реализовать раздачу стартовых проектов
+        // Пока что это заглушка - нужно будет добавить ProjectCardsData и логику раздачи
+        error_log('distributeStartingProjects - Called for ' . count($playerIds) . ' players');
+        
+        // Пример структуры (когда будет реализовано):
+        // $allProjects = ProjectCardsData::getAllCards();
+        // $startingProjects = [];
+        // foreach ($allProjects as $cardId => $card) {
+        //     if (isset($card['isStarting']) && $card['isStarting'] === true) {
+        //         $startingProjects[$cardId] = $card;
+        //     }
+        // }
+        // 
+        // foreach ($playerIds as $playerId) {
+        //     // Раздаем проекты игроку
+        //     $this->globals->set('project_cards_' . $playerId, json_encode([...]));
+        // }
+    }
+
+    /**
+     * Устанавливает компоненты на планшеты игроков
+     * @param array $playerIds Массив ID игроков
+     */
+    public function setupPlayerBoards(array $playerIds): void
+    {
+        if (empty($playerIds)) {
+            return;
+        }
+
+        // Устанавливаем начальные компоненты на планшеты
+        // Это может включать размещение маркеров, установку начальных значений и т.д.
+        foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            
+            // Устанавливаем флаг, что планшет готов
+            $this->globals->set('board_setup_' . $playerId, true);
+            
+            error_log('setupPlayerBoards - Board setup completed for player ' . $playerId);
+        }
+    }
 }

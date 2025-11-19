@@ -23,6 +23,41 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
         ); // Родительский конструктор
     }
 
+    public function getArgs(): array
+    {
+        // Получаем данные кубика и карт событий
+        // Проверяем, готовы ли данные (кубик брошен, карты подготовлены)
+        $round = (int)$this->game->getGameStateValue('round_number');
+        $faceIndex = (int)$this->game->getGameStateValue('round_cube_face');
+        
+        // Получаем грани кубика
+        $faces = $this->game->getCubeFaces();
+        $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+        
+        // Получаем карты событий
+        // Если карты еще не подготовлены (пустой массив), значит onEnteringState еще не выполнился
+        // В этом случае возвращаем пустой массив - данные придут через уведомление
+        $roundEventCards = $this->game->getRoundEventCards();
+        
+        // Если кубик еще не брошен (faceIndex = -1 или невалидный), возвращаем пустую строку
+        // Данные придут через уведомление roundStart
+        if ($faceIndex < 0 || $faceIndex >= count($faces)) {
+            $cubeFace = '';
+        }
+        
+        // Логирование для отладки
+        error_log('RoundEvent::getArgs() - round: ' . $round . ', faceIndex: ' . $faceIndex . ', cubeFace: ' . $cubeFace . ', cards count: ' . count($roundEventCards));
+        
+        return [
+            'cubeFace' => $cubeFace,
+            'round' => $round,
+            'stageName' => $this->game->getStageName($round),
+            'phaseName' => $this->game->getPhaseName('event'),
+            'roundEventCards' => $roundEventCards,
+            'eventCard' => $roundEventCards[0] ?? null,
+        ];
+    }
+
     public function onEnteringState() // Метод входа в состояние "Событие"
     {
         $round = (int)$this->game->getGameStateValue('round_number'); // Текущий раунд

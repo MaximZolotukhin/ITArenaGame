@@ -675,11 +675,50 @@
   text-align: center;
   font-size: 24px;
   font-weight: 700;
-  padding: 16px 24px;
+  padding: 10px 0px 10px 24px;
   background: #ffeb3b;
   color: #1f1f1f;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.round-banner__content {
+  width: 100%;
+  text-align: center;
+}
+
+.round-panel__skill-indicators {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.round-panel__skill-slot {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  z-index: 11;
+  /* Позиционирование вычисляется динамически относительно позиций раундов на треке */
+  /* Фишки навыков (skill) игроков */
+}
+
+.round-panel__skill-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+  display: block;
+  position: relative;
+  z-index: 12;
 }
 
 .banner-container {

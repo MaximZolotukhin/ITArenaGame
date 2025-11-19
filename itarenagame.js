@@ -49,7 +49,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                 <div class="game-layout">
                   <div class="main-column">
                     <div class="banner-container">
-                      <div id="round-banner" class="round-banner"></div>
+                      <div id="round-banner" class="round-banner">
+                        <div class="round-banner__content"></div>
+                      </div>
                       <div id="game-mode-banner" class="game-mode-banner"></div>
                     </div>
                     <div class="events-and-skills"> <!-- Планшет навыков и событий -->
@@ -62,6 +64,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="round-panel__wrapper">
                           <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
                           <div class="round-track"></div>
+                          <div class="round-panel__skill-indicators"></div>
                         </div>
                       </div>
                       <div class="dice-panel">
@@ -194,6 +197,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.stageName, gamedatas.cubeFace, gamedatas.phaseName)
       this._renderGameModeBanner()
 
+      // Отображаем индикаторы игроков на плашете событий после рендера трека
+      setTimeout(() => {
+        const roundPanel = document.querySelector('.round-panel__wrapper')
+        if (roundPanel) {
+          console.log('Calling _renderPlayerIndicators from setup')
+          this._renderPlayerIndicators(roundPanel)
+        } else {
+          console.error('roundPanel not found in setup!')
+        }
+      }, 200)
+
       // Обновляем отображение кубика
       this._updateCubeFace(gamedatas.cubeFace)
       const initialEventCards = gamedatas.roundEventCards || []
@@ -240,6 +254,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
         case 'dummy':
           break
+        case 'GameSetup':
+          // Состояние подготовки игры - отображаем информацию о подготовке
+          console.log('Entering GameSetup state')
+          this._renderGameSetup()
+          break
         case 'PlayerTurn':
           if (!this.gamedatas.gamestate) {
             this.gamedatas.gamestate = {}
@@ -260,6 +279,68 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._toggleActivePlayerHand(activeIdFounderSelection)
           this._updateHandHighlight(activeIdFounderSelection)
           this._setupHandInteractions()
+          break
+        case 'RoundEvent':
+          // Состояние события раунда - обновляем данные кубика и карты событий
+          // Приоритет: сначала args (данные из getArgs()), потом gamedatas
+          console.log('Entering RoundEvent state, args:', args)
+          console.log('Entering RoundEvent state, gamedatas.cubeFace:', this.gamedatas?.cubeFace)
+          console.log('Entering RoundEvent state, gamedatas.roundEventCards:', this.gamedatas?.roundEventCards)
+
+          // Получаем данные из args или gamedatas
+          const cubeFaceFromArgs = args?.args?.cubeFace
+          const cubeFaceFromGamedatas = this.gamedatas?.cubeFace
+          const cubeFace = cubeFaceFromArgs || cubeFaceFromGamedatas || ''
+
+          const roundEventCardsFromArgs = args?.args?.roundEventCards || []
+          const roundEventCardsFromGamedatas = this.gamedatas?.roundEventCards || []
+          const roundEventCards = roundEventCardsFromArgs.length > 0 ? roundEventCardsFromArgs : roundEventCardsFromGamedatas
+
+          const roundFromArgs = args?.args?.round
+          const roundFromGamedatas = this.gamedatas?.round
+          const round = roundFromArgs || roundFromGamedatas || 1
+
+          const stageNameFromArgs = args?.args?.stageName
+          const stageNameFromGamedatas = this.gamedatas?.stageName
+          const stageName = stageNameFromArgs || stageNameFromGamedatas || ''
+
+          const phaseNameFromArgs = args?.args?.phaseName
+          const phaseNameFromGamedatas = this.gamedatas?.phaseName
+          const phaseName = phaseNameFromArgs || phaseNameFromGamedatas || ''
+
+          // Обновляем данные в gamedatas для последующих обновлений
+          if (cubeFaceFromArgs) {
+            this.gamedatas.cubeFace = cubeFaceFromArgs
+          }
+          if (roundEventCardsFromArgs.length > 0) {
+            this.gamedatas.roundEventCards = roundEventCardsFromArgs
+            this.gamedatas.roundEventCard = roundEventCardsFromArgs[0] || null
+          }
+          if (roundFromArgs) {
+            this.gamedatas.round = roundFromArgs
+          }
+          if (stageNameFromArgs) {
+            this.gamedatas.stageName = stageNameFromArgs
+          }
+          if (phaseNameFromArgs) {
+            this.gamedatas.phaseName = phaseNameFromArgs
+          }
+
+          // Обновляем отображение
+          if (cubeFace) {
+            console.log('Updating cube face from RoundEvent state:', cubeFace)
+            this._updateCubeFace(cubeFace)
+          }
+
+          if (roundEventCards.length > 0) {
+            console.log('Rendering round event cards from RoundEvent state:', roundEventCards)
+            this._renderEventCards(roundEventCards)
+            this._renderRoundEventCards(roundEventCards)
+          }
+
+          if (round && stageName) {
+            this._renderRoundBanner(round, this.totalRounds, stageName, cubeFace, phaseName)
+          }
           break
       }
     },
@@ -316,8 +397,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             // Сохраняем ссылку на кнопку для обновления состояния после размещения карты
             this.finishTurnButton = finishTurnButton
             break
+          case 'GameSetup':
+            // В состоянии подготовки игры - показываем кнопку "Начать игру"
+            const readyPlayers = args?.readyPlayers || []
+            const allReady = args?.allReady === true
+            const readyCount = args?.readyCount || 0
+            const totalPlayers = args?.totalPlayers || 0
+            const isPlayerReady = readyPlayers.includes(Number(this.player_id))
+
+            if (!isPlayerReady && !allReady) {
+              // Игрок еще не нажал кнопку
+              this.statusBar.addActionButton(_('Начать игру'), () => this.bgaPerformAction('actStartGame', { playerId: Number(this.player_id) }), {
+                primary: true,
+                id: 'start-game-button',
+              })
+            }
+
+            // Показываем информацию о готовности
+            if (readyCount > 0 && readyCount < totalPlayers) {
+              this.statusBar.addMessage(_('Готово: ${ready}/${total}').replace('${ready}', readyCount).replace('${total}', totalPlayers), 'info')
+            }
+            break
           case 'FounderSelection':
-            // В состоянии выбора карты основателя
+            // В состоянии выбора карты основателяimage.png
             console.log('FounderSelection onUpdateActionButtons, args:', args)
             const hasSelectedFounder = args?.hasSelectedFounder === true
             const mustPlaceFounderFounderSelection = args?.mustPlaceFounder === true
@@ -402,11 +504,36 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     // Round updates
     notif_roundStart: async function (args) {
+      console.log('notif_roundStart called with args:', args)
+      console.log('cubeFace from notification:', args.cubeFace, 'type:', typeof args.cubeFace)
+
+      // Обновляем данные в gamedatas
+      if (args.cubeFace !== undefined && args.cubeFace !== null) {
+        this.gamedatas.cubeFace = args.cubeFace
+      }
+
+      // Обновляем данные о раунде
+      if (args.round !== undefined) {
+        this.gamedatas.round = args.round
+      }
+      if (args.stageName !== undefined) {
+        this.gamedatas.stageName = args.stageName
+      }
+      if (args.phaseName !== undefined) {
+        this.gamedatas.phaseName = args.phaseName
+      }
+
+      // Обновляем карты событий в gamedatas
+      const eventCards = args.roundEventCards || (args.eventCard ? [args.eventCard] : [])
+      if (eventCards.length > 0) {
+        this.gamedatas.roundEventCards = eventCards
+        this.gamedatas.roundEventCard = eventCards[0] || null
+      }
+      console.log('roundStart eventCards', eventCards)
+
       this._renderRoundBanner(args.round, this.totalRounds, args.stageName, args.cubeFace, args.phaseName)
       // Обновляем отображение кубика
       this._updateCubeFace(args.cubeFace)
-      const eventCards = args.roundEventCards || (args.eventCard ? [args.eventCard] : [])
-      console.log('roundStart eventCards', eventCards)
       this._renderEventCards(eventCards)
       this._renderRoundEventCards(eventCards)
       if (args.players) {
@@ -444,9 +571,96 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
     },
 
+    notif_gameSetupStart: async function (args) {
+      console.log('notif_gameSetupStart called with args:', args)
+      // Отображаем начало подготовительного этапа
+      const banner = document.getElementById('round-banner')
+      if (banner) {
+        const stageName = args.stageName || _('Подготовка к игре')
+        const content = banner.querySelector('.round-banner__content')
+        if (content) {
+          content.textContent = _('🔄 ЭТАП 1: ${stageName}').replace('${stageName}', stageName)
+        } else {
+          banner.textContent = _('🔄 ЭТАП 1: ${stageName}').replace('${stageName}', stageName)
+        }
+        banner.className = 'round-banner round-banner--setup'
+        banner.style.backgroundColor = '#FFA500'
+        banner.style.color = '#FFFFFF'
+        banner.style.fontSize = '20px'
+        banner.style.fontWeight = 'bold'
+        banner.style.padding = '10px 0px'
+        banner.style.textAlign = 'center'
+      }
+      this._renderGameSetup()
+    },
+
+    notif_gameSetupComplete: async function (args) {
+      console.log('notif_gameSetupComplete called with args:', args)
+      // Обновляем отображение после завершения подготовки
+      const banner = document.getElementById('round-banner')
+      if (banner) {
+        const content = banner.querySelector('.round-banner__content')
+        if (content) {
+          content.textContent = _('✅ Подготовка завершена! Переход к игре...')
+        } else {
+          banner.textContent = _('✅ Подготовка завершена! Переход к игре...')
+        }
+        banner.style.backgroundColor = '#4CAF50'
+      }
+    },
+
+    notif_playerReadyForGame: async function (args) {
+      // Уведомление о готовности игроков
+      console.log('notif_playerReadyForGame called with args:', args)
+      // Обновляем информацию о готовности игроков
+      const readyCount = args.readyCount || 0
+      const totalPlayers = args.totalPlayers || 0
+
+      // Обновляем кнопки действий, чтобы скрыть кнопку для игрока, который уже нажал
+      const stateName = this.gamedatas?.gamestate?.name || ''
+      if (stateName === 'GameSetup') {
+        this.statusBar.removeActionButtons()
+        this.onUpdateActionButtons(stateName, {
+          readyPlayers: args.readyPlayers || [],
+          allReady: readyCount === totalPlayers,
+          readyCount: readyCount,
+          totalPlayers: totalPlayers,
+        })
+      }
+    },
+
+    notif_gameStart: async function (args) {
+      console.log('notif_gameStart called with args:', args)
+      // Отображаем начало игры
+      const banner = document.getElementById('round-banner')
+      if (banner) {
+        const stageName = args.stageName || _('Начало игры')
+        const content = banner.querySelector('.round-banner__content')
+        if (content) {
+          content.textContent = _('🎮 ЭТАП 2: ${stageName}').replace('${stageName}', stageName)
+        } else {
+          banner.textContent = _('🎮 ЭТАП 2: ${stageName}').replace('${stageName}', stageName)
+        }
+        banner.className = 'round-banner round-banner--game-start'
+        banner.style.backgroundColor = '#2196F3'
+        banner.style.color = '#FFFFFF'
+        banner.style.fontSize = '20px'
+        banner.style.fontWeight = 'bold'
+        banner.style.padding = '10px 0px'
+        banner.style.textAlign = 'center'
+      }
+    },
+
     notif_gameEnd: async function (args) {
       const el = document.getElementById('round-banner')
-      if (el) el.textContent = _('Игра окончена')
+      if (el) {
+        const content = el.querySelector('.round-banner__content')
+        if (content) {
+          content.textContent = _('Игра окончена')
+        } else {
+          el.textContent = _('Игра окончена')
+        }
+      }
     },
 
     notif_founderSelected: async function (args) {
@@ -585,9 +799,186 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const phase = phaseName ? ` — ${_('Фаза')}: ${phaseName}` : ''
       const cube = cubeFace ? ` — ${_('Кубик')}: ${cubeFace}` : ''
       const text = (name ? `${title} — ${name}` : title) + phase + cube
-      el.textContent = text
+      const content = el.querySelector('.round-banner__content')
+      if (content) {
+        content.textContent = text
+      } else {
+        el.textContent = text
+      }
       this._highlightRoundMarker(round)
     },
+    _renderGameSetup: function () {
+      // Отображает информацию о подготовке игры
+      const banner = document.getElementById('round-banner')
+      if (banner) {
+        const content = banner.querySelector('.round-banner__content')
+        if (content) {
+          content.textContent = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
+        } else {
+          banner.textContent = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
+        }
+        banner.className = 'round-banner round-banner--setup'
+        banner.style.backgroundColor = '#FFA500'
+        banner.style.color = '#FFFFFF'
+        banner.style.fontSize = '20px'
+        banner.style.fontWeight = 'bold'
+        banner.style.padding = '10px 0px'
+        banner.style.textAlign = 'center'
+      }
+
+      // Отображаем индикаторы игроков на плашете событий
+      // Ждем, пока трек раундов будет отрендерен
+      setTimeout(() => {
+        const roundPanel = document.querySelector('.round-panel__wrapper')
+        if (roundPanel) {
+          console.log('Calling _renderPlayerIndicators from _renderGameSetup')
+          this._renderPlayerIndicators(roundPanel)
+        } else {
+          console.error('roundPanel not found in _renderGameSetup!')
+        }
+      }, 300)
+
+      console.log('Game setup in progress...')
+    },
+
+    _renderPlayerIndicators: function (container) {
+      console.log('_renderPlayerIndicators called', container)
+
+      // Получаем всех игроков
+      const players = this.gamedatas?.players || {}
+      const playerIds = Object.keys(players)
+        .map((id) => parseInt(id))
+        .sort((a, b) => a - b)
+
+      console.log('Players:', players, 'PlayerIds:', playerIds)
+
+      const indicatorsWrapper = container.querySelector('.round-panel__skill-indicators')
+      if (!indicatorsWrapper) {
+        console.error('indicatorsWrapper not found!')
+        return
+      }
+
+      // Очищаем все слоты
+      const slots = indicatorsWrapper.querySelectorAll('.round-panel__skill-slot')
+      slots.forEach((slot) => {
+        slot.remove()
+      })
+
+      // Маппинг игроков на раунды:
+      // Игрок 1 -> раунд 1 (Рождение идеи)
+      // Игрок 2 -> раунд 2 (Младенчество)
+      // Игрок 3 -> раунд 5 (Расцвет)
+      // Игрок 4 -> раунд 6 (Стабильность)
+      const playerRoundMapping = {
+        0: 1, // Первый игрок -> раунд 1
+        1: 2, // Второй игрок -> раунд 2
+        2: 5, // Третий игрок -> раунд 5
+        3: 6, // Четвертый игрок -> раунд 6
+      }
+
+      // Получаем позиции кружков раундов на треке
+      const roundTrack = container.querySelector('.round-track')
+      if (!roundTrack) {
+        console.error('roundTrack not found!')
+        return
+      }
+
+      const roundMarkers = roundTrack.querySelectorAll('.round-track__circle')
+      console.log('Round markers found:', roundMarkers.length)
+
+      if (roundMarkers.length < 6) {
+        console.warn('Not enough round markers:', roundMarkers.length)
+        return
+      }
+
+      // Вычисляем позиции раундов относительно плашета
+      const roundPositions = {}
+      roundMarkers.forEach((marker, index) => {
+        const roundNumber = index + 1
+        const rect = marker.getBoundingClientRect()
+        const containerRect = container.getBoundingClientRect()
+        const leftPercent = ((rect.left + rect.width / 2 - containerRect.left) / containerRect.width) * 100
+        roundPositions[roundNumber] = leftPercent
+        console.log(`Round ${roundNumber} position: ${leftPercent}%`)
+      })
+
+      // Размещаем фишки навыков (skill) игроков под соответствующими раундами
+      let createdCount = 0
+      playerIds.forEach((playerId, playerIndex) => {
+        if (playerIndex >= 4) return // Максимум 4 игрока
+
+        const player = players[playerId]
+        if (!player) {
+          console.warn('Player not found:', playerId)
+          return
+        }
+
+        const targetRound = playerRoundMapping[playerIndex]
+        if (!targetRound || !roundPositions[targetRound]) {
+          console.warn('Target round or position not found:', targetRound, roundPositions[targetRound])
+          return
+        }
+
+        // Создаем слот для навыка этого игрока
+        const slot = document.createElement('div')
+        slot.className = 'round-panel__skill-slot'
+        slot.dataset.playerId = playerId
+        slot.dataset.round = targetRound
+        slot.dataset.skillType = 'player-indicator'
+        slot.style.position = 'absolute'
+
+        // Настройка сдвига для каждой фишки:
+        // Первая фишка (playerIndex 0) - 20px вправо
+        // Вторая фишка (playerIndex 1) - 7px влево
+        // Третья фишка (playerIndex 2) - 3px вправо
+        const leftOffsets = {
+          0: 60, // Первая фишка - вправо на 20px
+          1: -13, // Вторая фишка - влево на 7px
+          2: 4, // Третья фишка - вправо на 3px
+          3: -70, // Третья фишка - вправо на 3px
+        }
+        const leftOffset = leftOffsets[playerIndex] || 0
+        const leftPercent = roundPositions[targetRound]
+        slot.style.left = `calc(${leftPercent}% + ${leftOffset}px)`
+        slot.style.transform = 'translateX(-50%)'
+        slot.style.top = 'calc(25% + 186px)' // Позиция ниже трека раундов, опущена на 85px (50px + 35px)
+        slot.style.display = 'flex'
+        slot.style.alignItems = 'center'
+        slot.style.justifyContent = 'center'
+        slot.style.width = '42px'
+        slot.style.height = '42px'
+        slot.style.zIndex = '11'
+
+        const circle = document.createElement('div')
+        circle.className = 'round-panel__skill-circle'
+        circle.dataset.playerId = playerId
+        let color = String(player.color || '').trim()
+        // Если цвет не начинается с #, добавляем его
+        if (color && !color.startsWith('#')) {
+          color = '#' + color
+        }
+        // Если цвет пустой, используем белый по умолчанию
+        if (!color || color === '#') {
+          color = '#ffffff'
+        }
+        circle.style.backgroundColor = color
+        circle.style.width = '34px'
+        circle.style.height = '34px'
+        circle.style.borderRadius = '50%'
+        circle.style.border = '2px solid rgba(255, 255, 255, 0.9)'
+        circle.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.3)'
+        circle.style.display = 'block'
+        circle.style.position = 'relative'
+        circle.style.zIndex = '12'
+        slot.appendChild(circle)
+        indicatorsWrapper.appendChild(slot)
+        createdCount++
+        console.log(`Created skill indicator for player ${playerId} at round ${targetRound}, position ${roundPositions[targetRound]}%, top: calc(25% + 50px)`, slot)
+      })
+
+      console.log(`Total skill indicators created: ${createdCount}`)
+    },
+
     _renderGameModeBanner: function () {
       // Отображает индикатор режима игры
       const el = document.getElementById('game-mode-banner')
@@ -651,11 +1042,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _updateCubeFace: function (cubeFace) {
-      console.log('updateCubeFace called', cubeFace)
+      console.log('updateCubeFace called', cubeFace, 'type:', typeof cubeFace)
       const display = document.getElementById('cube-face-display')
-      if (!display) return
+      if (!display) {
+        console.warn('cube-face-display element not found')
+        return
+      }
       const value = cubeFace ? String(cubeFace).trim() : ''
+      console.log('Setting cube face value to:', value)
       display.textContent = value
+
+      // Если значение пустое, показываем предупреждение
+      if (!value) {
+        console.warn('Cube face value is empty!')
+      }
     },
 
     _renderRoundTrack: function (totalRounds) {
