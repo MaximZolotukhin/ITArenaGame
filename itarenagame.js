@@ -118,6 +118,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="player-personal-board__header">${_('Планшет игрока')}</div>
                           <div class="player-personal-board__body">
                             <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
+                            <div class="player-penalty-tokens">
+                              <div class="player-penalty-tokens__container"></div>
+                            </div>
                           </div>
                         </div>
                         <div class="hiring-employees">
@@ -219,6 +222,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderFounderCard(gamedatas.players, initialActiveId)
       this._toggleActivePlayerHand(initialActiveId)
       this._updateHandHighlight(initialActiveId)
+
+      // Отображаем жетоны штрафа для всех игроков - с небольшой задержкой для загрузки DOM
+      setTimeout(() => {
+        this._renderPenaltyTokens(gamedatas.players)
+      }, 100)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -374,6 +382,35 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     // Мой код для кнопок действий
     onUpdateActionButtons: function (stateName, args) {
       console.log('onUpdateActionButtons: ' + stateName, args)
+      console.log('isCurrentPlayerActive:', this.isCurrentPlayerActive())
+      console.log('player_id:', this.player_id)
+      console.log('gamedatas.gamestate:', this.gamedatas?.gamestate)
+
+      // Для состояния GameSetup проверяем активность отдельно, так как это MULTIPLE_ACTIVE_PLAYER
+      if (stateName === 'GameSetup') {
+        const readyPlayers = args?.readyPlayers || []
+        const allReady = args?.allReady === true
+        const readyCount = args?.readyCount || 0
+        const totalPlayers = args?.totalPlayers || 0
+        const isPlayerReady = readyPlayers.includes(Number(this.player_id))
+
+        console.log('GameSetup - isPlayerReady:', isPlayerReady, 'allReady:', allReady, 'readyPlayers:', readyPlayers)
+
+        if (!isPlayerReady && !allReady) {
+          // Игрок еще не нажал кнопку
+          this.statusBar.addActionButton(_('Начать игру'), () => this.bgaPerformAction('actStartGame', { playerId: Number(this.player_id) }), {
+            primary: true,
+            id: 'start-game-button',
+          })
+        }
+
+        // Показываем информацию о готовности
+        if (readyCount > 0 && readyCount < totalPlayers) {
+          this.statusBar.addMessage(_('Готово: ${ready}/${total}').replace('${ready}', readyCount).replace('${total}', totalPlayers), 'info')
+        }
+        return
+      }
+
       if (this.isCurrentPlayerActive()) {
         switch (stateName) {
           case 'PlayerTurn':
@@ -396,27 +433,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
             // Сохраняем ссылку на кнопку для обновления состояния после размещения карты
             this.finishTurnButton = finishTurnButton
-            break
-          case 'GameSetup':
-            // В состоянии подготовки игры - показываем кнопку "Начать игру"
-            const readyPlayers = args?.readyPlayers || []
-            const allReady = args?.allReady === true
-            const readyCount = args?.readyCount || 0
-            const totalPlayers = args?.totalPlayers || 0
-            const isPlayerReady = readyPlayers.includes(Number(this.player_id))
-
-            if (!isPlayerReady && !allReady) {
-              // Игрок еще не нажал кнопку
-              this.statusBar.addActionButton(_('Начать игру'), () => this.bgaPerformAction('actStartGame', { playerId: Number(this.player_id) }), {
-                primary: true,
-                id: 'start-game-button',
-              })
-            }
-
-            // Показываем информацию о готовности
-            if (readyCount > 0 && readyCount < totalPlayers) {
-              this.statusBar.addMessage(_('Готово: ${ready}/${total}').replace('${ready}', readyCount).replace('${total}', totalPlayers), 'info')
-            }
             break
           case 'FounderSelection':
             // В состоянии выбора карты основателяimage.png
@@ -1367,6 +1383,53 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       return coins[0] || null
     },
+
+    _renderPenaltyTokens: function (players) {
+      // Отображаем жетоны штрафа на планшете игрока
+      // Получаем данные текущего игрока
+      const currentPlayerId = this.player_id
+      const currentPlayer = players[currentPlayerId]
+
+      console.log('_renderPenaltyTokens called', { players, currentPlayerId, currentPlayer })
+
+      const container = document.querySelector('.player-penalty-tokens__container')
+      if (!container) {
+        console.error('Penalty tokens container not found!')
+        return
+      }
+
+      console.log('Penalty tokens container found:', container)
+
+      container.innerHTML = ''
+
+      // Получаем жетоны штрафа для текущего игрока
+      const penaltyTokens = currentPlayer?.penaltyTokens || []
+      console.log('Penalty tokens for player:', penaltyTokens)
+
+      // Создаем 2 жетона штрафа
+      // Если есть данные из БД, используем их, иначе создаем пустые
+      for (let i = 0; i < 2; i++) {
+        const token = document.createElement('div')
+        token.className = 'player-penalty-token'
+        token.dataset.playerId = currentPlayerId
+        token.dataset.tokenOrder = i
+        token.dataset.tokenId = penaltyTokens[i]?.token_id || ''
+
+        // Если жетон имеет значение штрафа (не пустой), показываем это визуально
+        const penaltyValue = penaltyTokens[i]?.value || 0
+        if (penaltyValue !== 0) {
+          token.dataset.penaltyValue = penaltyValue
+          // Можно добавить дополнительный класс или стиль для заполненных жетонов
+          token.classList.add('player-penalty-token--filled')
+        }
+
+        container.appendChild(token)
+        console.log('Penalty token created:', { order: i, value: penaltyValue, token })
+      }
+
+      console.log('Penalty tokens rendered:', container.children.length)
+    },
+
     _updatePlayerBoardImage: function (color) {
       const boardImage = document.querySelector('.player-personal-board__image')
       if (!boardImage) return

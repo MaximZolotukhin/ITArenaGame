@@ -42,3 +42,15 @@ CREATE TABLE IF NOT EXISTS `event_card` (
   PRIMARY KEY (`card_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- Таблица для хранения жетонов штрафа игроков
+-- Каждый игрок может иметь до 2 жетонов штрафа
+CREATE TABLE IF NOT EXISTS `player_penalty_token` (
+  `token_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `player_id` int(10) unsigned NOT NULL,
+  `penalty_value` int(11) NOT NULL DEFAULT 0,
+  `token_order` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`token_id`),
+  UNIQUE KEY `player_order` (`player_id`, `token_order`),
+  KEY `player_id` (`player_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+

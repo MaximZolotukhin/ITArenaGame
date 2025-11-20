@@ -267,6 +267,8 @@ class Game extends \Bga\GameFramework\Table
 
         $basicInfos = $this->loadPlayersBasicInfos();
         $foundersByPlayer = $this->getFoundersByPlayer();
+        $penaltyTokensByPlayer = $this->getPenaltyTokensByPlayer(); // Получаем жетоны штрафа для всех игроков
+        
         foreach ($result["players"] as &$player) {
             $playerId = (int)($player['id'] ?? 0);
             $color = $this->resolvePlayerColor($player, $basicInfos, $playerId); // Цвет игрока
@@ -274,6 +276,8 @@ class Game extends \Bga\GameFramework\Table
             if (isset($foundersByPlayer[$playerId])) { // Если игрок имеет основателя
                 $player['founder'] = $foundersByPlayer[$playerId];
             }
+            // Добавляем жетоны штрафа для игрока
+            $player['penaltyTokens'] = $penaltyTokensByPlayer[$playerId] ?? [];
         }
         unset($player);
 
@@ -1149,10 +1153,89 @@ class Game extends \Bga\GameFramework\Table
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
             
+            // Инициализируем 2 пустых жетона штрафа для каждого игрока
+            $this->initPenaltyTokens($playerId);
+            
             // Устанавливаем флаг, что планшет готов
             $this->globals->set('board_setup_' . $playerId, true);
             
             error_log('setupPlayerBoards - Board setup completed for player ' . $playerId);
         }
+    }
+
+    /**
+     * Инициализирует 2 пустых жетона штрафа для игрока
+     * @param int $playerId ID игрока
+     * @return void
+     */
+    private function initPenaltyTokens(int $playerId): void
+    {
+        // Удаляем существующие жетоны (если есть)
+        $this->DbQuery("DELETE FROM `player_penalty_token` WHERE `player_id` = $playerId");
+        
+        // Создаем 2 пустых жетона (значение 0 означает, что жетон пустой)
+        for ($order = 0; $order < 2; $order++) {
+            $this->DbQuery("
+                INSERT INTO `player_penalty_token` (`player_id`, `penalty_value`, `token_order`)
+                VALUES ($playerId, 0, $order)
+            ");
+        }
+        
+        error_log("initPenaltyTokens - Initialized 2 penalty tokens for player $playerId");
+    }
+
+    /**
+     * Получает жетоны штрафа для всех игроков
+     * @return array Массив [playerId => [token1, token2]]
+     */
+    public function getPenaltyTokensByPlayer(): array
+    {
+        $result = [];
+        
+        $tokens = $this->getCollectionFromDb("
+            SELECT `token_id`, `player_id`, `penalty_value`, `token_order`
+            FROM `player_penalty_token`
+            ORDER BY `player_id`, `token_order`
+        ");
+        
+        foreach ($tokens as $token) {
+            $playerId = (int)$token['player_id'];
+            $order = (int)$token['token_order'];
+            $value = (int)$token['penalty_value'];
+            
+            if (!isset($result[$playerId])) {
+                $result[$playerId] = [];
+            }
+            
+            $result[$playerId][$order] = [
+                'token_id' => (int)$token['token_id'],
+                'value' => $value,
+                'order' => $order,
+            ];
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Устанавливает значение штрафа для жетона игрока
+     * @param int $playerId ID игрока
+     * @param int $tokenOrder Порядок жетона (0 или 1)
+     * @param int $penaltyValue Значение штрафа (0 = пустой жетон, -1, -2, -3, -4, -5, -10)
+     * @return void
+     */
+    public function setPenaltyToken(int $playerId, int $tokenOrder, int $penaltyValue): void
+    {
+        if ($tokenOrder < 0 || $tokenOrder > 1) {
+            throw new \InvalidArgumentException("Token order must be 0 or 1");
+        }
+        
+        $this->DbQuery("
+            UPDATE `player_penalty_token`
+            SET `penalty_value` = $penaltyValue
+            WHERE `player_id` = $playerId AND `token_order` = $tokenOrder
+        ");
+        
+        error_log("setPenaltyToken - Player $playerId, token $tokenOrder, value $penaltyValue");
     }
 }
