@@ -317,6 +317,233 @@
   position: relative;
 }
 
+.player-board-blocks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* TODO Для тестирования */
+.player-board-block {
+  border: 2px solid green;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.player-board-block--left {
+  flex: 0 0 70%;
+  width: 70%;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-board-block--left-row {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+}
+
+.player-board-block--left-cell {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 2px solid green;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.player-board-block--left-cell:nth-child(1) {
+  flex: 0 0 6%;
+  height: 6%;
+}
+.player-board-block--left-cell:nth-child(2) {
+  flex: 0 0 7%;
+  height: 7%;
+}
+
+.player-board-block--left-cell:nth-child(3) {
+  flex: 0 0 50%;
+  height: 50%;
+}
+.player-board-block--left-cell:nth-child(4) {
+  flex: 0 0 36%;
+  height: 36%;
+}
+
+.player-board-block--right {
+  flex: 0 0 30%;
+  width: 30%;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid green;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.player-board-block--right-row {
+  flex: 1 1 33.333%;
+  width: 100%;
+  height: 33.333%;
+  border: 2px solid green;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.player-department__title {
+  display: none;
+}
+
+.player-department-back-office {
+  display: flex;
+  flex-direction: column;
+}
+
+.player-department-back-office__row {
+  width: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.player-department-back-office-top {
+  flex: 0 0 17%;
+  height: 17%;
+}
+
+.player-department-back-office-evolution {
+  flex: 1 1 65%;
+  height: 65%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-department-back-office-update {
+  flex: 0 0 18%;
+  height: 18%;
+  display: flex;
+  flex-direction: row;
+}
+
+.player-department-back-office-update__half {
+  flex: 1 1 50%;
+  width: 50%;
+  height: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.player-department-technical {
+  display: flex;
+  flex-direction: column;
+}
+
+.player-department-technical__row {
+  width: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.player-department-technical-name {
+  flex: 0 0 15%;
+  height: 15%;
+}
+
+.player-department-technical-development {
+  flex: 1 1 65%;
+  height: 65%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.player-department-technical-upgrade {
+  flex: 0 0 20%;
+  height: 20%;
+  display: flex;
+  flex-direction: row;
+}
+
+.player-department-technical-upgrade__half {
+  flex: 1 1 50%;
+  width: 50%;
+  height: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.player-department-technical-development__columns-wrapper {
+  width: calc((100% - 20px) * 0.94);
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.player-department-technical-development__column {
+  flex: 1 1 calc(100% / 4);
+  width: calc((100% - 20px) * 0.94 / 4);
+  height: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
+}
+
+.player-department-back-office-evolution__columns-wrapper {
+  width: 72%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+.player-department-back-office-evolution__column {
+  flex: 1 1 calc(100% / 3);
+  width: calc(72% / 3);
+  height: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.player-sprint-panel {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+}
+
+.player-sprint-panel__column {
+  height: 100%;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.player-sprint-panel__column-title {
+  display: none;
+}
+
+.player-sprint-panel__column--first {
+  flex: 0 0 13%;
+  width: 13%;
+}
+
+.player-sprint-panel__column:not(.player-sprint-panel__column--first) {
+  flex: 1 1 auto;
+  width: calc(87% / 4);
+}
+
 .player-personal-board__image {
   width: 100%;
   max-width: 100%;

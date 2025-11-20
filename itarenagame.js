@@ -121,6 +121,59 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                             <div class="player-penalty-tokens">
                               <div class="player-penalty-tokens__container"></div>
                             </div>
+                            <div class="player-board-blocks">
+                              <div class="player-board-block player-board-block--left player-actions-block">
+                                <div class="player-board-block--left-row">
+                                  <div class="player-board-block--left-cell"></div>
+                                  <div class="player-board-block--left-cell player-penalty-block"></div>
+                                  <div class="player-board-block--left-cell player-exchange-block"></div>
+                                  <div class="player-board-block--left-cell player-sprint-panel">
+                                    ${[
+                                      { class: 'player-sprint-panel__column--first', id: 'sprint-column-tasks', className: 'sprint-column-tasks', title: _('Задачи') },
+                                      { class: '', id: 'sprint-column-backlog', className: 'sprint-column-backlog', title: _('Бэклог') },
+                                      { class: '', id: 'sprint-column-in-progress', className: 'sprint-column-in-progress', title: _('В работе') },
+                                      { class: '', id: 'sprint-column-testing', className: 'sprint-column-testing', title: _('Тестирование') },
+                                      { class: '', id: 'sprint-column-completed', className: 'sprint-column-completed', title: _('Выполнено') },
+                                    ]
+                                      .map((col, i) => `<div id="${col.id}" class="player-sprint-panel__column ${col.class} ${col.className}"></div>`)
+                                      .join('')}
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="player-board-block player-board-block--right player-departments-block">
+                                <div id="player-department-sales" class="player-board-block--right-row player-department-sales"></div>
+                                <div id="player-department-back-office" class="player-board-block--right-row player-department-back-office">
+                                  <div id="player-department-back-office-top" class="player-department-back-office__row player-department-back-office-top"></div>
+                                  <div id="player-department-back-office-evolution" class="player-department-back-office__row player-department-back-office-evolution">
+                                    <div class="player-department-back-office-evolution__columns-wrapper">
+                                      ${Array(3)
+                                        .fill(0)
+                                        .map((_, i) => `<div id="player-department-back-office-evolution-column-${i + 1}" class="player-department-back-office-evolution__column"></div>`)
+                                        .join('')}
+                                    </div>
+                                  </div>
+                                  <div id="player-department-back-office-update" class="player-department-back-office__row player-department-back-office-update">
+                                    <div id="player-department-back-office-off" class="player-department-back-office-update__half player-department-back-office-off"></div>
+                                    <div id="player-department-back-office-on" class="player-department-back-office-update__half player-department-back-office-on"></div>
+                                  </div>
+                                </div>
+                                <div id="player-department-technical" class="player-board-block--right-row player-department-technical">
+                                  <div id="player-department-technical-name" class="player-department-technical__row player-department-technical-name"></div>
+                                  <div id="player-department-technical-development" class="player-department-technical__row player-department-technical-development">
+                                    <div class="player-department-technical-development__columns-wrapper">
+                                      ${Array(4)
+                                        .fill(0)
+                                        .map((_, i) => `<div id="player-department-technical-development-column-${i + 1}" class="player-department-technical-development__column"></div>`)
+                                        .join('')}
+                                    </div>
+                                  </div>
+                                  <div id="player-department-technical-upgrade" class="player-department-technical__row player-department-technical-upgrade">
+                                    <div id="player-department-technical-off" class="player-department-technical-upgrade__half player-department-technical-off"></div>
+                                    <div id="player-department-technical-on" class="player-department-technical-upgrade__half player-department-technical-on"></div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div class="hiring-employees">
