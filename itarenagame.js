@@ -176,12 +176,42 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                     <div class="player-department-technical-development__columns-wrapper">
                                       ${Array(4)
                                         .fill(0)
-                                        .map((_, i) => `<div id="player-department-technical-development-column-${i + 1}" class="player-department-technical-development__column"></div>`)
+                                        .map((_, i) => {
+                                          const columnNum = i + 1
+                                          // Блоки 1 и 3: 5 строк (1-5), блоки 2 и 4: 6 строк (0-5)
+                                          const rowCount = columnNum === 1 || columnNum === 3 ? 5 : 6
+                                          const startNum = columnNum === 1 || columnNum === 3 ? 1 : 0
+                                          const needsWrapper = columnNum === 1 || columnNum === 2 || columnNum === 3 || columnNum === 4
+                                          const wrapperHeight = columnNum === 1 || columnNum === 3 ? '70%' : columnNum === 2 || columnNum === 4 ? '80%' : '100%'
+                                          const colorClass =
+                                            columnNum === 1
+                                              ? 'player-department-technical-development__column--pink'
+                                              : columnNum === 2
+                                              ? 'player-department-technical-development__column--orange'
+                                              : columnNum === 3
+                                              ? 'player-department-technical-development__column--blue'
+                                              : 'player-department-technical-development__column--purple'
+                                          const rowsHtml = Array(rowCount)
+                                            .fill(0)
+                                            .map((_, j) => {
+                                              const rowNum = startNum + (rowCount - 1 - j) // Нумерация снизу вверх
+                                              const isBottomRow = j === rowCount - 1 // Последняя итерация = нижняя строка
+                                              return `<div id="player-department-technical-development-column-${columnNum}-row-${rowNum}" class="player-department-technical-development__row" data-row-index="${rowNum}">${
+                                                isBottomRow ? '<div class="player-department-technical-development__token"></div>' : ''
+                                              }</div>`
+                                            })
+                                            .join('')
+                                          return `<div id="player-department-technical-development-column-${columnNum}" class="player-department-technical-development__column ${colorClass}">
+                                            ${needsWrapper ? `<div class="player-department-technical-development-column-${columnNum}__rows-wrapper" style="height: ${wrapperHeight};">${rowsHtml}</div>` : rowsHtml}
+                                          </div>`
+                                        })
                                         .join('')}
                                     </div>
                                   </div>
                                   <div id="player-department-technical-upgrade" class="player-department-technical__row player-department-technical-upgrade">
-                                    <div id="player-department-technical-off" class="player-department-technical-upgrade__half player-department-technical-off"></div>
+                                    <div id="player-department-technical-off" class="player-department-technical-upgrade__half player-department-technical-off">
+                                      <div class="player-department-technical__token"></div>
+                                    </div>
                                     <div id="player-department-technical-on" class="player-department-technical-upgrade__half player-department-technical-on"></div>
                                   </div>
                                 </div>
