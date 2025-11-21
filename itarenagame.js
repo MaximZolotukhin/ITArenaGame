@@ -135,7 +135,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                       { class: '', id: 'sprint-column-testing', className: 'sprint-column-testing', title: _('Тестирование') },
                                       { class: '', id: 'sprint-column-completed', className: 'sprint-column-completed', title: _('Выполнено') },
                                     ]
-                                      .map((col, i) => `<div id="${col.id}" class="player-sprint-panel__column ${col.class} ${col.className}"></div>`)
+                                      .map(
+                                        (col, i) =>
+                                          `<div id="${col.id}" class="player-sprint-panel__column ${col.class} ${col.className}">${
+                                            i === 0
+                                              ? `<div class="player-sprint-panel__rows-container">${Array(6)
+                                                  .fill(0)
+                                                  .map((_, j) => {
+                                                    const rowNum = 6 - j
+                                                    return `<div id="sprint-row-${rowNum}" class="player-sprint-panel__row" data-row-index="${rowNum}">${rowNum === 1 ? '<div class="player-sprint-panel__token"></div>' : ''}</div>`
+                                                  })
+                                                  .join('')}</div>`
+                                              : ''
+                                          }</div>`
+                                      )
                                       .join('')}
                                   </div>
                                 </div>
