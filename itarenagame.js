@@ -154,19 +154,50 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                 </div>
                               </div>
                               <div class="player-board-block player-board-block--right player-departments-block">
-                                <div id="player-department-sales" class="player-board-block--right-row player-department-sales"></div>
+                                <div id="player-department-sales" class="player-board-block--right-row player-department-sales">
+                                  <div id="player-department-sales-top" class="player-department-sales__block player-department-sales-top"></div>
+                                  <div id="player-department-sales-middle" class="player-department-sales__block player-department-sales-middle"></div>
+                                  <div id="player-department-sales-bottom" class="player-department-sales__block player-department-sales-bottom">
+                                    <div id="player-department-sales-off" class="player-department-sales-bottom__half">
+                                      <div class="player-department-sales__token"></div>
+                                    </div>
+                                    <div id="player-department-sales-on" class="player-department-sales-bottom__half"></div>
+                                  </div>
+                                </div>
                                 <div id="player-department-back-office" class="player-board-block--right-row player-department-back-office">
                                   <div id="player-department-back-office-top" class="player-department-back-office__row player-department-back-office-top"></div>
                                   <div id="player-department-back-office-evolution" class="player-department-back-office__row player-department-back-office-evolution">
                                     <div class="player-department-back-office-evolution__columns-wrapper">
                                       ${Array(3)
                                         .fill(0)
-                                        .map((_, i) => `<div id="player-department-back-office-evolution-column-${i + 1}" class="player-department-back-office-evolution__column"></div>`)
+                                        .map((_, i) => {
+                                          const columnNum = i + 1
+                                          if (columnNum === 1) {
+                                            // Первая колонка: 6 ячеек от 1 до 6 сверху вниз
+                                            const rowsHtml = Array(6)
+                                              .fill(0)
+                                              .map((_, j) => {
+                                                const rowNum = 6 - j // Нумерация от 1 до 6 снизу вверх (row-6 сверху, row-1 снизу)
+                                                const isBottomRow = rowNum === 1 // Нижняя ячейка (row-1)
+                                                return `<div id="player-department-back-office-evolution-column-1-row-${rowNum}" class="player-department-back-office-evolution__row" data-row-index="${rowNum}">${
+                                                  isBottomRow ? '<div class="player-department-back-office-evolution__token"></div>' : ''
+                                                }</div>`
+                                              })
+                                              .join('')
+                                            return `<div id="player-department-back-office-evolution-column-${columnNum}" class="player-department-back-office-evolution__column">
+                                              <div class="player-department-back-office-evolution-column-1__rows-wrapper">${rowsHtml}</div>
+                                            </div>`
+                                          } else {
+                                            return `<div id="player-department-back-office-evolution-column-${columnNum}" class="player-department-back-office-evolution__column"></div>`
+                                          }
+                                        })
                                         .join('')}
                                     </div>
                                   </div>
                                   <div id="player-department-back-office-update" class="player-department-back-office__row player-department-back-office-update">
-                                    <div id="player-department-back-office-off" class="player-department-back-office-update__half player-department-back-office-off"></div>
+                                    <div id="player-department-back-office-off" class="player-department-back-office-update__half player-department-back-office-off">
+                                      <div class="player-department-back-office__token"></div>
+                                    </div>
                                     <div id="player-department-back-office-on" class="player-department-back-office-update__half player-department-back-office-on"></div>
                                   </div>
                                 </div>
