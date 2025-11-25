@@ -156,7 +156,43 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                               <div class="player-board-block player-board-block--right player-departments-block">
                                 <div id="player-department-sales" class="player-board-block--right-row player-department-sales">
                                   <div id="player-department-sales-top" class="player-department-sales__block player-department-sales-top"></div>
-                                  <div id="player-department-sales-middle" class="player-department-sales__block player-department-sales-middle"></div>
+                                  <div id="player-department-sales-middle" class="player-department-sales__block player-department-sales-middle">
+                                    <div class="income-track-panel">
+                                      <div class="income-track-panel__body">
+                                        <div class="income-track">
+                                          <!-- Внешняя окружность (11-20) -->
+                                          <div class="income-track__circle income-track__circle--outer">
+                                            ${Array.from({ length: 10 }, (_, i) => {
+                                              const value = i + 11
+                                              const angle = i * 36 - 90 // 36 градусов на сектор, смещение по часовой стрелке на 1
+                                              return `
+                                                <div class="income-track__sector income-track__sector--outer" data-value="${value}" title="Сектор ${value}" aria-label="Сектор ${value}" style="transform: rotate(${angle}deg);">
+                                                  <div class="income-track__sector-content" style="transform: rotate(${-angle}deg);">
+                                                    <span class="income-track__sector-value">${value}</span>
+                                                  </div>
+                                                </div>
+                                              `
+                                            }).join('')}
+                                          </div>
+                                          <!-- Внутренняя окружность (1-10) -->
+                                          <div class="income-track__circle income-track__circle--inner">
+                                            ${Array.from({ length: 10 }, (_, i) => {
+                                              const value = i + 1
+                                              const angle = i * 36 - 90 // 36 градусов на сектор, смещение по часовой стрелке на 1
+                                              return `
+                                                <div class="income-track__sector income-track__sector--inner" data-value="${value}" title="Сектор ${value}" aria-label="Сектор ${value}" style="transform: rotate(${angle}deg);">
+                                                  <div class="income-track__sector-content" style="transform: rotate(${-angle}deg);">
+                                                    <span class="income-track__sector-value">${value}</span>
+                                                  </div>
+                                                </div>
+                                              `
+                                            }).join('')}
+                                          </div>
+                                          <div class="income-track__center"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                   <div id="player-department-sales-bottom" class="player-department-sales__block player-department-sales-bottom">
                                     <div id="player-department-sales-off" class="player-department-sales-bottom__half">
                                       <div class="player-department-sales__token"></div>

@@ -1104,6 +1104,187 @@
   border-radius: 12px;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
 }
+
+/* Трек дохода */
+.income-track-panel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
+}
+
+.income-track-panel__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  min-height: 180px;
+}
+
+.income-track {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto;
+  margin-top: -10px;
+  flex: 0 0 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.income-track__circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 3px solid rgba(0, 150, 0, 0.6);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.income-track__circle--outer {
+  width: 180px;
+  height: 180px;
+  min-width: 180px;
+  min-height: 180px;
+  z-index: 1;
+}
+
+.income-track__circle--inner {
+  width: 108px;
+  height: 108px;
+  min-width: 108px;
+  min-height: 108px;
+  border-width: 2px;
+  z-index: 2;
+}
+
+.income-track__sector {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 50%;
+  transform-origin: 0 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  pointer-events: auto;
+}
+
+.income-track__sector--outer {
+  z-index: 1;
+}
+
+.income-track__sector--inner {
+  z-index: 2;
+}
+
+.income-track__sector--outer {
+  width: 50%;
+  height: 50%;
+}
+
+.income-track__sector--inner {
+  width: 50%;
+  height: 50%;
+}
+
+.income-track__sector:nth-child(odd) {
+  background: rgba(0, 100, 0, 0.4);
+}
+
+.income-track__sector:nth-child(even) {
+  background: rgba(0, 150, 0, 0.25);
+}
+
+.income-track__sector:hover {
+  background: rgba(0, 200, 0, 0.7) !important;
+  cursor: pointer;
+  z-index: 100 !important;
+  transition: background 0.2s ease, z-index 0s;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.2);
+}
+
+.income-track__sector:hover .income-track__sector-value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 1), 0 0 20px rgba(0, 255, 0, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.9);
+  transition: all 0.2s ease;
+}
+
+.income-track__sector--outer:hover .income-track__sector-value {
+  font-size: 20px;
+}
+
+.income-track__sector-content {
+  pointer-events: none;
+}
+
+.income-track__circle {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.income-track__sector-content {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.income-track__sector--outer .income-track__sector-content {
+  top: 20px;
+  left: 20px;
+  width: 35px;
+  height: 35px;
+}
+
+.income-track__sector--inner .income-track__sector-content {
+  top: 10px;
+  left: 10px;
+  width: 25px;
+  height: 25px;
+}
+
+.income-track__sector-value {
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.income-track__sector--outer .income-track__sector-value {
+  font-size: 16px;
+}
+
+.income-track__sector--inner .income-track__sector-value {
+  font-size: 14px;
+}
+
+.income-track__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(0, 150, 0, 0.8);
+  z-index: 5;
+  pointer-events: none;
+}
+
 .event-card-panel {
   flex: 0 0 20%;
   max-width: 20%;
