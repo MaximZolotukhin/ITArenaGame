@@ -1641,6 +1641,192 @@
   width: 100%;
 }
 
+.round-panel__rounds-track,
+.round-panel__skills-track,
+.round-panel__goals-track {
+  position: absolute;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+}
+
+.round-panel__rounds-track {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45.333%;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+}
+
+.round-track-column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border-right: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+}
+
+.round-track-column:last-child {
+  border-right: none;
+}
+
+.round-track-column__title {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 4px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.round-track-column__circle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+}
+
+.round-panel__skills-track {
+  top: 45.333%;
+  left: 0;
+  right: 0;
+  height: 25%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.round-panel__skills-track-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.round-panel__skills-track-row--tokens {
+  flex: 0 0 45%;
+  height: 45%;
+}
+
+.round-panel__skills-track-row--skills {
+  flex: 0 0 55%;
+  height: 55%;
+}
+
+.round-panel__skills-track-row-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.round-panel__skills-track-row--tokens .round-panel__skills-track-row-inner {
+  width: 82.5%;
+  margin: 0 auto;
+}
+
+.round-panel__skills-track-row--skills .round-panel__skills-track-row-inner {
+  width: 92%;
+  margin: 0 auto;
+}
+
+.round-panel__skill-token-column {
+  flex: 0 0 12.5%;
+  min-width: 12.5%;
+  min-height: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+}
+
+.round-panel__skill-token-column--large {
+  flex: 0 0 50%;
+  min-width: 50%;
+}
+
+.round-panel__skill-column {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px;
+}
+
+.round-panel__skill-column__title {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.round-panel__goals-track {
+  top: 70.333%;
+  left: 0;
+  right: 0;
+  height: 29.667%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.round-panel__goals-track-row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.round-panel__goals-track-row-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.round-panel__goal-column {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
+}
+
 .round-panel__header {
   font-weight: 700;
   text-transform: uppercase;
@@ -1656,18 +1842,9 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
-.round-track {
-  position: absolute;
-  top: calc(5% - 27px);
-  left: 6%;
-  right: 6%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  pointer-events: none;
-}
-
 .round-track__circle {
+  position: relative;
+  pointer-events: none;
   width: 38px;
   height: 38px;
   border-radius: 50%;

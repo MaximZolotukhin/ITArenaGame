@@ -63,8 +63,66 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="round-panel__header">${_('Планшет событий')}</div>
                         <div class="round-panel__wrapper">
                           <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
-                          <div class="round-track"></div>
-                          <div class="round-panel__skill-indicators"></div>
+                          <div class="round-panel__rounds-track">
+                            <div class="round-track-column" data-round="1">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                            <div class="round-track-column" data-round="2">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                            <div class="round-track-column" data-round="3">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                            <div class="round-track-column" data-round="4">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                            <div class="round-track-column" data-round="5">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                            <div class="round-track-column" data-round="6">
+                              <div class="round-track-column__circle"></div>
+                            </div>
+                          </div>
+                          <div class="round-panel__skills-track">
+                            <div class="round-panel__skills-track-row round-panel__skills-track-row--tokens">
+                              <div class="round-panel__skills-track-row-inner">
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column round-panel__skill-token-column--large"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                              </div>
+                            </div>
+                            <div class="round-panel__skills-track-row round-panel__skills-track-row--skills">
+                              <div class="round-panel__skills-track-row-inner">
+                                <div class="round-panel__skill-column" data-skill="eloquence"></div>
+                                <div class="round-panel__skill-column" data-skill="discipline"></div>
+                                <div class="round-panel__skill-column" data-skill="intellect"></div>
+                                <div class="round-panel__skill-column" data-skill="frugality"></div>
+                              </div>
+                            </div>
+                            <div class="round-panel__skill-indicators"></div>
+                          </div>
+                          <div class="round-panel__goals-track">
+                            <div class="round-panel__goals-track-row">
+                              <div class="round-panel__goals-track-row-inner">
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                              </div>
+                            </div>
+                            <div class="round-panel__goals-track-row">
+                              <div class="round-panel__goals-track-row-inner">
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                                <div class="round-panel__goal-column"></div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div class="dice-panel">
@@ -1057,58 +1115,40 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       console.log('Players:', players, 'PlayerIds:', playerIds)
 
-      const indicatorsWrapper = container.querySelector('.round-panel__skill-indicators')
-      if (!indicatorsWrapper) {
-        console.error('indicatorsWrapper not found!')
+      // Получаем верхний блок трека навыков (жетоны)
+      const tokensRow = container.querySelector('.round-panel__skills-track-row--tokens')
+      if (!tokensRow) {
+        console.error('tokensRow not found!')
         return
       }
 
-      // Очищаем все слоты
-      const slots = indicatorsWrapper.querySelectorAll('.round-panel__skill-slot')
-      slots.forEach((slot) => {
-        slot.remove()
+      const tokenColumns = tokensRow.querySelectorAll('.round-panel__skill-token-column')
+      if (tokenColumns.length < 5) {
+        console.error('Not enough token columns found:', tokenColumns.length)
+        return
+      }
+
+      // Маппинг игроков на колонки (блоки 1, 2, 4, 5):
+      // Игрок 0 -> блок 1 (индекс 0)
+      // Игрок 1 -> блок 2 (индекс 1)
+      // Игрок 2 -> блок 4 (индекс 3)
+      // Игрок 3 -> блок 5 (индекс 4)
+      const playerColumnMapping = {
+        0: 0, // Первый игрок -> блок 1
+        1: 1, // Второй игрок -> блок 2
+        2: 3, // Третий игрок -> блок 4
+        3: 4, // Четвертый игрок -> блок 5
+      }
+
+      // Очищаем все слоты из колонок
+      tokenColumns.forEach((column) => {
+        const slots = column.querySelectorAll('.round-panel__skill-slot')
+        slots.forEach((slot) => {
+          slot.remove()
+        })
       })
 
-      // Маппинг игроков на раунды:
-      // Игрок 1 -> раунд 1 (Рождение идеи)
-      // Игрок 2 -> раунд 2 (Младенчество)
-      // Игрок 3 -> раунд 5 (Расцвет)
-      // Игрок 4 -> раунд 6 (Стабильность)
-      const playerRoundMapping = {
-        0: 1, // Первый игрок -> раунд 1
-        1: 2, // Второй игрок -> раунд 2
-        2: 5, // Третий игрок -> раунд 5
-        3: 6, // Четвертый игрок -> раунд 6
-      }
-
-      // Получаем позиции кружков раундов на треке
-      const roundTrack = container.querySelector('.round-track')
-      if (!roundTrack) {
-        console.error('roundTrack not found!')
-        return
-      }
-
-      const roundMarkers = roundTrack.querySelectorAll('.round-track__circle')
-      console.log('Round markers found:', roundMarkers.length)
-
-      if (roundMarkers.length < 6) {
-        console.warn('Not enough round markers:', roundMarkers.length)
-        return
-      }
-
-      // Вычисляем позиции раундов относительно плашета
-      const roundPositions = {}
-      roundMarkers.forEach((marker, index) => {
-        const roundNumber = index + 1
-        const rect = marker.getBoundingClientRect()
-        const containerRect = container.getBoundingClientRect()
-        const leftPercent = ((rect.left + rect.width / 2 - containerRect.left) / containerRect.width) * 100
-        roundPositions[roundNumber] = leftPercent
-        console.log(`Round ${roundNumber} position: ${leftPercent}%`)
-      })
-
-      // Размещаем фишки навыков (skill) игроков под соответствующими раундами
-      let createdCount = 0
+      // Размещаем фишки навыков (skill) игроков в соответствующих колонках
       playerIds.forEach((playerId, playerIndex) => {
         if (playerIndex >= 4) return // Максимум 4 игрока
 
@@ -1118,35 +1158,24 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           return
         }
 
-        const targetRound = playerRoundMapping[playerIndex]
-        if (!targetRound || !roundPositions[targetRound]) {
-          console.warn('Target round or position not found:', targetRound, roundPositions[targetRound])
+        const targetColumnIndex = playerColumnMapping[playerIndex]
+        if (targetColumnIndex === undefined || !tokenColumns[targetColumnIndex]) {
+          console.warn('Target column not found:', targetColumnIndex)
           return
         }
+
+        const targetColumn = tokenColumns[targetColumnIndex]
 
         // Создаем слот для навыка этого игрока
         const slot = document.createElement('div')
         slot.className = 'round-panel__skill-slot'
         slot.dataset.playerId = playerId
-        slot.dataset.round = targetRound
+        slot.dataset.columnIndex = targetColumnIndex
         slot.dataset.skillType = 'player-indicator'
         slot.style.position = 'absolute'
-
-        // Настройка сдвига для каждой фишки:
-        // Первая фишка (playerIndex 0) - 20px вправо
-        // Вторая фишка (playerIndex 1) - 7px влево
-        // Третья фишка (playerIndex 2) - 3px вправо
-        const leftOffsets = {
-          0: 60, // Первая фишка - вправо на 20px
-          1: -13, // Вторая фишка - влево на 7px
-          2: 4, // Третья фишка - вправо на 3px
-          3: -70, // Третья фишка - вправо на 3px
-        }
-        const leftOffset = leftOffsets[playerIndex] || 0
-        const leftPercent = roundPositions[targetRound]
-        slot.style.left = `calc(${leftPercent}% + ${leftOffset}px)`
-        slot.style.transform = 'translateX(-50%)'
-        slot.style.top = 'calc(25% + 186px)' // Позиция ниже трека раундов, опущена на 85px (50px + 35px)
+        slot.style.left = '50%'
+        slot.style.top = '50%'
+        slot.style.transform = 'translate(-50%, -50%)'
         slot.style.display = 'flex'
         slot.style.alignItems = 'center'
         slot.style.justifyContent = 'center'
@@ -1176,12 +1205,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         circle.style.position = 'relative'
         circle.style.zIndex = '12'
         slot.appendChild(circle)
-        indicatorsWrapper.appendChild(slot)
-        createdCount++
-        console.log(`Created skill indicator for player ${playerId} at round ${targetRound}, position ${roundPositions[targetRound]}%, top: calc(25% + 50px)`, slot)
+        targetColumn.appendChild(slot)
+
+        console.log(`Created skill indicator for player ${playerId} in column ${targetColumnIndex}`, slot)
       })
 
-      console.log(`Total skill indicators created: ${createdCount}`)
+      console.log(`Total skill indicators created: ${playerIds.length}`)
     },
 
     _renderGameModeBanner: function () {
@@ -1264,23 +1293,31 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _renderRoundTrack: function (totalRounds) {
-      const track = document.querySelector('.round-track')
-      if (!track) return
-      track.innerHTML = ''
-      for (let i = 1; i <= totalRounds; i++) {
-        const marker = document.createElement('div')
-        marker.className = 'round-track__circle'
-        marker.dataset.round = String(i)
-        marker.innerHTML = `<span>${i}</span>`
-        track.appendChild(marker)
-      }
+      const roundsTrack = document.querySelector('.round-panel__rounds-track')
+      if (!roundsTrack) return
+
+      const columns = roundsTrack.querySelectorAll('.round-track-column')
+      columns.forEach((column, index) => {
+        const roundNumber = index + 1
+        const circleContainer = column.querySelector('.round-track-column__circle')
+        if (circleContainer) {
+          circleContainer.innerHTML = ''
+          if (roundNumber <= totalRounds) {
+            const marker = document.createElement('div')
+            marker.className = 'round-track__circle'
+            marker.dataset.round = String(roundNumber)
+            marker.innerHTML = `<span>${roundNumber}</span>`
+            circleContainer.appendChild(marker)
+          }
+        }
+      })
       this._highlightRoundMarker(this.gamedatas?.round || 1)
     },
 
     _highlightRoundMarker: function (round) {
-      const track = document.querySelector('.round-track')
-      if (!track) return
-      const markers = track.querySelectorAll('.round-track__circle')
+      const roundsTrack = document.querySelector('.round-panel__rounds-track')
+      if (!roundsTrack) return
+      const markers = roundsTrack.querySelectorAll('.round-track__circle')
       markers.forEach((marker) => {
         if (marker.dataset.round === String(round)) {
           marker.classList.add('round-track__circle--active')
