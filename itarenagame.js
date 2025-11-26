@@ -118,25 +118,42 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="player-personal-board__header">${_('Планшет игрока')}</div>
                           <div class="player-personal-board__body">
                             <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
-                            <div class="player-penalty-tokens">
-                              <div class="player-penalty-tokens__container">
-                                <div class="player-penalty-tokens__column start-position-1"></div>
-                                <div class="player-penalty-tokens__column start-position-2"></div>
-                                <div class="player-penalty-tokens__column penalty-position-empty"></div>
-                                <div class="player-penalty-tokens__column penalty-position-1"></div>
-                                <div class="player-penalty-tokens__column penalty-position-2"></div>
-                                <div class="player-penalty-tokens__column penalty-position-3"></div>
-                                <div class="player-penalty-tokens__column penalty-position-4"></div>
-                                <div class="player-penalty-tokens__column penalty-position-5"></div>
-                                <div class="player-penalty-tokens__column penalty-position-10"></div>
-                              </div>
-                            </div>
                             <div class="player-board-blocks">
                               <div class="player-board-block player-board-block--left player-actions-block">
                                 <div class="player-board-block--left-row">
                                   <div class="player-board-block--left-cell"></div>
-                                  <div class="player-board-block--left-cell player-penalty-block"></div>
-                                  <div class="player-board-block--left-cell player-exchange-block"></div>
+                                  <div class="player-board-block--left-cell player-penalty-block">
+                                    <div class="player-penalty-tokens__container">
+                                      <div class="player-penalty-tokens__column start-position-1"></div>
+                                      <div class="player-penalty-tokens__column start-position-2"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-empty"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-1"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-2"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-3"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-4"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-5"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-10"></div>
+                                    </div>
+                                  </div>
+                                  <div class="player-board-block--left-cell player-exchange-block">
+                                    <div class="player-exchange-block__column player-exchange-block__column--bonus"></div>
+                                    <div class="player-exchange-block__column player-exchange-block__column--exchange-scheme">
+                                      <div class="player-exchange-block__block player-exchange-block__block--improvement">
+                                        <div class="player-exchange-block__improvement-cell player-exchange-block__improvement-cell--off">
+                                          <div class="player-exchange-token"></div>
+                                        </div>
+                                        <div class="player-exchange-block__improvement-cell player-exchange-block__improvement-cell--on"></div>
+                                      </div>
+                                      <div class="player-exchange-block__block player-exchange-block__block--choice">
+                                        <div class="player-exchange-block__choice-column shema-update-off">
+                                          ${Array.from({ length: 6 }, (_, i) => `<div class="player-exchange-block__choice-row" data-row="${i + 1}"></div>`).join('')}
+                                        </div>
+                                        <div class="player-exchange-block__choice-column shema-update-on">
+                                          ${Array.from({ length: 6 }, (_, i) => `<div class="player-exchange-block__choice-row" data-row="${i + 1}"></div>`).join('')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                   <div class="player-board-block--left-cell player-sprint-panel">
                                     ${[
                                       { class: 'player-sprint-panel__column--first', id: 'sprint-column-tasks', className: 'sprint-column-tasks', title: _('Задачи') },

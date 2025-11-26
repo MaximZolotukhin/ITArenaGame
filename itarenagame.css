@@ -911,15 +911,11 @@
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
 }
 
-.player-penalty-tokens {
-  position: absolute;
-  top: calc(6% + 0px); /* Позиция после первой ячейки (6%) */
-  left: 100px;
-  right: 0; /* Прижимаем к правому краю родителя */
-  height: 7%; /* Высота соответствует блоку .player-penalty-block */
-  pointer-events: none;
-  z-index: 5;
-  box-sizing: border-box;
+.player-penalty-block {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .player-penalty-tokens__container {
@@ -927,9 +923,9 @@
   align-items: center;
   justify-content: flex-start;
   gap: 0;
-  width: 55%;
+  width: 69%;
+  margin-left: 95px;
   height: 100%;
-  box-sizing: border-box;
   /* Стили как у других модулей */
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
@@ -957,15 +953,173 @@
   min-width: calc(12.5% + 10px);
 }
 
-/* Уменьшаем колонку penalty-position-empty на 20px (размеры из старого penalty-position-1) */
+/* Уменьшаем колонку penalty-position-empty на 10px (было -20px, теперь -10px) */
 .player-penalty-tokens__column.penalty-position-empty {
-  flex: 0 0 calc(12.5% - 20px); /* 12.5% - это 1/8 от 100%, минус 20px */
-  min-width: calc(12.5% - 20px);
+  flex: 0 0 calc(12.5% - 20px); /* 12.5% - это 1/8 от 100%, минус 10px */
+  min-width: calc(12.5% - 25px);
 }
 
-/* penalty-position-1 теперь имеет такие же размеры, как penalty-position-2 (стандартные) */
+/* Увеличиваем колонки penalty-position-1 по penalty-position-10 на 3px */
+.player-penalty-tokens__column.penalty-position-1,
+.player-penalty-tokens__column.penalty-position-2,
+.player-penalty-tokens__column.penalty-position-3,
+.player-penalty-tokens__column.penalty-position-4,
+.player-penalty-tokens__column.penalty-position-5,
+.player-penalty-tokens__column.penalty-position-10 {
+  flex: 0 0 calc(12.5% - 5px); /* 12.5% - это 1/8 от 100%, плюс 3px */
+  min-width: calc(12.5% - 5px);
+}
 
 .player-penalty-tokens__column:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+.player-exchange-block {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.player-exchange-block__column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  position: relative;
+}
+
+.player-exchange-block__column--bonus {
+  flex: 0 0 45%;
+  width: 45%;
+}
+
+.player-exchange-block__column--exchange-scheme {
+  flex: 0 0 55%;
+  width: 55%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.player-exchange-block__block {
+  width: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 0.6);
+}
+
+.player-exchange-block__block--improvement {
+  flex: 0 0 20%;
+  height: 20%;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+.player-exchange-block__improvement-cell {
+  flex: 1 1 0;
+  width: 50%;
+  height: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 0.6);
+}
+
+.player-exchange-block__improvement-cell:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(0, 255, 0, 0.4);
+  box-shadow: 0 0 2px rgba(0, 255, 0, 0.2);
+}
+
+.player-exchange-token {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  position: absolute;
+  top: calc(50% + 15px); /* Отступ сверху 20px */
+  left: calc(50% - 15px); /* Уменьшаем отступ слева на 15px */
+  transform: translate(-50%, -50%);
+  /* Эффект стекла */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(200, 200, 200, 0.15) 50%, rgba(100, 100, 100, 0.1) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.player-exchange-token::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.player-exchange-block__block--choice {
+  flex: 1 1 auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+.player-exchange-block__choice-column {
+  flex: 0 0 50%;
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  justify-content: flex-end; /* Прижимаем блоки к нижней границе */
+  position: relative;
+}
+
+.player-exchange-block__choice-column::before {
+  content: '';
+  flex: 0 0 5%; /* Отступ от верхнего края 5% */
+  height: 5%;
+}
+
+.player-exchange-block__choice-row {
+  flex: 0 0 calc(95% / 6); /* Каждая строка занимает 1/6 от 95% высоты */
+  width: 100%;
+  height: calc(95% / 6);
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 0.6);
+}
+
+.player-exchange-block__choice-column:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 5%;
+  bottom: 0;
+  width: 1px;
+  background: rgba(0, 255, 0, 0.4);
+  box-shadow: 0 0 2px rgba(0, 255, 0, 0.2);
+}
+
+.player-exchange-block__column:not(:last-child)::after {
   content: '';
   position: absolute;
   right: 0;
