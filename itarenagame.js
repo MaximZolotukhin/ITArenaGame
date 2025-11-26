@@ -119,7 +119,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                           <div class="player-personal-board__body">
                             <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_('Планшет игрока')}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
                             <div class="player-penalty-tokens">
-                              <div class="player-penalty-tokens__container"></div>
+                              <div class="player-penalty-tokens__container">
+                                <div class="player-penalty-tokens__column start-position-1"></div>
+                                <div class="player-penalty-tokens__column start-position-2"></div>
+                                <div class="player-penalty-tokens__column penalty-position-empty"></div>
+                                <div class="player-penalty-tokens__column penalty-position-1"></div>
+                                <div class="player-penalty-tokens__column penalty-position-2"></div>
+                                <div class="player-penalty-tokens__column penalty-position-3"></div>
+                                <div class="player-penalty-tokens__column penalty-position-4"></div>
+                                <div class="player-penalty-tokens__column penalty-position-5"></div>
+                                <div class="player-penalty-tokens__column penalty-position-10"></div>
+                              </div>
                             </div>
                             <div class="player-board-blocks">
                               <div class="player-board-block player-board-block--left player-actions-block">
@@ -168,7 +178,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                               return `
                                                 <div class="income-track__sector income-track__sector--outer" data-value="${value}" title="Сектор ${value}" aria-label="Сектор ${value}" style="transform: rotate(${angle}deg);">
                                                   <div class="income-track__sector-content" style="transform: rotate(${-angle}deg);">
-                                                    <span class="income-track__sector-value">${value}</span>
                                                   </div>
                                                 </div>
                                               `
@@ -182,7 +191,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                               return `
                                                 <div class="income-track__sector income-track__sector--inner" data-value="${value}" title="Сектор ${value}" aria-label="Сектор ${value}" style="transform: rotate(${angle}deg);">
                                                   <div class="income-track__sector-content" style="transform: rotate(${-angle}deg);">
-                                                    <span class="income-track__sector-value">${value}</span>
+                                                    ${value === 1 ? '<div class="income-track__token"></div>' : ''}
                                                   </div>
                                                 </div>
                                               `
@@ -1563,31 +1572,69 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       console.log('Penalty tokens container found:', container)
 
-      container.innerHTML = ''
+      // Очищаем все колонки
+      const columns = container.querySelectorAll('.player-penalty-tokens__column')
+      columns.forEach((column) => {
+        column.innerHTML = ''
+      })
 
       // Получаем жетоны штрафа для текущего игрока
       const penaltyTokens = currentPlayer?.penaltyTokens || []
       console.log('Penalty tokens for player:', penaltyTokens)
 
-      // Создаем 2 жетона штрафа
-      // Если есть данные из БД, используем их, иначе создаем пустые
-      for (let i = 0; i < 2; i++) {
+      // Маппинг значений штрафа на названия колонок
+      const getColumnName = (penaltyValue) => {
+        if (penaltyValue === 0) {
+          return null // Пустые жетоны размещаются в start-position
+        }
+        const absValue = Math.abs(penaltyValue)
+        if (absValue === 10) {
+          return 'penalty-position-10'
+        }
+        if (absValue >= 1 && absValue <= 5) {
+          return `penalty-position-${absValue}`
+        }
+        return null
+      }
+
+      // Размещаем жетоны в соответствующих колонках
+      let startPositionIndex = 1 // Индекс для start-position (1 или 2)
+      for (let i = 0; i < penaltyTokens.length; i++) {
+        const tokenData = penaltyTokens[i]
+        const penaltyValue = tokenData?.value || 0
+
         const token = document.createElement('div')
         token.className = 'player-penalty-token'
         token.dataset.playerId = currentPlayerId
         token.dataset.tokenOrder = i
-        token.dataset.tokenId = penaltyTokens[i]?.token_id || ''
+        token.dataset.tokenId = tokenData?.token_id || ''
 
         // Если жетон имеет значение штрафа (не пустой), показываем это визуально
-        const penaltyValue = penaltyTokens[i]?.value || 0
         if (penaltyValue !== 0) {
           token.dataset.penaltyValue = penaltyValue
-          // Можно добавить дополнительный класс или стиль для заполненных жетонов
-          token.classList.add('player-penalty-token--filled')
+          token.classList.add('player-penalty-token--filled') // Добавляем класс для заполненного жетона
         }
 
-        container.appendChild(token)
-        console.log('Penalty token created:', { order: i, value: penaltyValue, token })
+        // Определяем колонку для размещения жетона
+        let targetColumn = null
+        if (penaltyValue === 0) {
+          // Пустой жетон размещаем в start-position
+          targetColumn = container.querySelector(`.start-position-${startPositionIndex}`)
+          startPositionIndex++
+        } else {
+          // Жетон со значением размещаем в соответствующей penalty-position
+          const columnName = getColumnName(penaltyValue)
+          if (columnName) {
+            targetColumn = container.querySelector(`.${columnName}`)
+          }
+        }
+
+        if (targetColumn) {
+          targetColumn.appendChild(token)
+          console.log('Penalty token created:', { order: i, value: penaltyValue, column: targetColumn.className, token })
+        } else {
+          console.warn('Target column not found for token:', { order: i, value: penaltyValue })
+        }
       }
 
       console.log('Penalty tokens rendered:', container.children.length)

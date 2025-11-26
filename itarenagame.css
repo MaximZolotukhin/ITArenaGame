@@ -46,6 +46,13 @@
 
 /********* You can start writing your CSS below this line: **********/
 
+/* Общее правило для box-sizing: border-box */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 /*
     Example of CSS sprites (a black token and a white token, 20x20px each, embedded in the same "tokens.png" 40x20px image):
 
@@ -906,24 +913,67 @@
 
 .player-penalty-tokens {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: calc(6% + 0px); /* Позиция после первой ячейки (6%) */
+  left: 100px;
+  right: 0; /* Прижимаем к правому краю родителя */
+  height: 7%; /* Высота соответствует блоку .player-penalty-block */
   pointer-events: none;
   z-index: 5;
+  box-sizing: border-box;
 }
 
 .player-penalty-tokens__container {
-  position: absolute;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 25px;
-  /* Позиционирование в верхней части планшета игрока */
-  top: 93px;
-  left: 136px;
-  width: auto;
+  gap: 0;
+  width: 55%;
+  height: 100%;
+  box-sizing: border-box;
+  /* Стили как у других модулей */
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  overflow: hidden; /* Скрываем содержимое, которое выходит за границы */
+}
+
+.player-penalty-tokens__column {
+  flex: 1 1 0; /* Одинаковая ширина для всех колонок */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 2px;
+  position: relative;
+  min-width: 0; /* Позволяет колонкам сжиматься равномерно */
+}
+
+/* Увеличиваем первые две колонки на 10px */
+.player-penalty-tokens__column.start-position-1,
+.player-penalty-tokens__column.start-position-2 {
+  flex: 0 0 calc(12.5% + 10px); /* 12.5% - это 1/8 от 100%, плюс 10px */
+  min-width: calc(12.5% + 10px);
+}
+
+/* Уменьшаем колонку penalty-position-empty на 20px (размеры из старого penalty-position-1) */
+.player-penalty-tokens__column.penalty-position-empty {
+  flex: 0 0 calc(12.5% - 20px); /* 12.5% - это 1/8 от 100%, минус 20px */
+  min-width: calc(12.5% - 20px);
+}
+
+/* penalty-position-1 теперь имеет такие же размеры, как penalty-position-2 (стандартные) */
+
+.player-penalty-tokens__column:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
 }
 
 .player-penalty-token {
@@ -1162,10 +1212,10 @@
 }
 
 .income-track__circle--inner {
-  width: 108px;
-  height: 108px;
-  min-width: 108px;
-  min-height: 108px;
+  width: 113px;
+  height: 113px;
+  min-width: 113px;
+  min-height: 113px;
   border-width: 2px;
   z-index: 2;
 }
@@ -1179,6 +1229,7 @@
   transform-origin: 0 0;
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   pointer-events: auto;
+  overflow: visible;
 }
 
 .income-track__sector--outer {
@@ -1241,6 +1292,7 @@
   align-items: center;
   justify-content: center;
   z-index: 5;
+  overflow: visible;
 }
 
 .income-track__sector--outer .income-track__sector-content {
@@ -1878,4 +1930,38 @@
     grid-template-columns: 1fr;
     gap: 16px;
   }
+}
+
+.income-track__token {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  position: absolute;
+  /* Позиционируем относительно центра круга */
+  /* Сектор 1 направлен вверх (-90 градусов) */
+  /* Центр сектора на расстоянии ~18px от центра круга (1/3 от радиуса 54px) */
+  top: calc(50% - 18px - 12px); /* Центр круга - расстояние до центра сектора - половина размера жетона */
+  left: calc(50% - 3px); /* Небольшое смещение вправо, чтобы компенсировать обрезку слева */
+  transform: translateX(-50%);
+  /* Эффект стекла */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(200, 200, 200, 0.15) 50%, rgba(100, 100, 100, 0.1) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 150 !important; /* Выше всех элементов трека, включая hover-состояния секторов (z-index: 100) */
+}
+
+.income-track__token::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  filter: blur(8px);
+  pointer-events: none;
 }
