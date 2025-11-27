@@ -1279,6 +1279,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
 }
 
 .player-money-panel__balance {
@@ -1307,6 +1308,186 @@
   margin: 0 auto;
   border-radius: 12px;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
+.project-board-panel__columns {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  pointer-events: none;
+}
+
+.project-board-panel__column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid green;
+  position: relative;
+}
+
+.project-board-panel__column--complex {
+  transform: rotate(30deg);
+  transform-origin: center;
+  position: absolute;
+  left: 240px;
+  top: 87px;
+  width: calc(25% - 125px);
+  flex: 0 0 calc(25% - 125px);
+  height: calc(77%);
+  max-height: calc(77%);
+}
+
+.project-board-panel__column--long-term {
+  transform: rotate(-30deg);
+  transform-origin: center;
+  position: absolute;
+  left: 635px;
+  top: 9px;
+  width: calc(25% - 125px);
+  flex: 0 0 calc(25% - 125px);
+  height: calc(77%);
+  max-height: calc(77%);
+}
+
+.project-board-panel__column--expensive {
+  transform: rotate(90deg);
+  transform-origin: center;
+  position: absolute;
+  left: 500px;
+  top: 390px;
+  width: calc(25% - 125px);
+  flex: 0 0 calc(25% - 125px);
+  height: calc(77%);
+  max-height: calc(77%);
+}
+
+.project-board-panel__column:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: green;
+}
+
+.project-board-panel__column-header {
+  padding: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid green;
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.project-board-panel__column--complex .project-board-panel__column-header {
+  color: rgba(255, 100, 100, 1);
+  text-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
+  order: 2;
+  border-bottom: none;
+  border-top: 1px solid green;
+}
+
+.project-board-panel__column--complex .project-board-panel__column-body {
+  order: 1;
+}
+
+.project-board-panel__column--long-term .project-board-panel__column-header {
+  color: rgba(100, 150, 255, 1);
+  text-shadow: 0 0 4px rgba(0, 100, 255, 0.5);
+}
+
+.project-board-panel__column--expensive .project-board-panel__column-header {
+  color: rgba(100, 255, 100, 1);
+  text-shadow: 0 0 4px rgba(0, 255, 0, 0.5);
+}
+
+.project-board-panel__task-pool-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid green;
+}
+
+.project-board-panel__task-pool-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  border: 1px solid green;
+  position: relative;
+}
+
+.project-board-panel__task-pool-row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: green;
+}
+
+.project-board-panel__task-pool-row--top {
+  flex: 0 0 50%;
+  height: 50%;
+}
+
+.project-board-panel__task-pool-row--bottom {
+  flex: 0 0 50%;
+  height: 50%;
+}
+
+.project-board-panel__task-pool-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 100%;
+  border: 1px solid green;
+  position: relative;
+}
+
+.project-board-panel__task-pool-cell:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: green;
+}
+
+.project-board-panel__column-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.project-board-panel__row {
+  flex: 1 1 0;
+  min-height: 0;
+  border: 1px solid green;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.project-board-panel__row:last-child {
+  margin-bottom: 0;
 }
 
 /* Трек дохода */

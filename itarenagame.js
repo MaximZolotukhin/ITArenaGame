@@ -101,7 +101,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                 <div class="round-panel__skill-column" data-skill="frugality"></div>
                               </div>
                             </div>
-                            <div class="round-panel__skill-indicators"></div>
+                          <div class="round-panel__skill-indicators"></div>
                           </div>
                           <div class="round-panel__goals-track">
                             <div class="round-panel__goals-track-row">
@@ -145,6 +145,47 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                         <div class="project-board-panel__header">${_('Планшет проектов')}</div>
                         <div class="project-board-panel__body">
                           <img src="${g_gamethemeurl}img/table/project_table.png" alt="${_('Планшет проектов')}" class="project-board-panel__image" />
+                          <div class="project-board-panel__columns">
+                            <div class="project-board-panel__column project-board-panel__column--complex">
+                              <div class="project-board-panel__column-header">${_('Сложные - Красный')}</div>
+                              <div class="project-board-panel__column-body">
+                                ${Array(4)
+                                  .fill(0)
+                                  .map(() => `<div class="project-board-panel__row"></div>`)
+                                  .join('')}
+                              </div>
+                            </div>
+                            <div class="project-board-panel__column project-board-panel__column--long-term">
+                              <div class="project-board-panel__column-header">${_('Длительные - Синий')}</div>
+                              <div class="project-board-panel__column-body">
+                                ${Array(4)
+                                  .fill(0)
+                                  .map(() => `<div class="project-board-panel__row"></div>`)
+                                  .join('')}
+                              </div>
+                            </div>
+                            <div class="project-board-panel__column project-board-panel__column--expensive">
+                              <div class="project-board-panel__column-header">${_('Дорогие - Зеленый')}</div>
+                              <div class="project-board-panel__column-body">
+                                ${Array(4)
+                                  .fill(0)
+                                  .map(() => `<div class="project-board-panel__row"></div>`)
+                                  .join('')}
+                              </div>
+                            </div>
+                            <div class="project-board-panel__column project-board-panel__column--task-pool">
+                              <div class="project-board-panel__column-header">${_('Пулл задач')}</div>
+                              <div class="project-board-panel__task-pool-body">
+                                <div class="project-board-panel__task-pool-row project-board-panel__task-pool-row--top">
+                                  <div class="project-board-panel__task-pool-cell" name="круг"></div>
+                                </div>
+                                <div class="project-board-panel__task-pool-row project-board-panel__task-pool-row--bottom">
+                                  <div class="project-board-panel__task-pool-cell" name="квадрат"></div>
+                                  <div class="project-board-panel__task-pool-cell" name="гекс"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <!-- банк -->
