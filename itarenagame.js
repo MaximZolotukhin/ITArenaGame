@@ -174,7 +174,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--task-pool">
-                              <div class="project-board-panel__column-header">${_('Пулл задач')}</div>
+                              <div class="project-board-panel__column-header">${_('Пулл проектов')}</div>
                               <div class="project-board-panel__task-pool-body">
                                 <div class="project-board-panel__task-pool-row project-board-panel__task-pool-row--top">
                                   <div class="project-board-panel__task-pool-cell" name="круг"></div>

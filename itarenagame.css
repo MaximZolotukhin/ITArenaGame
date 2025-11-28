@@ -1368,6 +1368,21 @@
   max-height: calc(77%);
 }
 
+.project-board-panel__column--task-pool {
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  overflow: hidden;
+  z-index: 1000;
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 30px);
+  transform: translate(-50%, -50%);
+  width: calc(42% + 50px);
+  height: calc(42% + 50px);
+  flex: 0 0 calc(42% + 50px);
+  max-width: calc(42% + 50px);
+  max-height: calc(42% + 50px);
+}
+
 .project-board-panel__column:not(:last-child)::after {
   content: '';
   position: absolute;
@@ -1431,6 +1446,11 @@
   position: relative;
 }
 
+.project-board-panel__task-pool-row--bottom {
+  justify-content: center;
+  gap: 10px;
+}
+
 .project-board-panel__task-pool-row:not(:last-child)::after {
   content: '';
   position: absolute;
@@ -1457,6 +1477,56 @@
   min-height: 100%;
   border: 1px solid green;
   position: relative;
+}
+
+.project-board-panel__task-pool-row--top .project-board-panel__task-pool-cell {
+  width: 130px;
+  height: 130px;
+  margin: auto;
+  flex: 0 0 auto;
+  min-width: auto;
+  min-height: auto;
+  border-radius: 50%;
+  border-color: orange;
+  border-width: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-board-panel__task-pool-row--bottom .project-board-panel__task-pool-cell[name='квадрат'] {
+  width: 120px;
+  height: 120px;
+  margin: 0;
+  margin-left: 15px;
+  flex: 0 0 auto;
+  min-width: auto;
+  min-height: auto;
+  border-color: red;
+  border-width: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.project-board-panel__task-pool-row--bottom .project-board-panel__task-pool-cell[name='гекс'] {
+  width: 150px;
+  height: 150px;
+  margin: 0;
+  margin-left: 15px;
+  flex: 0 0 auto;
+  min-width: auto;
+  min-height: auto;
+  border-color: blue;
+  border-width: 2px;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  transform: rotate(90deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  filter: drop-shadow(0 0 1px blue) drop-shadow(0 0 1px blue) drop-shadow(0 0 1px blue) drop-shadow(0 0 1px blue) drop-shadow(0 0 1px blue) drop-shadow(0 0 1px blue);
 }
 
 .project-board-panel__task-pool-cell:not(:last-child)::after {
