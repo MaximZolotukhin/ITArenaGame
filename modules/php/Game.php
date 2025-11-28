@@ -26,6 +26,7 @@ use Bga\Games\itarenagame\EventCardsData; // Добавляем класс Event
 use Bga\Games\itarenagame\FoundersData;
 use Bga\Games\itarenagame\SpecialistsData;
 use Bga\Games\itarenagame\TaskTokensData;
+use Bga\Games\itarenagame\ProjectTokensData;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -288,8 +289,13 @@ class Game extends \Bga\GameFramework\Table
             $player['penaltyTokens'] = $penaltyTokensByPlayer[$playerId] ?? [];
             // Добавляем жетоны задач для игрока
             $player['taskTokens'] = $taskTokensByPlayer[$playerId] ?? [];
+            // Добавляем жетоны проектов для игрока
+            $player['projectTokens'] = $this->getProjectTokensByPlayer($playerId);
         }
         unset($player);
+
+        // Добавляем жетоны проектов на планшете (доступны всем игрокам)
+        $result['projectTokensOnBoard'] = $this->getProjectTokensOnBoard();
 
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
@@ -1310,5 +1316,164 @@ class Game extends \Bga\GameFramework\Table
         }
         
         return $result;
+    }
+
+    /**
+     * Получает жетоны проектов для игрока
+     * @param int $playerId ID игрока
+     * @return array Массив жетонов проектов игрока
+     */
+    public function getProjectTokensByPlayer(int $playerId): array
+    {
+        $tokens = $this->getCollectionFromDb("
+            SELECT 
+                ppt.`id`,
+                ppt.`player_id`,
+                ppt.`token_id`,
+                ppt.`location`,
+                pt.`number`,
+                pt.`color`,
+                pt.`shape`,
+                pt.`name`,
+                pt.`price`,
+                pt.`effect`,
+                pt.`effect_description`,
+                pt.`victory_points`,
+                pt.`player_count`,
+                pt.`image_url`
+            FROM `player_project_token` ppt
+            INNER JOIN `project_token` pt ON ppt.`token_id` = pt.`token_id`
+            WHERE ppt.`player_id` = $playerId
+            ORDER BY ppt.`id`
+        ");
+        
+        $result = [];
+        foreach ($tokens as $token) {
+            $result[] = [
+                'id' => (int)$token['id'],
+                'token_id' => (int)$token['token_id'],
+                'player_id' => (int)$token['player_id'],
+                'location' => $token['location'],
+                'number' => (int)$token['number'],
+                'color' => $token['color'],
+                'shape' => $token['shape'],
+                'name' => $token['name'],
+                'price' => $token['price'],
+                'effect' => $token['effect'],
+                'effect_description' => $token['effect_description'],
+                'victory_points' => (int)$token['victory_points'],
+                'player_count' => (int)$token['player_count'],
+                'image_url' => $token['image_url'],
+            ];
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Получает все жетоны проектов на планшете (не привязанные к игрокам)
+     * @return array Массив жетонов проектов на планшете
+     */
+    public function getProjectTokensOnBoard(): array
+    {
+        $tokens = $this->getCollectionFromDb("
+            SELECT 
+                pt.`token_id`,
+                pt.`number`,
+                pt.`color`,
+                pt.`shape`,
+                pt.`name`,
+                pt.`price`,
+                pt.`effect`,
+                pt.`effect_description`,
+                pt.`victory_points`,
+                pt.`player_count`,
+                pt.`image_url`
+            FROM `project_token` pt
+            LEFT JOIN `player_project_token` ppt ON pt.`token_id` = ppt.`token_id`
+            WHERE ppt.`token_id` IS NULL
+            ORDER BY pt.`number`
+        ");
+        
+        $result = [];
+        foreach ($tokens as $token) {
+            $result[] = [
+                'token_id' => (int)$token['token_id'],
+                'number' => (int)$token['number'],
+                'color' => $token['color'],
+                'shape' => $token['shape'],
+                'name' => $token['name'],
+                'price' => $token['price'],
+                'effect' => $token['effect'],
+                'effect_description' => $token['effect_description'],
+                'victory_points' => (int)$token['victory_points'],
+                'player_count' => (int)$token['player_count'],
+                'image_url' => $token['image_url'],
+            ];
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Добавляет жетон проекта игроку
+     * @param int $playerId ID игрока
+     * @param int $tokenId ID жетона проекта
+     * @param string $location Местоположение жетона (по умолчанию 'board')
+     * @return void
+     */
+    public function addProjectTokenToPlayer(int $playerId, int $tokenId, string $location = 'board'): void
+    {
+        $this->DbQuery("
+            INSERT INTO `player_project_token` (`player_id`, `token_id`, `location`)
+            VALUES ($playerId, $tokenId, '" . addslashes($location) . "')
+        ");
+        
+        error_log("addProjectTokenToPlayer - Added project token $tokenId to player $playerId at location $location");
+    }
+
+    /**
+     * Инициализирует жетоны проектов на планшете
+     * Создает записи в таблице project_token на основе данных из ProjectTokensData
+     * @return void
+     */
+    public function initializeProjectTokens(): void
+    {
+        // Очищаем существующие жетоны (если есть)
+        $this->DbQuery("DELETE FROM `player_project_token`");
+        $this->DbQuery("DELETE FROM `project_token`");
+        
+        // Получаем все жетоны из данных
+        $tokens = ProjectTokensData::getAllTokens();
+        
+        foreach ($tokens as $token) {
+            $number = (int)($token['number'] ?? 0);
+            $color = addslashes($token['color'] ?? '');
+            $shape = addslashes($token['shape'] ?? '');
+            $name = addslashes($token['name'] ?? '');
+            $price = addslashes($token['price'] ?? '');
+            $effect = addslashes($token['effect'] ?? '');
+            $effectDescription = addslashes($token['effect_description'] ?? '');
+            $victoryPoints = (int)($token['victory_points'] ?? 0);
+            $playerCount = (int)($token['player_count'] ?? 0);
+            $imageUrl = isset($token['image_url']) ? addslashes($token['image_url']) : null;
+            
+            $imageUrlSql = $imageUrl ? "'$imageUrl'" : 'NULL';
+            
+            $this->DbQuery("
+                INSERT INTO `project_token` (
+                    `number`, `color`, `shape`, `name`, `price`, 
+                    `effect`, `effect_description`, `victory_points`, 
+                    `player_count`, `image_url`
+                )
+                VALUES (
+                    $number, '$color', '$shape', '$name', '$price',
+                    '$effect', '$effectDescription', $victoryPoints,
+                    $playerCount, $imageUrlSql
+                )
+            ");
+        }
+        
+        error_log("initializeProjectTokens - Initialized " . count($tokens) . " project tokens");
     }
 }

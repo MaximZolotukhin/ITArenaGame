@@ -71,3 +71,39 @@ CREATE TABLE IF NOT EXISTS `player_task_token` (
   KEY `location` (`location`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- Таблица для хранения жетонов проектов
+-- Жетоны проектов закрепляются за планшетом проектов
+-- В ходе игры они будут добавляться игрокам
+CREATE TABLE IF NOT EXISTS `project_token` (
+  `token_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `number` int(11) NOT NULL,
+  `color` varchar(20) NOT NULL,
+  `shape` varchar(20) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `price` varchar(20) NOT NULL,
+  `effect` varchar(50) NOT NULL,
+  `effect_description` text,
+  `victory_points` int(11) NOT NULL DEFAULT 0,
+  `player_count` int(11) NOT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`token_id`),
+  UNIQUE KEY `number` (`number`),
+  KEY `color` (`color`),
+  KEY `shape` (`shape`),
+  KEY `player_count` (`player_count`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Таблица для связи игроков с жетонами проектов
+-- Хранит информацию о том, какие жетоны проектов принадлежат игрокам
+CREATE TABLE IF NOT EXISTS `player_project_token` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `player_id` int(10) unsigned NOT NULL,
+  `token_id` int(10) unsigned NOT NULL,
+  `location` varchar(50) NOT NULL DEFAULT 'board',
+  PRIMARY KEY (`id`),
+  KEY `player_id` (`player_id`),
+  KEY `token_id` (`token_id`),
+  KEY `location` (`location`),
+  CONSTRAINT `fk_player_project_token_token` FOREIGN KEY (`token_id`) REFERENCES `project_token` (`token_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
