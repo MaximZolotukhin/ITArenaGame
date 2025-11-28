@@ -516,6 +516,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._renderPenaltyTokens(gamedatas.players)
       }, 100)
 
+      // Отображаем жетоны задач для всех игроков - с небольшой задержкой для загрузки DOM
+      setTimeout(() => {
+        this._renderTaskTokens(gamedatas.players)
+      }, 150)
+
       // TODO: Set up your game interface here, according to "gamedatas"
 
       // Setup game notifications to handle (see "setupNotifications" method below)
@@ -1733,6 +1738,120 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       console.log('Penalty tokens rendered:', container.children.length)
+    },
+
+    _renderTaskTokens: function (players) {
+      // Отображаем жетоны задач в бэклоге на планшете игрока
+      const currentPlayerId = this.player_id
+      const currentPlayer = players[currentPlayerId]
+
+      console.log('_renderTaskTokens called', { players, currentPlayerId, currentPlayer })
+
+      // Находим колонку бэклога
+      const backlogColumn = document.getElementById('sprint-column-backlog')
+      if (!backlogColumn) {
+        console.error('Backlog column not found!')
+        return
+      }
+
+      console.log('Backlog column found:', backlogColumn)
+
+      // Очищаем колонку бэклога от старых жетонов
+      const existingTokens = backlogColumn.querySelectorAll('.task-token')
+      existingTokens.forEach((token) => token.remove())
+
+      // Получаем жетоны задач для текущего игрока, которые находятся в бэклоге
+      const taskTokens = currentPlayer?.taskTokens || []
+      const backlogTokens = taskTokens.filter((token) => token.location === 'backlog')
+
+      console.log('Task tokens for player:', taskTokens)
+      console.log('Backlog tokens:', backlogTokens)
+
+      // Создаем контейнер для жетонов задач в бэклоге, если его еще нет
+      let tokensContainer = backlogColumn.querySelector('.task-tokens-container')
+      if (!tokensContainer) {
+        tokensContainer = document.createElement('div')
+        tokensContainer.className = 'task-tokens-container'
+        backlogColumn.appendChild(tokensContainer)
+      }
+
+      // Очищаем контейнер
+      tokensContainer.innerHTML = ''
+
+      // Отображаем жетоны задач
+      backlogTokens.forEach((tokenData, index) => {
+        const token = document.createElement('div')
+        token.className = 'task-token'
+        token.dataset.playerId = currentPlayerId
+        token.dataset.tokenId = tokenData?.token_id || ''
+        token.dataset.color = tokenData?.color || ''
+        token.dataset.location = tokenData?.location || 'backlog'
+
+        // Добавляем класс для цвета жетона
+        if (tokenData?.color) {
+          token.classList.add(`task-token--${tokenData.color}`)
+        }
+
+        // Создаем изображение жетона
+        const tokenImage = document.createElement('img')
+        const colorData = this._getTaskTokenColorData(tokenData?.color)
+        if (colorData && colorData.image_url) {
+          tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
+          tokenImage.alt = colorData.name || _('Жетон задачи')
+          tokenImage.className = 'task-token__image'
+        } else {
+          // Если нет изображения, используем цветной круг
+          token.style.backgroundColor = this._getTaskTokenColorCode(tokenData?.color)
+          token.style.borderRadius = '50%'
+        }
+
+        if (tokenImage.src) {
+          token.appendChild(tokenImage)
+        }
+
+        // Позиционируем жетоны вертикально с небольшим отступом
+        token.style.position = 'absolute'
+        token.style.left = '50%'
+        token.style.transform = 'translateX(-50%)'
+        token.style.top = `${20 + index * 50}px`
+
+        tokensContainer.appendChild(token)
+        console.log('Task token created:', { index, color: tokenData?.color, token })
+      })
+
+      console.log('Task tokens rendered:', backlogTokens.length)
+    },
+
+    _getTaskTokenColorData: function (colorId) {
+      // Маппинг цветов жетонов задач
+      const colorMap = {
+        cyan: {
+          name: _('Голубой'),
+          image_url: 'img/task-tokens/cyan.png',
+          color_code: '#00CED1',
+        },
+        pink: {
+          name: _('Розовый'),
+          image_url: 'img/task-tokens/pink.png',
+          color_code: '#FF69B4',
+        },
+        orange: {
+          name: _('Оранжевый'),
+          image_url: 'img/task-tokens/orange.png',
+          color_code: '#FF8C00',
+        },
+        purple: {
+          name: _('Фиолетовый'),
+          image_url: 'img/task-tokens/purple.png',
+          color_code: '#9370DB',
+        },
+      }
+      return colorMap[colorId] || null
+    },
+
+    _getTaskTokenColorCode: function (colorId) {
+      const colorData = this._getTaskTokenColorData(colorId)
+      return colorData?.color_code || '#CCCCCC'
     },
 
     _updatePlayerBoardImage: function (color) {

@@ -827,6 +827,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: visible;
 }
 
 .player-sprint-panel__column--first {
@@ -901,6 +902,77 @@
 .player-sprint-panel__column:not(.player-sprint-panel__column--first) {
   flex: 1 1 auto;
   width: calc(87% / 4);
+  padding-top: 15px;
+  box-sizing: border-box;
+}
+
+/* Отступ сверху для конкретных колонок спринт-панели */
+.sprint-column-backlog,
+.sprint-column-in-progress,
+.sprint-column-testing,
+.sprint-column-completed {
+  padding-top: 35px;
+  box-sizing: border-box;
+}
+
+/* Стили для жетонов задач */
+.task-tokens-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* Учитываем padding-top колонки для контейнера жетонов в бэклоге */
+.sprint-column-backlog .task-tokens-container {
+  top: 35px;
+}
+
+.task-token {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.task-token__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.task-token--cyan {
+  background-color: #00ced1;
+}
+
+.task-token--pink {
+  background-color: #ff69b4;
+}
+
+.task-token--orange {
+  background-color: #ff8c00;
+}
+
+.task-token--purple {
+  background-color: #9370db;
 }
 
 .player-personal-board__image {

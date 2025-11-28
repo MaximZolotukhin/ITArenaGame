@@ -49,7 +49,10 @@ class GameSetup extends GameState
         // 4. Раздаем стартовые проекты
         $this->game->distributeStartingProjects($playerIds);
         
-        // 5. Устанавливаем компоненты на планшеты (загрузка планшетов, расстановка жетонов)
+        // 5. Раздаем начальные жетоны задач (1 розовый + 1 голубой в бэклог)
+        $this->game->distributeInitialTaskTokens($playerIds);
+        
+        // 6. Устанавливаем компоненты на планшеты (загрузка планшетов, расстановка жетонов)
         $this->game->setupPlayerBoards($playerIds);
         
         // Инициализируем список игроков, которые нажали "Начать игру"

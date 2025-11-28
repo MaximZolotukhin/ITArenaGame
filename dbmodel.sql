@@ -54,3 +54,20 @@ CREATE TABLE IF NOT EXISTS `player_penalty_token` (
   KEY `player_id` (`player_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- Таблица для хранения жетонов задач игроков
+-- Жетоны задач привязываются к игроку, количество меняется по ходу игры
+-- Всего 108 жетонов: по 27 каждого цвета (cyan, pink, orange, purple)
+-- location: 'backlog', 'in-progress', 'testing', 'completed' - колонка трека спринта
+-- row_index: номер строки в колонке (1-6 для колонки "Задачи", null для других колонок)
+CREATE TABLE IF NOT EXISTS `player_task_token` (
+  `token_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `player_id` int(10) unsigned NOT NULL,
+  `color` varchar(20) NOT NULL,
+  `location` varchar(20) NOT NULL DEFAULT 'backlog',
+  `row_index` tinyint(3) unsigned DEFAULT NULL,
+  PRIMARY KEY (`token_id`),
+  KEY `player_id` (`player_id`),
+  KEY `color` (`color`),
+  KEY `location` (`location`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+

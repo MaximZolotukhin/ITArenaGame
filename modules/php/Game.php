@@ -25,6 +25,7 @@ use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
 use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
 use Bga\Games\itarenagame\FoundersData;
 use Bga\Games\itarenagame\SpecialistsData;
+use Bga\Games\itarenagame\TaskTokensData;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -269,6 +270,13 @@ class Game extends \Bga\GameFramework\Table
         $foundersByPlayer = $this->getFoundersByPlayer();
         $penaltyTokensByPlayer = $this->getPenaltyTokensByPlayer(); // Получаем жетоны штрафа для всех игроков
         
+        // Получаем жетоны задач для всех игроков
+        $taskTokensByPlayer = [];
+        foreach ($result["players"] as $player) {
+            $playerId = (int)($player['id'] ?? 0);
+            $taskTokensByPlayer[$playerId] = $this->getTaskTokensByPlayer($playerId);
+        }
+        
         foreach ($result["players"] as &$player) {
             $playerId = (int)($player['id'] ?? 0);
             $color = $this->resolvePlayerColor($player, $basicInfos, $playerId); // Цвет игрока
@@ -278,6 +286,8 @@ class Game extends \Bga\GameFramework\Table
             }
             // Добавляем жетоны штрафа для игрока
             $player['penaltyTokens'] = $penaltyTokensByPlayer[$playerId] ?? [];
+            // Добавляем жетоны задач для игрока
+            $player['taskTokens'] = $taskTokensByPlayer[$playerId] ?? [];
         }
         unset($player);
 
@@ -1237,5 +1247,68 @@ class Game extends \Bga\GameFramework\Table
         ");
         
         error_log("setPenaltyToken - Player $playerId, token $tokenOrder, value $penaltyValue");
+    }
+
+    /**
+     * Распределяет начальные жетоны задач всем игрокам
+     * Каждый игрок получает: 1 розовый жетон и 1 голубой жетон в бэклог
+     * 
+     * @param array $playerIds Массив ID игроков
+     * @return void
+     */
+    public function distributeInitialTaskTokens(array $playerIds): void
+    {
+        if (empty($playerIds)) {
+            return;
+        }
+
+        foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            
+            // Удаляем существующие жетоны (если есть)
+            $this->DbQuery("DELETE FROM `player_task_token` WHERE `player_id` = $playerId");
+            
+            // Создаем 1 розовый жетон в бэклоге
+            $this->DbQuery("
+                INSERT INTO `player_task_token` (`player_id`, `color`, `location`, `row_index`)
+                VALUES ($playerId, 'pink', 'backlog', NULL)
+            ");
+            
+            // Создаем 1 голубой жетон в бэклоге
+            $this->DbQuery("
+                INSERT INTO `player_task_token` (`player_id`, `color`, `location`, `row_index`)
+                VALUES ($playerId, 'cyan', 'backlog', NULL)
+            ");
+            
+            error_log("distributeInitialTaskTokens - Player $playerId: 1 pink + 1 cyan token in backlog");
+        }
+    }
+
+    /**
+     * Получает жетоны задач для игрока
+     * 
+     * @param int $playerId ID игрока
+     * @return array Массив жетонов задач
+     */
+    public function getTaskTokensByPlayer(int $playerId): array
+    {
+        $tokens = $this->getCollectionFromDb("
+            SELECT `token_id`, `player_id`, `color`, `location`, `row_index`
+            FROM `player_task_token`
+            WHERE `player_id` = $playerId
+            ORDER BY `token_id`
+        ");
+        
+        $result = [];
+        foreach ($tokens as $token) {
+            $result[] = [
+                'token_id' => (int)$token['token_id'],
+                'color' => $token['color'],
+                'location' => $token['location'],
+                'row_index' => $token['row_index'] !== null ? (int)$token['row_index'] : null,
+            ];
+        }
+        
+        return $result;
     }
 }
