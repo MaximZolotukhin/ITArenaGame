@@ -34,6 +34,16 @@ class FounderSelection extends GameState
     {
         // Активный игрок должен быть установлен до входа в это состояние
         // (в setupNewGame или в предыдущем состоянии)
+        $activePlayerId = $this->game->getActivePlayerId();
+        if ($activePlayerId === null) {
+            error_log('FounderSelection::onEnteringState - WARNING: No active player set!');
+            // Устанавливаем первого игрока как активного
+            $this->game->activeNextPlayer();
+        }
+        
+        $activePlayerId = $this->game->getActivePlayerId();
+        $founderOptions = $this->game->getFounderOptionsForPlayer((int)$activePlayerId);
+        error_log('FounderSelection::onEnteringState - Active player: ' . $activePlayerId . ', Founder options count: ' . count($founderOptions));
     }
 
     /**
@@ -42,11 +52,29 @@ class FounderSelection extends GameState
     public function getArgs(): array
     {
         $activePlayerIdRaw = $this->game->getActivePlayerId();
+        
+        if ($activePlayerIdRaw === null) {
+            error_log('FounderSelection::getArgs - WARNING: No active player set! Setting first player as active.');
+            $this->game->activeNextPlayer();
+            $activePlayerIdRaw = $this->game->getActivePlayerId();
+        }
+        
         $activePlayerId = is_int($activePlayerIdRaw) ? $activePlayerIdRaw : (int)$activePlayerIdRaw;
         
         $founderOptions = $this->game->getFounderOptionsForPlayer($activePlayerId);
         $hasSelectedFounder = $this->game->globals->get('founder_player_' . $activePlayerId, null) !== null;
         $mustPlaceFounder = $hasSelectedFounder && $this->game->hasUnplacedUniversalFounder($activePlayerId);
+        
+        error_log('FounderSelection::getArgs - Active player: ' . $activePlayerId . ', Options count: ' . count($founderOptions) . ', Has selected: ' . ($hasSelectedFounder ? 'yes' : 'no'));
+        if (empty($founderOptions)) {
+            error_log('FounderSelection::getArgs - WARNING: No founder options found for active player ' . $activePlayerId);
+            // Проверяем все игроков
+            $allPlayers = array_keys($this->game->loadPlayersBasicInfos());
+            foreach ($allPlayers as $playerId) {
+                $options = $this->game->getFounderOptionsForPlayer((int)$playerId);
+                error_log('FounderSelection::getArgs - Player ' . $playerId . ' has ' . count($options) . ' options');
+            }
+        }
         
         return [
             "activePlayerId" => $activePlayerId,

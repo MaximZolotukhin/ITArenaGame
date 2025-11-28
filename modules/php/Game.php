@@ -320,11 +320,66 @@ class Game extends \Bga\GameFramework\Table
         $result['isTutorialMode'] = $this->isTutorialMode(); // Является ли режим обучающим
         
         // В основном режиме передаем карты на выбор для текущего игрока (если еще не выбрал)
+        // Также передаем для активного игрока, если состояние - FounderSelection
         if (!$this->isTutorialMode()) {
+            error_log('getAllDatas - Main mode: checking founder options');
+            
+            // Получаем опции для текущего игрока
             $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
+            error_log('getAllDatas - Current player ' . $current_player_id . ' has ' . count($founderOptions) . ' founder options');
+            
             if (!empty($founderOptions)) {
                 $result['founderOptions'] = $founderOptions; // Карты на выбор для текущего игрока
+                error_log('getAllDatas - Added founderOptions to result: ' . count($founderOptions) . ' cards');
+            } else {
+                error_log('getAllDatas - WARNING: Current player has NO founder options!');
+                // Проверяем, может быть данные еще не сохранены (ранний вызов getAllDatas)
+                // В этом случае проверяем globals напрямую
+                $key = 'founder_options_' . $current_player_id;
+                $rawValue = $this->globals->get($key, null);
+                error_log('getAllDatas - Direct globals check for key ' . $key . ': ' . var_export($rawValue, true));
             }
+            
+            // Также проверяем активного игрока (может отличаться от текущего)
+            $activePlayerId = $this->getActivePlayerId();
+            error_log('getAllDatas - Active player ID: ' . ($activePlayerId !== null ? $activePlayerId : 'null'));
+            
+            if ($activePlayerId !== null && $activePlayerId !== $current_player_id) {
+                $activeFounderOptions = $this->getFounderOptionsForPlayer((int)$activePlayerId);
+                error_log('getAllDatas - Active player ' . $activePlayerId . ' has ' . count($activeFounderOptions) . ' founder options');
+                if (!empty($activeFounderOptions)) {
+                    $result['activeFounderOptions'] = $activeFounderOptions; // Карты на выбор для активного игрока
+                    error_log('getAllDatas - Added activeFounderOptions to result: ' . count($activeFounderOptions) . ' cards');
+                }
+            } elseif ($activePlayerId !== null && $activePlayerId === $current_player_id) {
+                // Если активный игрок = текущий, используем те же опции
+                if (!empty($founderOptions)) {
+                    $result['activeFounderOptions'] = $founderOptions;
+                    error_log('getAllDatas - Added activeFounderOptions (same as founderOptions): ' . count($founderOptions) . ' cards');
+                } else {
+                    error_log('getAllDatas - WARNING: Active player = current player, but founderOptions is empty!');
+                }
+            } else {
+                error_log('getAllDatas - Active player is null or different from current player');
+            }
+            
+            // ВАЖНО: Также передаем опции для ВСЕХ игроков, чтобы клиент мог их отобразить
+            // Это нужно, потому что getAllDatas может вызываться до onEnteringState
+            $allPlayersFounderOptions = [];
+            foreach ($result["players"] as $player) {
+                $playerId = (int)($player['id'] ?? 0);
+                $playerOptions = $this->getFounderOptionsForPlayer($playerId);
+                if (!empty($playerOptions)) {
+                    $allPlayersFounderOptions[$playerId] = $playerOptions;
+                    error_log('getAllDatas - Player ' . $playerId . ' has ' . count($playerOptions) . ' founder options');
+                }
+            }
+            if (!empty($allPlayersFounderOptions)) {
+                $result['allPlayersFounderOptions'] = $allPlayersFounderOptions;
+                error_log('getAllDatas - Added allPlayersFounderOptions with ' . count($allPlayersFounderOptions) . ' players');
+            }
+        } else {
+            error_log('getAllDatas - Tutorial mode: skipping founder options');
         }
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
@@ -474,21 +529,47 @@ class Game extends \Bga\GameFramework\Table
 
     public function distributeInitialBadgers(array $playerIds, int $amountPerPlayer = 5): void // Распределяем начальные баджерсы между игроками
     {
+        error_log('distributeInitialBadgers - Starting distribution. Players: ' . count($playerIds) . ', Amount per player: ' . $amountPerPlayer);
+        
         if (empty($playerIds) || $amountPerPlayer <= 0) {
+            error_log('distributeInitialBadgers - ERROR: Empty playerIds or invalid amountPerPlayer');
             return;
         }
 
-        if ($this->getTotalBadgersValue() < $amountPerPlayer * count($playerIds)) {
+        $totalNeeded = $amountPerPlayer * count($playerIds);
+        $totalAvailable = $this->getTotalBadgersValue();
+        error_log('distributeInitialBadgers - Total needed: ' . $totalNeeded . ', Total available: ' . $totalAvailable);
+        
+        if ($totalAvailable < $totalNeeded) {
+            error_log('distributeInitialBadgers - ERROR: Not enough badgers in bank. Available: ' . $totalAvailable . ', Needed: ' . $totalNeeded);
             return;
         }
 
         foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            error_log('distributeInitialBadgers - Processing player ' . $playerId);
+            
+            // Получаем текущее количество баджерсов игрока до распределения
+            $currentBadgers = $this->playerBadgers->get($playerId);
+            error_log('distributeInitialBadgers - Player ' . $playerId . ' current badgers: ' . $currentBadgers);
+            
             if (!$this->withdrawBadgersFromBank($amountPerPlayer)) {
+                error_log('distributeInitialBadgers - ERROR: Failed to withdraw ' . $amountPerPlayer . ' badgers from bank for player ' . $playerId);
                 break;
             }
 
-            $this->playerBadgers->inc((int)$playerId, $amountPerPlayer);
+            $this->playerBadgers->inc($playerId, $amountPerPlayer);
+            
+            // Проверяем, что баджерсы были добавлены
+            $newBadgers = $this->playerBadgers->get($playerId);
+            error_log('distributeInitialBadgers - Player ' . $playerId . ' new badgers: ' . $newBadgers . ' (added: ' . $amountPerPlayer . ')');
+            
+            if ($newBadgers !== $currentBadgers + $amountPerPlayer) {
+                error_log('distributeInitialBadgers - WARNING: Badgers count mismatch for player ' . $playerId . '. Expected: ' . ($currentBadgers + $amountPerPlayer) . ', Got: ' . $newBadgers);
+            }
         }
+        
+        error_log('distributeInitialBadgers - Distribution completed');
     }
 
     private function withdrawBadgersFromBank(int $amount): bool // Снимаем баджерсы с банка
@@ -581,7 +662,11 @@ class Game extends \Bga\GameFramework\Table
 
         // В обучающем режиме используем только основателей с firstGame = true
         $isTutorial = $this->isTutorialMode();
+        $gameMode = $this->getGameMode();
+        error_log('assignInitialFounders - START');
+        error_log('assignInitialFounders - Game mode: ' . $gameMode . ' (1=TUTORIAL, 2=MAIN)');
         error_log('assignInitialFounders - isTutorialMode: ' . ($isTutorial ? 'true' : 'false'));
+        error_log('assignInitialFounders - Player count: ' . count($playerIds));
         error_log('assignInitialFounders - Total founders before filter: ' . count($founders));
         
         if ($isTutorial) {
@@ -624,8 +709,19 @@ class Game extends \Bga\GameFramework\Table
         if (empty($availableIds)) {
             throw new \RuntimeException('No founder cards available for assignment.');
         }
-        if (count($availableIds) < count($playerIds)) {
-            throw new \RuntimeException('Not enough founder cards to assign unique founders to all players. Available: ' . count($availableIds) . ', Required: ' . count($playerIds));
+        
+        // Проверяем достаточность карт в зависимости от режима
+        if ($isTutorial) {
+            // В обучающем режиме: каждому игроку нужна 1 карта
+            if (count($availableIds) < count($playerIds)) {
+                throw new \RuntimeException('Not enough founder cards to assign unique founders to all players. Available: ' . count($availableIds) . ', Required: ' . count($playerIds));
+            }
+        } else {
+            // В основном режиме: каждому игроку нужно 3 карты для выбора
+            $requiredCards = count($playerIds) * 3;
+            if (count($availableIds) < $requiredCards) {
+                throw new \RuntimeException('Not enough founder cards for selection. Available: ' . count($availableIds) . ', Required: ' . $requiredCards . ' (3 per player for ' . count($playerIds) . ' players)');
+            }
         }
         
         // Дополнительная проверка в обучающем режиме: убеждаемся, что все карты имеют firstGame = true
@@ -660,23 +756,54 @@ class Game extends \Bga\GameFramework\Table
             }
         } else {
             // В основном режиме: раздаем по 3 карты каждому игроку для выбора
+            error_log('assignInitialFounders - MAIN MODE: Distributing 3 cards per player');
+            error_log('assignInitialFounders - Available card IDs count: ' . count($availableIds));
+            
             foreach ($playerIds as $playerId) {
                 $playerId = (int)$playerId;
+                error_log('assignInitialFounders - Processing player ' . $playerId);
                 $playerOptions = [];
                 
                 // Берем 3 карты для этого игрока
                 for ($i = 0; $i < 3; $i++) {
                     if (empty($availableIds)) {
+                        error_log('assignInitialFounders - ERROR: Not enough cards! Need 3, but only ' . count($availableIds) . ' available for player ' . $playerId);
                         throw new \RuntimeException('Not enough founder cards for player ' . $playerId . '. Need 3, but only ' . count($availableIds) . ' available.');
                     }
                     $cardId = (int)array_shift($availableIds);
                     $playerOptions[] = $cardId;
+                    error_log('assignInitialFounders - Added card ID ' . $cardId . ' to player ' . $playerId . ' options (card ' . ($i + 1) . '/3)');
                 }
                 
+                error_log('assignInitialFounders - Player ' . $playerId . ' options array: ' . var_export($playerOptions, true));
+                
                 // Сохраняем опции для игрока в globals
-                $this->globals->set('founder_options_' . $playerId, json_encode($playerOptions));
-                error_log('assignInitialFounders - Assigned 3 founder options to player ' . $playerId . ': ' . implode(', ', $playerOptions));
+                $key = 'founder_options_' . $playerId;
+                $jsonValue = json_encode($playerOptions);
+                error_log('assignInitialFounders - Saving to globals. Key: ' . $key . ', JSON: ' . $jsonValue);
+                
+                $this->globals->set($key, $jsonValue);
+                error_log('assignInitialFounders - Saved to globals successfully');
+                
+                // Проверяем, что данные сохранились
+                $savedValue = $this->globals->get($key, null);
+                error_log('assignInitialFounders - Verification: retrieved value from globals: ' . var_export($savedValue, true));
+                
+                if ($savedValue !== $jsonValue) {
+                    error_log('assignInitialFounders - ERROR: Saved value does not match! Expected: ' . $jsonValue . ', Got: ' . var_export($savedValue, true));
+                } else {
+                    error_log('assignInitialFounders - Verification PASSED: values match');
+                }
+                
+                // Дополнительная проверка через getFounderOptionsForPlayer
+                $retrievedOptions = $this->getFounderOptionsForPlayer($playerId);
+                error_log('assignInitialFounders - Retrieved through getFounderOptionsForPlayer: ' . count($retrievedOptions) . ' cards');
+                if (count($retrievedOptions) !== 3) {
+                    error_log('assignInitialFounders - ERROR: Retrieved options count mismatch! Expected: 3, Got: ' . count($retrievedOptions));
+                }
             }
+            
+            error_log('assignInitialFounders - MAIN MODE: Distribution completed for all players');
         }
     }
 
@@ -696,13 +823,26 @@ class Game extends \Bga\GameFramework\Table
      */
     public function getFounderOptionsForPlayer(int $playerId): array
     {
-        $optionsJson = $this->globals->get('founder_options_' . $playerId, null);
+        $key = 'founder_options_' . $playerId;
+        $optionsJson = $this->globals->get($key, null);
+        
+        error_log('getFounderOptionsForPlayer - Player ID: ' . $playerId . ', Key: ' . $key . ', JSON: ' . var_export($optionsJson, true));
+        
         if ($optionsJson === null) {
+            error_log('getFounderOptionsForPlayer - No options found for player ' . $playerId);
             return [];
         }
 
         $cardIds = json_decode($optionsJson, true);
+        error_log('getFounderOptionsForPlayer - Decoded card IDs: ' . var_export($cardIds, true));
+        
         if (!is_array($cardIds)) {
+            error_log('getFounderOptionsForPlayer - Decoded value is not an array: ' . gettype($cardIds));
+            return [];
+        }
+
+        if (empty($cardIds)) {
+            error_log('getFounderOptionsForPlayer - Card IDs array is empty');
             return [];
         }
 
@@ -711,9 +851,14 @@ class Game extends \Bga\GameFramework\Table
             $card = FoundersData::getCard((int)$cardId);
             if ($card !== null) {
                 $result[] = $card;
+                // Логирование для отладки
+                error_log('getFounderOptionsForPlayer - Found card ID ' . $cardId . ': ' . ($card['name'] ?? 'unknown'));
+            } else {
+                error_log('getFounderOptionsForPlayer - WARNING: Card ID ' . $cardId . ' not found in FoundersData');
             }
         }
 
+        error_log('getFounderOptionsForPlayer - Returning ' . count($result) . ' cards for player ' . $playerId);
         return $result;
     }
 
