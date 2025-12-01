@@ -155,7 +155,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                             <div class="project-board-panel__column project-board-panel__column--long-term project-board-panel__column--blue">
                               <div class="project-board-panel__column-header">${_('Длительные - Синий')}</div>
                               <div class="project-board-panel__column-body">
-                                ${['blue-circle-1', 'blue-hex', 'blue-square', 'blue-circle-2'].map((label) => `<div class="project-board-panel__row" data-label="${label}"></div>`).join('')}
+                                ${['blue-circle-1', 'blue-square', 'blue-hex', 'blue-circle-2'].map((label) => `<div class="project-board-panel__row" data-label="${label}"></div>`).join('')}
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--expensive project-board-panel__column--green">
