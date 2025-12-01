@@ -752,7 +752,20 @@ class Game extends \Bga\GameFramework\Table
                 $founder = $founders[$cardId] ?? null;
                 $founderName = $founder['name'] ?? 'unknown';
                 error_log('assignInitialFounders - Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
-                $this->setFounderForPlayer($playerId, $cardId);
+                
+                // Получаем данные карты, чтобы проверить её department
+                $founderCard = FoundersData::getCard($cardId);
+                $founderDepartment = $founderCard['department'] ?? 'universal';
+                
+                // Если универсальная, оставляем на руке (department='universal')
+                // Иначе автоматически размещаем в указанном отделе
+                if ($founderDepartment !== 'universal') {
+                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' has department ' . $founderDepartment . ', placing automatically');
+                    $this->setFounderForPlayer($playerId, $cardId, $founderDepartment);
+                } else {
+                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' is universal, leaving in hand');
+                    $this->setFounderForPlayer($playerId, $cardId, 'universal');
+                }
             }
         } else {
             // В основном режиме: раздаем по 3 карты каждому игроку для выбора
@@ -1577,48 +1590,4 @@ class Game extends \Bga\GameFramework\Table
         error_log("addProjectTokenToPlayer - Added project token $tokenId to player $playerId at location $location");
     }
 
-    /**
-     * Инициализирует жетоны проектов на планшете
-     * Создает записи в таблице project_token на основе данных из ProjectTokensData
-     * @return void
-     */
-    public function initializeProjectTokens(): void
-    {
-        // Очищаем существующие жетоны (если есть)
-        $this->DbQuery("DELETE FROM `player_project_token`");
-        $this->DbQuery("DELETE FROM `project_token`");
-        
-        // Получаем все жетоны из данных
-        $tokens = ProjectTokensData::getAllTokens();
-        
-        foreach ($tokens as $token) {
-            $number = (int)($token['number'] ?? 0);
-            $color = addslashes($token['color'] ?? '');
-            $shape = addslashes($token['shape'] ?? '');
-            $name = addslashes($token['name'] ?? '');
-            $price = addslashes($token['price'] ?? '');
-            $effect = addslashes($token['effect'] ?? '');
-            $effectDescription = addslashes($token['effect_description'] ?? '');
-            $victoryPoints = (int)($token['victory_points'] ?? 0);
-            $playerCount = (int)($token['player_count'] ?? 0);
-            $imageUrl = isset($token['image_url']) ? addslashes($token['image_url']) : null;
-            
-            $imageUrlSql = $imageUrl ? "'$imageUrl'" : 'NULL';
-            
-            $this->DbQuery("
-                INSERT INTO `project_token` (
-                    `number`, `color`, `shape`, `name`, `price`, 
-                    `effect`, `effect_description`, `victory_points`, 
-                    `player_count`, `image_url`
-                )
-                VALUES (
-                    $number, '$color', '$shape', '$name', '$price',
-                    '$effect', '$effectDescription', $victoryPoints,
-                    $playerCount, $imageUrlSql
-                )
-            ");
-        }
-        
-        error_log("initializeProjectTokens - Initialized " . count($tokens) . " project tokens");
-    }
 }

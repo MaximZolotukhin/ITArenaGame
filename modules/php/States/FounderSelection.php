@@ -9,6 +9,7 @@ use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
 use Bga\Games\itarenagame\Game;
+use Bga\Games\itarenagame\States\NextPlayer;
 
 /**
  * Состояние выбора карты основателя (только для основного режима)
@@ -84,90 +85,6 @@ class FounderSelection extends GameState
         ];
     }
 
-    /**
-     * Действие игрока: выбор карты основателя
-     */
-    #[PossibleAction]
-    public function actSelectFounder(int $founderCardId, int $activePlayerId)
-    {
-        // Проверяем, что карта доступна для выбора
-        $founderOptions = $this->game->getFounderOptionsForPlayer($activePlayerId);
-        $availableIds = array_column($founderOptions, 'id');
-        
-        if (!in_array($founderCardId, $availableIds, true)) {
-            throw new UserException(clienttranslate('Invalid founder card selected'));
-        }
-
-        // Назначаем выбранную карту игроку (автоматически размещается в отдел, если не универсальная)
-        $this->game->selectFounderForPlayer($activePlayerId, $founderCardId);
-
-        $founder = $this->game->getFoundersByPlayer()[$activePlayerId] ?? null;
-        $founderName = $founder['name'] ?? clienttranslate('Unknown');
-        $founderDepartment = $founder['department'] ?? 'universal';
-
-        // Если карта была автоматически размещена в отдел, отправляем уведомление о размещении
-        if ($founderDepartment !== 'universal') {
-            $departmentNames = [
-                'sales-department' => clienttranslate('Отдел продаж'),
-                'back-office' => clienttranslate('Бэк-офис'),
-                'technical-department' => clienttranslate('Техотдел'),
-            ];
-            $departmentName = $departmentNames[$founderDepartment] ?? $founderDepartment;
-
-            $this->notify->all('founderPlaced', clienttranslate('${player_name} выбрал основателя ${founder_name}, который автоматически размещен в ${department_name}'), [
-                'player_id' => $activePlayerId,
-                'player_name' => $this->game->getPlayerNameById($activePlayerId),
-                'founder' => $founder,
-                'founder_name' => $founderName,
-                'department' => $founderDepartment,
-                'department_name' => $departmentName,
-                'i18n' => ['founder_name', 'department_name'],
-            ]);
-        } else {
-            // Уведомляем всех игроков о выборе (карта осталась на руке)
-            $this->notify->all('founderSelected', clienttranslate('${player_name} выбрал основателя: ${founder_name}'), [
-                'player_id' => $activePlayerId,
-                'player_name' => $this->game->getPlayerNameById($activePlayerId),
-                'founder' => $founder,
-                'founder_name' => $founderName,
-                'i18n' => ['founder_name'],
-            ]);
-        }
-
-        // После выбора карты игрок должен остаться в своем ходе
-        // Остаемся в том же состоянии FounderSelection, но теперь игрок может разместить карту и завершить ход
-        // Не возвращаем переход - остаемся в том же состоянии с тем же активным игроком
-        return null;
-    }
-
-    /**
-     * Действие игрока: размещение карты основателя в отдел
-     */
-    #[PossibleAction]
-    public function actPlaceFounder(string $department, int $activePlayerId)
-    {
-        $this->game->placeFounder($activePlayerId, $department);
-
-        $founder = $this->game->getFoundersByPlayer()[$activePlayerId] ?? null;
-        $departmentNames = [
-            'sales-department' => clienttranslate('Отдел продаж'),
-            'back-office' => clienttranslate('Бэк-офис'),
-            'technical-department' => clienttranslate('Техотдел'),
-        ];
-        $departmentName = $departmentNames[$department] ?? $department;
-
-        $this->notify->all('founderPlaced', clienttranslate('${player_name} разместил основателя в ${department_name}'), [
-            'player_id' => $activePlayerId,
-            'player_name' => $this->game->getPlayerNameById($activePlayerId),
-            'department' => $department,
-            'department_name' => $departmentName,
-            'founder' => $founder,
-            'i18n' => ['department_name'],
-        ]);
-
-        // Остаемся в том же состоянии
-        return null;
-    }
 
     /**
      * Действие игрока: завершение хода
@@ -206,20 +123,8 @@ class FounderSelection extends GameState
      */
     function zombie(int $playerId)
     {
-        // Получаем доступные карты для выбора
-        $founderOptions = $this->game->getFounderOptionsForPlayer($playerId);
-        
-        if (empty($founderOptions)) {
-            // Если нет доступных карт, просто переходим к следующему игроку
-            return NextPlayer::class;
-        }
-
-        // Случайным образом выбираем одну из доступных карт
-        $randomCard = $founderOptions[array_rand($founderOptions)];
-        $founderCardId = $randomCard['id'];
-
-        // Вызываем действие выбора карты
-        return $this->actSelectFounder($founderCardId, $playerId);
+        // Для зомби-игрока просто переходим к следующему игроку
+        return NextPlayer::class;
     }
 }
 
