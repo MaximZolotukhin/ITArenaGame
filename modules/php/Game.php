@@ -1546,11 +1546,13 @@ class Game extends \Bga\GameFramework\Table
                 pt.`effect_description`,
                 pt.`victory_points`,
                 pt.`player_count`,
-                pt.`image_url`
+                pt.`image_url`,
+                pt.`board_position`
             FROM `project_token` pt
             LEFT JOIN `player_project_token` ppt ON pt.`token_id` = ppt.`token_id`
             WHERE ppt.`token_id` IS NULL
-            ORDER BY pt.`number`
+            AND pt.`board_position` IS NOT NULL
+            ORDER BY pt.`board_position`, pt.`number`
         ");
         
         $result = [];
@@ -1567,6 +1569,7 @@ class Game extends \Bga\GameFramework\Table
                 'victory_points' => (int)$token['victory_points'],
                 'player_count' => (int)$token['player_count'],
                 'image_url' => $token['image_url'],
+                'board_position' => $token['board_position'],
             ];
         }
         
@@ -1588,6 +1591,148 @@ class Game extends \Bga\GameFramework\Table
         ");
         
         error_log("addProjectTokenToPlayer - Added project token $tokenId to player $playerId at location $location");
+    }
+
+    /**
+     * Инициализирует жетоны проектов в БД (если еще не инициализированы)
+     * @return void
+     */
+    public function initializeProjectTokensIfNeeded(): void
+    {
+        $existingCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token`");
+        if ($existingCount > 0) {
+            return; // Уже инициализированы
+        }
+        
+        $tokens = ProjectTokensData::getAllTokens();
+        if (empty($tokens)) {
+            return;
+        }
+        
+        // Разбиваем на части по 20 записей для оптимизации
+        $batches = array_chunk($tokens, 20);
+        
+        foreach ($batches as $batch) {
+            $values = [];
+            foreach ($batch as $token) {
+                $number = (int)($token['number'] ?? 0);
+                $color = addslashes($token['color'] ?? '');
+                $shape = addslashes($token['shape'] ?? '');
+                $name = addslashes($token['name'] ?? '');
+                $price = addslashes($token['price'] ?? '');
+                $effect = addslashes($token['effect'] ?? '');
+                $effectDescription = addslashes($token['effect_description'] ?? '');
+                $victoryPoints = (int)($token['victory_points'] ?? 0);
+                $playerCount = (int)($token['player_count'] ?? 0);
+                $imageUrl = isset($token['image_url']) ? addslashes($token['image_url']) : null;
+                $imageUrlSql = $imageUrl ? "'$imageUrl'" : 'NULL';
+                
+                $values[] = "($number, '$color', '$shape', '$name', '$price', '$effect', '$effectDescription', $victoryPoints, $playerCount, $imageUrlSql, NULL)";
+            }
+            
+            if (!empty($values)) {
+                $valuesString = implode(', ', $values);
+                $this->DbQuery("
+                    INSERT INTO `project_token` (
+                        `number`, `color`, `shape`, `name`, `price`, 
+                        `effect`, `effect_description`, `victory_points`, 
+                        `player_count`, `image_url`, `board_position`
+                    )
+                    VALUES $valuesString
+                ");
+            }
+        }
+    }
+
+    /**
+     * Размещает жетоны проектов в красной колонке планшета проектов
+     * @return void
+     */
+    public function placeProjectTokensOnRedColumn(): void
+    {
+        // Проверяем, не размещены ли уже жетоны
+        $placedCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token` WHERE `board_position` IN ('red-hex', 'red-square', 'red-circle-1', 'red-circle-2')");
+        if ($placedCount >= 4) {
+            error_log("placeProjectTokensOnRedColumn - Tokens already placed, count: $placedCount");
+            return; // Уже размещены
+        }
+        
+        error_log("placeProjectTokensOnRedColumn - Starting placement, current count: $placedCount");
+        
+        // Получаем жетоны для размещения (только те, что еще не размещены и не у игроков)
+        $hexTokens = $this->getCollectionFromDb("
+            SELECT `token_id` FROM `project_token`
+            WHERE `shape` = 'hex'
+            AND `board_position` IS NULL
+            AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            ORDER BY RAND()
+            LIMIT 1
+        ");
+        
+        $squareTokens = $this->getCollectionFromDb("
+            SELECT `token_id` FROM `project_token`
+            WHERE `shape` = 'square'
+            AND `board_position` IS NULL
+            AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            ORDER BY RAND()
+            LIMIT 1
+        ");
+        
+        $circleTokens = $this->getCollectionFromDb("
+            SELECT `token_id` FROM `project_token`
+            WHERE `shape` = 'circle'
+            AND `board_position` IS NULL
+            AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            ORDER BY RAND()
+            LIMIT 2
+        ");
+        
+        // Размещаем hex
+        if (!empty($hexTokens) && is_array($hexTokens)) {
+            $hexTokens = array_values($hexTokens); // Переиндексируем массив
+            if (isset($hexTokens[0]['token_id'])) {
+                $tokenId = (int)$hexTokens[0]['token_id'];
+                $this->DbQuery("UPDATE `project_token` SET `board_position` = 'red-hex' WHERE `token_id` = $tokenId");
+                error_log("placeProjectTokensOnRedColumn - Placed hex token $tokenId at red-hex");
+            } else {
+                error_log("placeProjectTokensOnRedColumn - WARNING: hexTokens array is empty or invalid");
+            }
+        } else {
+            error_log("placeProjectTokensOnRedColumn - WARNING: No hex tokens found");
+        }
+        
+        // Размещаем square
+        if (!empty($squareTokens) && is_array($squareTokens)) {
+            $squareTokens = array_values($squareTokens); // Переиндексируем массив
+            if (isset($squareTokens[0]['token_id'])) {
+                $tokenId = (int)$squareTokens[0]['token_id'];
+                $this->DbQuery("UPDATE `project_token` SET `board_position` = 'red-square' WHERE `token_id` = $tokenId");
+                error_log("placeProjectTokensOnRedColumn - Placed square token $tokenId at red-square");
+            } else {
+                error_log("placeProjectTokensOnRedColumn - WARNING: squareTokens array is empty or invalid");
+            }
+        } else {
+            error_log("placeProjectTokensOnRedColumn - WARNING: No square tokens found");
+        }
+        
+        // Размещаем circle (2 штуки)
+        if (!empty($circleTokens) && is_array($circleTokens)) {
+            $circleTokens = array_values($circleTokens); // Переиндексируем массив
+            $circlePositions = ['red-circle-1', 'red-circle-2'];
+            foreach ($circleTokens as $index => $token) {
+                if ($index < 2 && isset($token['token_id'])) {
+                    $tokenId = (int)$token['token_id'];
+                    $position = $circlePositions[$index];
+                    $this->DbQuery("UPDATE `project_token` SET `board_position` = '$position' WHERE `token_id` = $tokenId");
+                    error_log("placeProjectTokensOnRedColumn - Placed circle token $tokenId at $position");
+                }
+            }
+        } else {
+            error_log("placeProjectTokensOnRedColumn - WARNING: No circle tokens found");
+        }
+        
+        $finalCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token` WHERE `board_position` IN ('red-hex', 'red-square', 'red-circle-1', 'red-circle-2')");
+        error_log("placeProjectTokensOnRedColumn - Completed placement, final count: $finalCount");
     }
 
 }

@@ -86,11 +86,13 @@ CREATE TABLE IF NOT EXISTS `project_token` (
   `victory_points` int(11) NOT NULL DEFAULT 0,
   `player_count` int(11) NOT NULL,
   `image_url` varchar(255) DEFAULT NULL,
+  `board_position` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`token_id`),
   UNIQUE KEY `number` (`number`),
   KEY `color` (`color`),
   KEY `shape` (`shape`),
-  KEY `player_count` (`player_count`)
+  KEY `player_count` (`player_count`),
+  KEY `board_position` (`board_position`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Таблица для связи игроков с жетонами проектов

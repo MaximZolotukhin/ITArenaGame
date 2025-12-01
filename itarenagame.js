@@ -572,6 +572,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._renderTaskTokens(gamedatas.players)
       }, 150)
 
+      // Отображаем жетоны проектов на планшете проектов
+      setTimeout(() => {
+        this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
+      }, 200)
+
       // TODO: Set up your game interface here, according to "gamedatas"
 
       // Setup game notifications to handle (see "setupNotifications" method below)
@@ -613,6 +618,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           console.log('Entering GameSetup state')
 
           this._renderGameSetup()
+
+          // Отображаем жетоны проектов на планшете
+          if (args?.args?.projectTokensOnBoard) {
+            setTimeout(() => {
+              this._renderProjectTokensOnBoard(args.args.projectTokensOnBoard)
+            }, 200)
+          } else if (this.gamedatas?.projectTokensOnBoard) {
+            setTimeout(() => {
+              this._renderProjectTokensOnBoard(this.gamedatas.projectTokensOnBoard)
+            }, 200)
+          }
 
           break
         case 'PlayerTurn':
@@ -1744,6 +1760,58 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       console.log('Penalty tokens rendered:', container.children.length)
+    },
+
+    _renderProjectTokensOnBoard: function (projectTokens) {
+      console.log('_renderProjectTokensOnBoard called', { projectTokens })
+
+      if (!projectTokens || projectTokens.length === 0) {
+        console.log('No project tokens to render')
+        return
+      }
+
+      // Отображаем каждый жетон в соответствующей позиции
+      projectTokens.forEach((tokenData) => {
+        const boardPosition = tokenData.board_position
+        if (!boardPosition) {
+          return
+        }
+
+        // Находим div с соответствующим data-label
+        const rowElement = document.querySelector(`.project-board-panel__row[data-label="${boardPosition}"]`)
+        if (!rowElement) {
+          console.warn('Row element not found for position:', boardPosition)
+          return
+        }
+
+        // Очищаем строку от старых жетонов
+        rowElement.innerHTML = ''
+
+        // Создаем элемент жетона
+        const tokenElement = document.createElement('div')
+        tokenElement.className = 'project-token'
+        tokenElement.dataset.tokenId = tokenData.token_id
+        tokenElement.dataset.position = boardPosition
+
+        // Создаем изображение жетона
+        if (tokenData.image_url) {
+          const img = document.createElement('img')
+          img.src = tokenData.image_url.startsWith('http') ? tokenData.image_url : `${g_gamethemeurl}${tokenData.image_url}`
+          img.alt = tokenData.name || 'Project token'
+          img.className = 'project-token__image'
+          tokenElement.appendChild(img)
+        } else {
+          // Если нет изображения, создаем текстовый элемент
+          const text = document.createElement('div')
+          text.className = 'project-token__text'
+          text.textContent = tokenData.name || `Token ${tokenData.number}`
+          tokenElement.appendChild(text)
+        }
+
+        // Добавляем жетон в строку
+        rowElement.appendChild(tokenElement)
+        console.log('Rendered project token', tokenData.number, 'at position', boardPosition)
+      })
     },
 
     _renderTaskTokens: function (players) {

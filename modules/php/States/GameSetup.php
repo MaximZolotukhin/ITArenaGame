@@ -86,10 +86,16 @@ class GameSetup extends GameState
         // 4. Раздаем стартовые проекты
         $this->game->distributeStartingProjects($playerIds);
         
-        // 5. Раздаем начальные жетоны задач (1 розовый + 1 голубой в бэклог)
+        // 5. Инициализируем жетоны проектов (если еще не инициализированы)
+        $this->game->initializeProjectTokensIfNeeded();
+        
+        // 6. Размещаем жетоны проектов в красной колонке планшета проектов
+        $this->game->placeProjectTokensOnRedColumn();
+        
+        // 7. Раздаем начальные жетоны задач (1 розовый + 1 голубой в бэклог)
         $this->game->distributeInitialTaskTokens($playerIds);
         
-        // 6. Устанавливаем компоненты на планшеты (загрузка планшетов, расстановка жетонов)
+        // 8. Устанавливаем компоненты на планшеты (загрузка планшетов, расстановка жетонов)
         $this->game->setupPlayerBoards($playerIds);
         
         // Определяем следующее состояние для перехода
@@ -117,7 +123,9 @@ class GameSetup extends GameState
 
     public function getArgs(): array
     {
-        return [];
+        return [
+            'projectTokensOnBoard' => $this->game->getProjectTokensOnBoard(),
+        ];
     }
 
     public function zombie(int $playerId): void
