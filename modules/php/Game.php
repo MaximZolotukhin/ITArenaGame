@@ -1604,10 +1604,26 @@ class Game extends \Bga\GameFramework\Table
             return; // Уже инициализированы
         }
         
-        $tokens = ProjectTokensData::getAllTokens();
+        // Получаем количество игроков
+        $playerCount = count($this->loadPlayersBasicInfos());
+        error_log("initializeProjectTokensIfNeeded - Player count: $playerCount");
+        
+        // Фильтруем жетоны по количеству игроков (player_count <= количество_игроков)
+        $allTokens = ProjectTokensData::getAllTokens();
+        $tokens = [];
+        foreach ($allTokens as $token) {
+            $tokenPlayerCount = (int)($token['player_count'] ?? 0);
+            if ($tokenPlayerCount > 0 && $tokenPlayerCount <= $playerCount) {
+                $tokens[] = $token;
+            }
+        }
+        
         if (empty($tokens)) {
+            error_log("initializeProjectTokensIfNeeded - WARNING: No tokens found for player count: $playerCount");
             return;
         }
+        
+        error_log("initializeProjectTokensIfNeeded - Filtered tokens count: " . count($tokens) . " (from " . count($allTokens) . " total)");
         
         // Разбиваем на части по 20 записей для оптимизации
         $batches = array_chunk($tokens, 20);
@@ -1657,14 +1673,17 @@ class Game extends \Bga\GameFramework\Table
             return; // Уже размещены
         }
         
-        error_log("placeProjectTokensOnRedColumn - Starting placement, current count: $placedCount");
+        // Получаем количество игроков
+        $playerCount = count($this->loadPlayersBasicInfos());
+        error_log("placeProjectTokensOnRedColumn - Starting placement, current count: $placedCount, player count: $playerCount");
         
-        // Получаем жетоны для размещения (только те, что еще не размещены и не у игроков)
+        // Получаем жетоны для размещения (только те, что еще не размещены, не у игроков и соответствуют количеству игроков)
         $hexTokens = $this->getCollectionFromDb("
             SELECT `token_id` FROM `project_token`
             WHERE `shape` = 'hex'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1674,6 +1693,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'square'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1683,6 +1703,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'circle'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 2
         ");
@@ -1748,14 +1769,17 @@ class Game extends \Bga\GameFramework\Table
             return; // Уже размещены
         }
         
-        error_log("placeProjectTokensOnBlueColumn - Starting placement, current count: $placedCount");
+        // Получаем количество игроков
+        $playerCount = count($this->loadPlayersBasicInfos());
+        error_log("placeProjectTokensOnBlueColumn - Starting placement, current count: $placedCount, player count: $playerCount");
         
-        // Получаем жетоны для размещения (только те, что еще не размещены и не у игроков)
+        // Получаем жетоны для размещения (только те, что еще не размещены, не у игроков и соответствуют количеству игроков)
         $hexTokens = $this->getCollectionFromDb("
             SELECT `token_id` FROM `project_token`
             WHERE `shape` = 'hex'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1765,6 +1789,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'square'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1774,6 +1799,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'circle'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 2
         ");
@@ -1839,15 +1865,18 @@ class Game extends \Bga\GameFramework\Table
             return; // Уже размещены
         }
         
-        error_log("placeProjectTokensOnGreenColumn - Starting placement, current count: $placedCount");
+        // Получаем количество игроков
+        $playerCount = count($this->loadPlayersBasicInfos());
+        error_log("placeProjectTokensOnGreenColumn - Starting placement, current count: $placedCount, player count: $playerCount");
         
-        // Получаем жетоны для размещения (только те, что еще не размещены и не у игроков)
+        // Получаем жетоны для размещения (только те, что еще не размещены, не у игроков и соответствуют количеству игроков)
         // ВАЖНО: исключаем жетоны, которые уже размещены в других колонках
         $hexTokens = $this->getCollectionFromDb("
             SELECT `token_id` FROM `project_token`
             WHERE `shape` = 'hex'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1857,6 +1886,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'square'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 1
         ");
@@ -1866,6 +1896,7 @@ class Game extends \Bga\GameFramework\Table
             WHERE `shape` = 'circle'
             AND `board_position` IS NULL
             AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+            AND `player_count` <= $playerCount
             ORDER BY RAND()
             LIMIT 2
         ");
