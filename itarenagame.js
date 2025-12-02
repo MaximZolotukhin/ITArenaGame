@@ -558,7 +558,39 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderBadgers(gamedatas.badgers || [])
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
-      this._renderFounderCard(gamedatas.players, initialActiveId)
+
+      // Проверяем, нужно ли отобразить карты для выбора (в основном режиме, в состоянии FounderSelection)
+      const currentState = gamedatas?.gamestate?.name
+      const isFounderSelection = currentState === 'FounderSelection'
+      const isMainMode = !gamedatas.isTutorialMode
+
+      if (isFounderSelection && isMainMode && Number(initialActiveId) === Number(this.player_id)) {
+        const founderOptions = gamedatas?.founderOptions || gamedatas?.activeFounderOptions || []
+        const hasSelectedFounder = gamedatas?.players?.[initialActiveId]?.founder !== undefined
+
+        console.log('setup - FounderSelection check:', {
+          isFounderSelection,
+          isMainMode,
+          isCurrentPlayer: Number(initialActiveId) === Number(this.player_id),
+          founderOptionsCount: founderOptions.length,
+          hasSelectedFounder,
+          founderOptions: founderOptions,
+        })
+
+        if (!hasSelectedFounder && founderOptions.length > 0) {
+          console.log('✅ setup - Rendering founder selection cards, count:', founderOptions.length)
+          // Используем небольшую задержку, чтобы DOM точно был готов
+          setTimeout(() => {
+            this._renderFounderSelectionCards(founderOptions, initialActiveId)
+          }, 100)
+        } else {
+          console.log('setup - Not rendering selection cards:', { hasSelectedFounder, optionsCount: founderOptions.length })
+          this._renderFounderCard(gamedatas.players, initialActiveId)
+        }
+      } else {
+        this._renderFounderCard(gamedatas.players, initialActiveId)
+      }
+
       this._toggleActivePlayerHand(initialActiveId)
       this._updateHandHighlight(initialActiveId)
 
@@ -645,7 +677,52 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         case 'FounderSelection':
           // Состояние выбора карты основателя
           const activeIdFounderSelection = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
-          this._renderFounderCard(this.gamedatas.players, activeIdFounderSelection)
+
+          console.log('onEnteringState FounderSelection:', {
+            activeIdFounderSelection,
+            currentPlayerId: this.player_id,
+            isCurrentPlayer: Number(activeIdFounderSelection) === Number(this.player_id),
+            args: args?.args,
+            founderOptionsFromArgs: args?.args?.founderOptions?.length || 0,
+            founderOptionsFromGamedatas: this.gamedatas?.founderOptions?.length || 0,
+            activeFounderOptionsFromGamedatas: this.gamedatas?.activeFounderOptions?.length || 0,
+          })
+
+          // Обновляем founderOptions из args, если они есть
+          if (args?.args?.founderOptions) {
+            this.gamedatas.founderOptions = args.args.founderOptions
+            this.gamedatas.activeFounderOptions = args.args.founderOptions
+            console.log('Updated founderOptions from args:', args.args.founderOptions.length)
+          }
+
+          // Если это текущий игрок и есть карты для выбора, отображаем их
+          if (Number(activeIdFounderSelection) === Number(this.player_id)) {
+            const founderOptions = args?.args?.founderOptions || this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || []
+            const hasSelectedFounder = args?.args?.hasSelectedFounder === true
+
+            console.log('Current player in FounderSelection:', {
+              founderOptionsCount: founderOptions.length,
+              hasSelectedFounder,
+              founderOptions: founderOptions,
+            })
+
+            // Если карта еще не выбрана и есть опции, показываем карты для выбора
+            if (!hasSelectedFounder && founderOptions.length > 0) {
+              console.log('✅ Rendering selection cards in onEnteringState, count:', founderOptions.length)
+              setTimeout(() => {
+                this._renderFounderSelectionCards(founderOptions, activeIdFounderSelection)
+              }, 100)
+            } else {
+              // Если карта уже выбрана, показываем обычное отображение
+              console.log('Founder already selected or no options, rendering normal card')
+              this._renderFounderCard(this.gamedatas.players, activeIdFounderSelection)
+            }
+          } else {
+            // Для других игроков показываем обычное отображение
+            console.log('Not current player, rendering normal card')
+            this._renderFounderCard(this.gamedatas.players, activeIdFounderSelection)
+          }
+
           this._toggleActivePlayerHand(activeIdFounderSelection)
           this._updateHandHighlight(activeIdFounderSelection)
           break
@@ -784,8 +861,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             console.log('FounderSelection onUpdateActionButtons - Extracted args:', founderSelectionActionArgs)
             const hasSelectedFounder = founderSelectionActionArgs?.hasSelectedFounder === true
             const mustPlaceFounderFounderSelection = founderSelectionActionArgs?.mustPlaceFounder === true
+            const founderOptionsFromArgs = founderSelectionActionArgs?.founderOptions || []
 
-            console.log('hasSelectedFounder:', hasSelectedFounder, 'mustPlaceFounder:', mustPlaceFounderFounderSelection)
+            console.log('FounderSelection onUpdateActionButtons:', {
+              hasSelectedFounder,
+              mustPlaceFounderFounderSelection,
+              founderOptionsCount: founderOptionsFromArgs.length,
+              founderOptions: founderOptionsFromArgs,
+            })
+
+            // Обновляем данные в gamedatas
+            if (founderOptionsFromArgs.length > 0) {
+              this.gamedatas.founderOptions = founderOptionsFromArgs
+              this.gamedatas.activeFounderOptions = founderOptionsFromArgs
+              console.log('Updated founderOptions in onUpdateActionButtons')
+            }
+
+            // Если карта еще не выбрана и есть опции, отображаем карты
+            if (!hasSelectedFounder && founderOptionsFromArgs.length > 0) {
+              const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas) || this.player_id
+              console.log('✅ Rendering selection cards in onUpdateActionButtons for player:', activePlayerId, 'count:', founderOptionsFromArgs.length)
+              setTimeout(() => {
+                this._renderFounderSelectionCards(founderOptionsFromArgs, activePlayerId)
+              }, 100)
+            }
 
             if (hasSelectedFounder) {
               // Игрок уже выбрал карту - показываем кнопку "Завершить ход"
@@ -1040,6 +1139,58 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           content.textContent = _('Игра окончена')
         } else {
           el.textContent = _('Игра окончена')
+        }
+      }
+    },
+
+    notif_founderSelected: async function (args) {
+      // Обновляем данные о выборе карты основателя
+      const playerId = Number(args.player_id || 0)
+      const cardId = Number(args.card_id || 0)
+      const founder = args.founder || null
+
+      console.log('notif_founderSelected called:', { playerId, cardId, founder })
+
+      if (playerId > 0 && founder) {
+        // Обновляем данные в gamedatas
+        if (!this.gamedatas.players[playerId]) {
+          this.gamedatas.players[playerId] = {}
+        }
+        this.gamedatas.players[playerId].founder = { ...founder }
+
+        // Обновляем данные в founders
+        if (!this.gamedatas.founders) {
+          this.gamedatas.founders = {}
+        }
+        this.gamedatas.founders[playerId] = { ...founder }
+
+        // Удаляем опции выбора для этого игрока
+        if (this.gamedatas.founderOptions) {
+          this.gamedatas.founderOptions = []
+        }
+        if (this.gamedatas.activeFounderOptions) {
+          this.gamedatas.activeFounderOptions = []
+        }
+        if (this.gamedatas.allPlayersFounderOptions && this.gamedatas.allPlayersFounderOptions[playerId]) {
+          delete this.gamedatas.allPlayersFounderOptions[playerId]
+        }
+
+        // Очищаем руку от карт выбора
+        const handContainer = document.getElementById('active-player-hand-cards')
+        if (handContainer && Number(playerId) === Number(this.player_id)) {
+          handContainer.innerHTML = ''
+          handContainer.classList.remove('active-player-hand__center--selecting')
+        }
+
+        // Обновляем отображение карты основателя
+        this._renderFounderCard(this.gamedatas.players, playerId)
+
+        // Если карта универсальная, она остается на руке для размещения
+        // Если нет - она автоматически размещена в отделе
+        const department = founder.department || 'universal'
+        if (department !== 'universal') {
+          // Карта автоматически размещена, обновляем отображение
+          this._renderFounderCard(this.gamedatas.players, playerId)
         }
       }
     },
@@ -1565,6 +1716,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       const handContainer = document.getElementById('active-player-hand-cards')
 
+      this.pendingFounderMove = null // Сбрасываем ожидание перемещения карты основателя
+      this._setDepartmentHighlight(false) // Сбрасываем выделение отдела
+      this._setHandHighlight(false)
+
+      const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+      const playerId = targetPlayerId ?? fallbackId
+
       Object.values(containers).forEach((container) => {
         if (container) {
           container.innerHTML = ''
@@ -1573,17 +1731,57 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (handContainer) {
         // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
         const hasSelectableCards = handContainer.querySelector('.founder-card--selectable')
-        if (!hasSelectableCards) {
+        const currentState = this.gamedatas?.gamestate?.name
+        const isFounderSelection = currentState === 'FounderSelection'
+        const isMainMode = !this.isTutorialMode
+        const isCurrentPlayer = Number(playerId) === Number(this.player_id)
+
+        // Если это состояние выбора и текущий игрок, не очищаем контейнер
+        if (isFounderSelection && isMainMode && isCurrentPlayer && hasSelectableCards) {
+          console.log('_renderFounderCard - Skipping hand container clear (has selectable cards)')
+          // Не очищаем контейнер, если там есть карты для выбора
+        } else if (!hasSelectableCards) {
           handContainer.innerHTML = ''
         }
-        handContainer.classList.remove('active-player-hand__center--selecting') // Убираем выделение руки игрока
-      }
-      this.pendingFounderMove = null // Сбрасываем ожидание перемещения карты основателя
-      this._setDepartmentHighlight(false) // Сбрасываем выделение отдела
-      this._setHandHighlight(false)
 
-      const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
-      const playerId = targetPlayerId ?? fallbackId
+        // Убираем выделение только если нет карт для выбора
+        if (!hasSelectableCards) {
+          handContainer.classList.remove('active-player-hand__center--selecting')
+        }
+      }
+
+      // Проверяем, есть ли карты для выбора (в основном режиме)
+      const currentState = this.gamedatas?.gamestate?.name
+      const isFounderSelection = currentState === 'FounderSelection'
+      const isMainMode = !this.isTutorialMode
+
+      console.log('_renderFounderCard - Checking for selection cards:', {
+        currentState,
+        isFounderSelection,
+        isMainMode,
+        playerId,
+        currentPlayerId: this.player_id,
+        isCurrentPlayer: Number(playerId) === Number(this.player_id),
+        founderOptions: this.gamedatas?.founderOptions?.length || 0,
+        activeFounderOptions: this.gamedatas?.activeFounderOptions?.length || 0,
+      })
+
+      if (isFounderSelection && isMainMode && Number(playerId) === Number(this.player_id)) {
+        // Показываем карты для выбора
+        const founderOptions = this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || []
+        console.log('_renderFounderCard - Found selection state, options count:', founderOptions.length, 'options:', founderOptions)
+        if (founderOptions.length > 0) {
+          console.log('✅ _renderFounderCard - Rendering selection cards')
+          setTimeout(() => {
+            this._renderFounderSelectionCards(founderOptions, playerId)
+          }, 100)
+          return
+        } else {
+          console.warn('⚠️ _renderFounderCard - No founder options found in selection state!')
+          console.warn('gamedatas.founderOptions:', this.gamedatas?.founderOptions)
+          console.warn('gamedatas.activeFounderOptions:', this.gamedatas?.activeFounderOptions)
+        }
+      }
 
       const playerData = this._findPlayerData(players, playerId)
       if (!playerData || !playerData.founder) {
@@ -1654,6 +1852,129 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }
     },
+    _renderFounderSelectionCards: function (founderOptions, playerId) {
+      console.log('🎴 _renderFounderSelectionCards called with:', {
+        founderOptions,
+        playerId,
+        optionsCount: founderOptions?.length,
+        options: founderOptions,
+      })
+
+      if (!founderOptions || founderOptions.length === 0) {
+        console.warn('⚠️ No founder options provided!')
+        return
+      }
+
+      // Функция для рендеринга карт
+      const renderCards = () => {
+        const handContainer = document.getElementById('active-player-hand-cards')
+        if (!handContainer) {
+          console.error('❌ Hand container not found! Trying again...')
+          setTimeout(renderCards, 100)
+          return
+        }
+
+        console.log('✅ Hand container found:', handContainer)
+        console.log('Container parent:', handContainer.parentElement)
+        console.log('Container computed style:', window.getComputedStyle(handContainer))
+
+        // Убеждаемся, что контейнер видим
+        handContainer.style.display = 'flex'
+        handContainer.style.visibility = 'visible'
+        handContainer.style.opacity = '1'
+
+        // Очищаем контейнер
+        handContainer.innerHTML = ''
+        handContainer.classList.add('active-player-hand__center--selecting')
+
+        console.log('🎴 Rendering ' + founderOptions.length + ' founder selection cards')
+
+        // Отображаем три карты для выбора
+        founderOptions.forEach((founder, index) => {
+          const cardId = founder.id || founder.card_id
+          const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
+          const name = founder.name || _('Неизвестный основатель')
+
+          console.log(`🎴 Creating card ${index + 1}:`, { cardId, name, imageUrl, founder })
+
+          const cardElement = document.createElement('div')
+          cardElement.className = 'founder-card founder-card--selectable'
+          cardElement.dataset.cardId = cardId
+          cardElement.dataset.playerId = playerId
+          cardElement.dataset.index = index
+          cardElement.title = name
+          cardElement.style.cursor = 'pointer'
+          cardElement.style.minWidth = '150px'
+          cardElement.style.maxWidth = '200px'
+          cardElement.style.flex = '0 0 auto'
+
+          if (imageUrl) {
+            const img = document.createElement('img')
+            img.src = imageUrl
+            img.alt = name
+            img.className = 'founder-card__image'
+            img.style.width = '100%'
+            img.style.height = 'auto'
+            img.style.display = 'block'
+            cardElement.appendChild(img)
+          } else {
+            const nameDiv = document.createElement('div')
+            nameDiv.textContent = name
+            nameDiv.style.padding = '10px'
+            nameDiv.style.textAlign = 'center'
+            cardElement.appendChild(nameDiv)
+          }
+
+          // Добавляем обработчик клика
+          cardElement.addEventListener('click', () => {
+            console.log('🎴 Card clicked:', cardId)
+            this._selectFounderCard(cardId)
+          })
+
+          handContainer.appendChild(cardElement)
+          console.log(`✅ Card ${index + 1} appended to container`)
+        })
+
+        console.log('✅✅✅ Rendered ' + founderOptions.length + ' founder selection cards for player ' + playerId)
+        console.log('Container children count:', handContainer.children.length)
+        console.log('Container innerHTML length:', handContainer.innerHTML.length)
+
+        // Проверяем, что карты действительно добавлены
+        const cards = handContainer.querySelectorAll('.founder-card--selectable')
+        console.log('Found cards in container:', cards.length)
+        if (cards.length === 0) {
+          console.error('❌ ERROR: Cards were not added to container!')
+        }
+      }
+
+      // Пытаемся отобразить сразу, если DOM готов
+      renderCards()
+    },
+
+    _selectFounderCard: function (cardId) {
+      if (!this.checkAction('actSelectFounder')) {
+        console.warn('Action actSelectFounder is not available')
+        return
+      }
+
+      console.log('Selecting founder card:', cardId)
+      this.ajaxcall(
+        `/itarenagame/itarenagame/actSelectFounder.html`,
+        {
+          cardId: cardId,
+          lock: true,
+        },
+        this,
+        function (result) {
+          console.log('Founder card selected successfully:', result)
+        },
+        function (error) {
+          console.error('Error selecting founder card:', error)
+          this.showMessage(error, 'error')
+        }
+      )
+    },
+
     _findPlayerData: function (players, playerId) {
       if (!players) return null
       const stringId = String(playerId)

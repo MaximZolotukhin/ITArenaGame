@@ -87,6 +87,60 @@ class FounderSelection extends GameState
 
 
     /**
+     * Действие игрока: выбор карты основателя
+     */
+    #[PossibleAction]
+    public function actSelectFounder(int $activePlayerId, int $cardId)
+    {
+        $this->game->checkAction('actSelectFounder');
+        
+        // Проверяем, что карта доступна для выбора
+        $options = $this->game->getFounderOptionsForPlayer($activePlayerId);
+        if (empty($options)) {
+            throw new UserException(clienttranslate('У вас нет доступных карт основателей для выбора'));
+        }
+        
+        $availableIds = array_column($options, 'id');
+        if (!in_array($cardId, $availableIds, true)) {
+            throw new UserException(clienttranslate('Выбранная карта недоступна'));
+        }
+        
+        // Проверяем, что карта еще не выбрана
+        $existingCardId = $this->game->globals->get('founder_player_' . $activePlayerId, null);
+        if ($existingCardId !== null) {
+            throw new UserException(clienttranslate('Карта основателя уже выбрана'));
+        }
+        
+        // Выбираем карту для игрока
+        $this->game->selectFounderForPlayer($activePlayerId, $cardId);
+        
+        // Уведомляем о выборе
+        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
+        $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
+        
+        $this->notify->all('founderSelected', clienttranslate('${player_name} выбрал карту основателя: ${founder_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'founder_name' => $founderName,
+            'card_id' => $cardId,
+            'founder' => $founderCard,
+        ]);
+        
+        $this->game->giveExtraTime($activePlayerId);
+        
+        // Если карта универсальная, остаемся в этом состоянии для размещения
+        // Иначе переходим к следующему игроку
+        $founderDepartment = $founderCard['department'] ?? 'universal';
+        if ($founderDepartment !== 'universal') {
+            // Карта автоматически размещена, переходим к следующему игроку
+            return NextPlayer::class;
+        }
+        
+        // Карта универсальная, остаемся в состоянии для размещения
+        return null;
+    }
+
+    /**
      * Действие игрока: завершение хода
      */
     #[PossibleAction]
