@@ -564,8 +564,44 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const isFounderSelection = currentState === 'FounderSelection'
       const isMainMode = !gamedatas.isTutorialMode
 
+      console.log('🔍 setup - State check:', {
+        currentState,
+        isFounderSelection,
+        isMainMode,
+        initialActiveId,
+        currentPlayerId: this.player_id,
+        isCurrentPlayer: Number(initialActiveId) === Number(this.player_id),
+        allPlayersFounderOptions: gamedatas?.allPlayersFounderOptions,
+      })
+
+      // Проверяем, есть ли опции карт для текущего игрока (независимо от активного игрока)
+      const currentPlayerOptions = gamedatas?.founderOptions || gamedatas?.allPlayersFounderOptions?.[this.player_id] || []
+
+      if (isMainMode && currentPlayerOptions.length > 0) {
+        const hasSelectedFounder = gamedatas?.players?.[this.player_id]?.founder !== undefined
+
+        console.log('🔍 setup - Current player has options:', {
+          currentPlayerId: this.player_id,
+          optionsCount: currentPlayerOptions.length,
+          hasSelectedFounder,
+          isFounderSelection,
+        })
+
+        if (!hasSelectedFounder) {
+          console.log('✅ setup - Rendering founder selection cards for current player, count:', currentPlayerOptions.length)
+          setTimeout(() => {
+            this._renderFounderSelectionCards(currentPlayerOptions, this.player_id)
+          }, 200)
+          this._toggleActivePlayerHand(this.player_id)
+          this._updateHandHighlight(this.player_id)
+          return // Не вызываем _renderFounderCard, так как уже отобразили карты
+        }
+      }
+
       if (isFounderSelection && isMainMode && Number(initialActiveId) === Number(this.player_id)) {
-        const founderOptions = gamedatas?.founderOptions || gamedatas?.activeFounderOptions || []
+        // Пробуем получить опции из разных источников (важно для 3+ игроков)
+        let founderOptions = gamedatas?.founderOptions || gamedatas?.activeFounderOptions || gamedatas?.allPlayersFounderOptions?.[initialActiveId] || []
+
         const hasSelectedFounder = gamedatas?.players?.[initialActiveId]?.founder !== undefined
 
         console.log('setup - FounderSelection check:', {
@@ -575,6 +611,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           founderOptionsCount: founderOptions.length,
           hasSelectedFounder,
           founderOptions: founderOptions,
+          sources: {
+            fromGamedatas: gamedatas?.founderOptions?.length || 0,
+            fromActive: gamedatas?.activeFounderOptions?.length || 0,
+            fromAllPlayers: gamedatas?.allPlayersFounderOptions?.[initialActiveId]?.length || 0,
+          },
         })
 
         if (!hasSelectedFounder && founderOptions.length > 0) {
@@ -695,27 +736,63 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             console.log('Updated founderOptions from args:', args.args.founderOptions.length)
           }
 
+          // ВАЖНО: Проверяем опции для текущего игрока, а не только для активного
+          const currentPlayerOptions = args?.args?.founderOptions || this.gamedatas?.founderOptions || this.gamedatas?.allPlayersFounderOptions?.[this.player_id] || []
+
+          console.log('🔍 onEnteringState - Checking options for current player:', {
+            currentPlayerId: this.player_id,
+            activePlayerId: activeIdFounderSelection,
+            currentPlayerOptionsCount: currentPlayerOptions.length,
+            hasOptionsInArgs: args?.args?.founderOptions?.length || 0,
+            hasOptionsInGamedatas: this.gamedatas?.founderOptions?.length || 0,
+            hasOptionsInAllPlayers: this.gamedatas?.allPlayersFounderOptions?.[this.player_id]?.length || 0,
+          })
+
+          // Проверяем, является ли активный игрок текущим игроком
+          const isCurrentPlayer = Number(activeIdFounderSelection) === Number(this.player_id)
+
+          console.log('FounderSelection - Player check:', {
+            activeIdFounderSelection,
+            currentPlayerId: this.player_id,
+            isCurrentPlayer,
+            argsFounderOptions: args?.args?.founderOptions?.length || 0,
+            gamedatasFounderOptions: this.gamedatas?.founderOptions?.length || 0,
+            gamedatasActiveFounderOptions: this.gamedatas?.activeFounderOptions?.length || 0,
+            allPlayersFounderOptions: this.gamedatas?.allPlayersFounderOptions?.[activeIdFounderSelection]?.length || 0,
+          })
+
           // Если это текущий игрок и есть карты для выбора, отображаем их
-          if (Number(activeIdFounderSelection) === Number(this.player_id)) {
-            const founderOptions = args?.args?.founderOptions || this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || []
-            const hasSelectedFounder = args?.args?.hasSelectedFounder === true
+          // ИЛИ если у текущего игрока есть опции (независимо от того, активный он или нет)
+          if (isCurrentPlayer || currentPlayerOptions.length > 0) {
+            // Используем опции текущего игрока, если они есть, иначе опции активного
+            let founderOptions =
+              currentPlayerOptions.length > 0 ? currentPlayerOptions : args?.args?.founderOptions || this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || this.gamedatas?.allPlayersFounderOptions?.[activeIdFounderSelection] || []
+
+            const targetPlayerId = currentPlayerOptions.length > 0 ? this.player_id : activeIdFounderSelection
+            const hasSelectedFounder = args?.args?.hasSelectedFounder === true || this.gamedatas?.players?.[targetPlayerId]?.founder !== undefined
 
             console.log('Current player in FounderSelection:', {
               founderOptionsCount: founderOptions.length,
               hasSelectedFounder,
               founderOptions: founderOptions,
+              sources: {
+                fromArgs: args?.args?.founderOptions?.length || 0,
+                fromGamedatas: this.gamedatas?.founderOptions?.length || 0,
+                fromActive: this.gamedatas?.activeFounderOptions?.length || 0,
+                fromAllPlayers: this.gamedatas?.allPlayersFounderOptions?.[activeIdFounderSelection]?.length || 0,
+              },
             })
 
             // Если карта еще не выбрана и есть опции, показываем карты для выбора
             if (!hasSelectedFounder && founderOptions.length > 0) {
-              console.log('✅ Rendering selection cards in onEnteringState, count:', founderOptions.length)
+              console.log('✅ Rendering selection cards in onEnteringState, count:', founderOptions.length, 'for player:', targetPlayerId)
               setTimeout(() => {
-                this._renderFounderSelectionCards(founderOptions, activeIdFounderSelection)
+                this._renderFounderSelectionCards(founderOptions, targetPlayerId)
               }, 100)
             } else {
               // Если карта уже выбрана, показываем обычное отображение
               console.log('Founder already selected or no options, rendering normal card')
-              this._renderFounderCard(this.gamedatas.players, activeIdFounderSelection)
+              this._renderFounderCard(this.gamedatas.players, targetPlayerId)
             }
           } else {
             // Для других игроков показываем обычное отображение
@@ -877,10 +954,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               console.log('Updated founderOptions in onUpdateActionButtons')
             }
 
-            // Если карта еще не выбрана и есть опции, отображаем карты
-            if (!hasSelectedFounder && founderOptionsFromArgs.length > 0) {
+            // Проверяем опции для текущего игрока
+            const currentPlayerOptions = founderOptionsFromArgs.length > 0 ? founderOptionsFromArgs : this.gamedatas?.founderOptions || this.gamedatas?.allPlayersFounderOptions?.[this.player_id] || []
+
+            const currentPlayerHasSelected = this.gamedatas?.players?.[this.player_id]?.founder !== undefined
+
+            console.log('🔍 onUpdateActionButtons - Checking options:', {
+              currentPlayerId: this.player_id,
+              currentPlayerOptionsCount: currentPlayerOptions.length,
+              currentPlayerHasSelected,
+              hasSelectedFounder,
+              founderOptionsFromArgsCount: founderOptionsFromArgs.length,
+            })
+
+            // Если карта еще не выбрана и есть опции, отображаем карты для текущего игрока
+            if (!currentPlayerHasSelected && currentPlayerOptions.length > 0) {
+              console.log('✅ Rendering selection cards in onUpdateActionButtons for current player:', this.player_id, 'count:', currentPlayerOptions.length)
+              setTimeout(() => {
+                this._renderFounderSelectionCards(currentPlayerOptions, this.player_id)
+              }, 100)
+            } else if (!hasSelectedFounder && founderOptionsFromArgs.length > 0) {
+              // Fallback: если нет опций для текущего игрока, но есть для активного
               const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas) || this.player_id
-              console.log('✅ Rendering selection cards in onUpdateActionButtons for player:', activePlayerId, 'count:', founderOptionsFromArgs.length)
+              console.log('✅ Rendering selection cards in onUpdateActionButtons for active player:', activePlayerId, 'count:', founderOptionsFromArgs.length)
               setTimeout(() => {
                 this._renderFounderSelectionCards(founderOptionsFromArgs, activePlayerId)
               }, 100)
@@ -1767,9 +1863,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
 
       if (isFounderSelection && isMainMode && Number(playerId) === Number(this.player_id)) {
-        // Показываем карты для выбора
-        const founderOptions = this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || []
+        // Показываем карты для выбора (проверяем все возможные источники данных)
+        const founderOptions = this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || this.gamedatas?.allPlayersFounderOptions?.[playerId] || []
         console.log('_renderFounderCard - Found selection state, options count:', founderOptions.length, 'options:', founderOptions)
+        console.log('_renderFounderCard - Sources:', {
+          fromGamedatas: this.gamedatas?.founderOptions?.length || 0,
+          fromActive: this.gamedatas?.activeFounderOptions?.length || 0,
+          fromAllPlayers: this.gamedatas?.allPlayersFounderOptions?.[playerId]?.length || 0,
+        })
         if (founderOptions.length > 0) {
           console.log('✅ _renderFounderCard - Rendering selection cards')
           setTimeout(() => {
@@ -1780,6 +1881,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           console.warn('⚠️ _renderFounderCard - No founder options found in selection state!')
           console.warn('gamedatas.founderOptions:', this.gamedatas?.founderOptions)
           console.warn('gamedatas.activeFounderOptions:', this.gamedatas?.activeFounderOptions)
+          console.warn('gamedatas.allPlayersFounderOptions:', this.gamedatas?.allPlayersFounderOptions)
         }
       }
 
