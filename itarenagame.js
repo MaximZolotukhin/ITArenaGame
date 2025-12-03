@@ -1967,6 +1967,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
 
+      // Определяем, показывать ли карты или рубашку (логика из обучающего режима)
+      const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
+      const isMyTurn = activePlayerId && Number(activePlayerId) === Number(this.player_id) && Number(playerId) === Number(this.player_id)
+
       // Функция для рендеринга карт
       const renderCards = () => {
         const handContainer = document.getElementById('active-player-hand-cards')
@@ -1989,9 +1993,37 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         handContainer.innerHTML = ''
         handContainer.classList.add('active-player-hand__center--selecting')
 
+        // Если это не мой ход, показываем три рубашки карт
+        if (!isMyTurn) {
+          console.log('🎴 Not my turn, showing 3 card backs for player ' + playerId)
+          const backImageUrl = `${g_gamethemeurl}img/back-cards.png`
+
+          // Создаем три рубашки карт
+          for (let i = 0; i < 3; i++) {
+            const backCardElement = document.createElement('div')
+            backCardElement.className = 'founder-card founder-card--back'
+            backCardElement.dataset.playerId = playerId
+            backCardElement.style.minWidth = '150px'
+            backCardElement.style.maxWidth = '200px'
+            backCardElement.style.flex = '0 0 auto'
+
+            const img = document.createElement('img')
+            img.src = backImageUrl
+            img.alt = _('Рубашка карты')
+            img.className = 'founder-card__image'
+            img.style.width = '100%'
+            img.style.height = 'auto'
+            img.style.display = 'block'
+
+            backCardElement.appendChild(img)
+            handContainer.appendChild(backCardElement)
+          }
+          return
+        }
+
         console.log('🎴 Rendering ' + founderOptions.length + ' founder selection cards')
 
-        // Отображаем три карты для выбора
+        // Отображаем три карты для выбора (только для активного игрока)
         founderOptions.forEach((founder, index) => {
           const cardId = founder.id || founder.card_id
           const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''

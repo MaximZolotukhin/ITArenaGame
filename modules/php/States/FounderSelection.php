@@ -104,7 +104,7 @@ class FounderSelection extends GameState
         if (!in_array($cardId, $availableIds, true)) {
             throw new UserException(clienttranslate('Выбранная карта недоступна'));
         }
-        
+
         // Проверяем, что карта еще не выбрана
         $existingCardId = $this->game->globals->get('founder_player_' . $activePlayerId, null);
         if ($existingCardId !== null) {
@@ -117,7 +117,7 @@ class FounderSelection extends GameState
         // Уведомляем о выборе
         $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
         $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
-        
+
         $this->notify->all('founderSelected', clienttranslate('${player_name} выбрал карту основателя: ${founder_name}'), [
             'player_id' => $activePlayerId,
             'player_name' => $this->game->getPlayerNameById($activePlayerId),
@@ -178,7 +178,7 @@ class FounderSelection extends GameState
     function zombie(int $playerId)
     {
         // Для зомби-игрока просто переходим к следующему игроку
-        return NextPlayer::class;
+            return NextPlayer::class;
     }
 }
 

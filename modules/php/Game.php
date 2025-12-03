@@ -459,7 +459,7 @@ class Game extends \Bga\GameFramework\Table
         return \Bga\Games\itarenagame\States\GameSetup::class;
     }
 
-    private function getRoundEventCards(): array
+    public function getRoundEventCards(): array
     {
         $cards = $this->eventDeck->getCardsInLocation('table');
         $result = [];
