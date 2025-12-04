@@ -66,11 +66,13 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         if (!$isTutorial) {
             // Основной режим: проверяем, все ли игроки выбрали карты
             $allPlayersSelected = $this->game->allPlayersSelectedFounders();
+            error_log('NextPlayer - allPlayersSelected: ' . ($allPlayersSelected ? 'yes' : 'no'));
             
             if (!$allPlayersSelected) {
-                // Еще есть игроки без выбранных карт - переходим к выбору карты
+                // Еще есть игроки без выбранных карт - переходим к выбору карты следующего игрока
                 $this->game->activeNextPlayer();
                 $nextPlayerId = $this->game->getActivePlayerId();
+                error_log('NextPlayer - Moving to next player for FounderSelection: ' . $nextPlayerId);
                 
                 // Проверяем, выбрал ли следующий игрок карту
                 $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
@@ -78,21 +80,34 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     // Игрок еще не выбрал карту - переходим к выбору
                     return FounderSelection::class;
                 } else {
-                    // Игрок уже выбрал карту - переходим к его ходу
-                    return PlayerTurn::class;
-                }
-            } else {
-                // Все игроки выбрали карты - проверяем, все ли завершили свои ходы
-                if ($remaining === 0) {
-                    // Все игроки завершили свои ходы - переходим к RoundEvent
-                    // Это начало первого раунда после выбора карт
-                    return RoundEvent::class;
-                } else {
-                    // Еще есть игроки, которые не завершили ходы - продолжаем обычную игру
-                    $this->game->activeNextPlayer();
-                    return PlayerTurn::class;
+                    // Игрок уже выбрал карту - продолжаем искать следующего, кто не выбрал
+                    // Рекурсивно ищем игрока, который еще не выбрал карту
+                    $players = array_keys($this->game->loadPlayersBasicInfos());
+                    foreach ($players as $playerId) {
+                        $founder = $this->game->globals->get('founder_player_' . $playerId, null);
+                        if ($founder === null) {
+                            // Нашли игрока без карты
+                            $this->game->gamestate->changeActivePlayer((int)$playerId);
+                            return FounderSelection::class;
+                        }
+                    }
+                    // Все выбрали - переходим к началу игры
                 }
             }
+            
+            // Все игроки выбрали карты - отправляем уведомление о начале ЭТАПА 2
+            error_log('NextPlayer - All players selected founders! Starting ЭТАП 2');
+            
+            $this->notify->all('gameStart', clienttranslate('🎮 ЭТАП 2: НАЧАЛО ИГРЫ'), [
+                'stageName' => clienttranslate('Начало игры'),
+            ]);
+            
+            // Сбрасываем счетчик игроков для первого раунда
+            $playersCount = count($this->game->loadPlayersBasicInfos());
+            $this->game->setGameStateValue('players_left_in_round', $playersCount);
+            
+            // Переходим к первому раунду (RoundEvent)
+            return RoundEvent::class;
         }
         
         // Обучающий режим: обычный переход к следующему игроку

@@ -324,20 +324,22 @@ class Game extends \Bga\GameFramework\Table
         if (!$this->isTutorialMode()) {
             error_log('getAllDatas - Main mode: checking founder options');
             
-            // Получаем опции для текущего игрока
-            $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
-            error_log('getAllDatas - Current player ' . $current_player_id . ' has ' . count($founderOptions) . ' founder options');
+            // ВАЖНО: Проверяем, выбрал ли игрок уже карту основателя
+            $currentPlayerHasFounder = $this->globals->get('founder_player_' . $current_player_id, null) !== null;
+            error_log('getAllDatas - Current player ' . $current_player_id . ' has founder: ' . ($currentPlayerHasFounder ? 'yes' : 'no'));
+            
+            // Получаем опции для текущего игрока ТОЛЬКО если он еще не выбрал карту
+            $founderOptions = [];
+            if (!$currentPlayerHasFounder) {
+                $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
+                error_log('getAllDatas - Current player ' . $current_player_id . ' has ' . count($founderOptions) . ' founder options');
+            } else {
+                error_log('getAllDatas - Skipping founderOptions for current player (already has founder)');
+            }
             
             if (!empty($founderOptions)) {
                 $result['founderOptions'] = $founderOptions; // Карты на выбор для текущего игрока
                 error_log('getAllDatas - Added founderOptions to result: ' . count($founderOptions) . ' cards');
-            } else {
-                error_log('getAllDatas - WARNING: Current player has NO founder options!');
-                // Проверяем, может быть данные еще не сохранены (ранний вызов getAllDatas)
-                // В этом случае проверяем globals напрямую
-                $key = 'founder_options_' . $current_player_id;
-                $rawValue = $this->globals->get($key, null);
-                error_log('getAllDatas - Direct globals check for key ' . $key . ': ' . var_export($rawValue, true));
             }
             
             // Также проверяем активного игрока (может отличаться от текущего)
@@ -345,11 +347,17 @@ class Game extends \Bga\GameFramework\Table
             error_log('getAllDatas - Active player ID: ' . ($activePlayerId !== null ? $activePlayerId : 'null'));
             
             if ($activePlayerId !== null && $activePlayerId !== $current_player_id) {
-                $activeFounderOptions = $this->getFounderOptionsForPlayer((int)$activePlayerId);
-                error_log('getAllDatas - Active player ' . $activePlayerId . ' has ' . count($activeFounderOptions) . ' founder options');
-                if (!empty($activeFounderOptions)) {
-                    $result['activeFounderOptions'] = $activeFounderOptions; // Карты на выбор для активного игрока
-                    error_log('getAllDatas - Added activeFounderOptions to result: ' . count($activeFounderOptions) . ' cards');
+                // Проверяем, выбрал ли активный игрок уже карту
+                $activePlayerHasFounder = $this->globals->get('founder_player_' . (int)$activePlayerId, null) !== null;
+                if (!$activePlayerHasFounder) {
+                    $activeFounderOptions = $this->getFounderOptionsForPlayer((int)$activePlayerId);
+                    error_log('getAllDatas - Active player ' . $activePlayerId . ' has ' . count($activeFounderOptions) . ' founder options');
+                    if (!empty($activeFounderOptions)) {
+                        $result['activeFounderOptions'] = $activeFounderOptions; // Карты на выбор для активного игрока
+                        error_log('getAllDatas - Added activeFounderOptions to result: ' . count($activeFounderOptions) . ' cards');
+                    }
+                } else {
+                    error_log('getAllDatas - Active player ' . $activePlayerId . ' already has founder, skipping options');
                 }
             } elseif ($activePlayerId !== null && $activePlayerId === $current_player_id) {
                 // Если активный игрок = текущий, используем те же опции
@@ -357,7 +365,7 @@ class Game extends \Bga\GameFramework\Table
                     $result['activeFounderOptions'] = $founderOptions;
                     error_log('getAllDatas - Added activeFounderOptions (same as founderOptions): ' . count($founderOptions) . ' cards');
                 } else {
-                    error_log('getAllDatas - WARNING: Active player = current player, but founderOptions is empty!');
+                    error_log('getAllDatas - Active player = current player, no options (already has founder or none available)');
                 }
             } else {
                 error_log('getAllDatas - Active player is null or different from current player');
@@ -365,13 +373,20 @@ class Game extends \Bga\GameFramework\Table
             
             // ВАЖНО: Также передаем опции для ВСЕХ игроков, чтобы клиент мог их отобразить
             // Это нужно, потому что getAllDatas может вызываться до onEnteringState
+            // НО: Только для игроков, которые еще не выбрали карту!
             $allPlayersFounderOptions = [];
             foreach ($result["players"] as $player) {
                 $playerId = (int)($player['id'] ?? 0);
-                $playerOptions = $this->getFounderOptionsForPlayer($playerId);
-                if (!empty($playerOptions)) {
-                    $allPlayersFounderOptions[$playerId] = $playerOptions;
-                    error_log('getAllDatas - Player ' . $playerId . ' has ' . count($playerOptions) . ' founder options');
+                // Проверяем, выбрал ли этот игрок уже карту
+                $playerHasFounder = $this->globals->get('founder_player_' . $playerId, null) !== null;
+                if (!$playerHasFounder) {
+                    $playerOptions = $this->getFounderOptionsForPlayer($playerId);
+                    if (!empty($playerOptions)) {
+                        $allPlayersFounderOptions[$playerId] = $playerOptions;
+                        error_log('getAllDatas - Player ' . $playerId . ' has ' . count($playerOptions) . ' founder options');
+                    }
+                } else {
+                    error_log('getAllDatas - Player ' . $playerId . ' already has founder, skipping options');
                 }
             }
             if (!empty($allPlayersFounderOptions)) {
@@ -900,6 +915,26 @@ class Game extends \Bga\GameFramework\Table
         $founderCard = FoundersData::getCard($cardId);
         $founderDepartment = $founderCard['department'] ?? 'universal';
         
+        // Отправляем две другие карты в отбой (не выбранные карты)
+        $discardedCardIds = array_filter($availableIds, fn($id) => $id !== $cardId);
+        if (!empty($discardedCardIds)) {
+            // Сохраняем информацию о сброшенных картах для уведомления
+            $discardedCards = [];
+            foreach ($discardedCardIds as $discardedId) {
+                $discardedCard = FoundersData::getCard($discardedId);
+                if ($discardedCard !== null) {
+                    $discardedCards[] = $discardedCard['name'] ?? clienttranslate('Неизвестная карта');
+                }
+            }
+            
+            // Уведомляем о сбросе карт
+            $this->notify->all('founderCardsDiscarded', clienttranslate('Две карты основателя отправлены в отбой'), [
+                'player_id' => $playerId,
+                'player_name' => $this->getPlayerNameById($playerId),
+                'discarded_cards' => $discardedCards,
+            ]);
+        }
+        
         // Если карта не универсальная, автоматически размещаем её в соответствующий отдел
         // Если универсальная, оставляем на руке (department='universal')
         if ($founderDepartment !== 'universal') {
@@ -910,7 +945,7 @@ class Game extends \Bga\GameFramework\Table
             $this->setFounderForPlayer($playerId, $cardId, 'universal');
         }
 
-        // Удаляем опции выбора (они больше не нужны - две другие карты уходят в сброс)
+        // Удаляем опции выбора (они больше не нужны - две другие карты ушли в отбой)
         $this->globals->set('founder_options_' . $playerId, null);
     }
 

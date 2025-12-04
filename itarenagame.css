@@ -274,6 +274,38 @@
   border-color: #4caf50;
 }
 
+/* Универсальная карта - кликабельная */
+.founder-card--universal-clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.founder-card--universal-clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+  border-color: #ffc107;
+}
+
+/* Активная универсальная карта - увеличена в 2 раза */
+.founder-card--active.founder-card--enlarged {
+  transform: scale(2);
+  z-index: 100;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(255, 193, 7, 0.6), 0 0 30px rgba(255, 193, 7, 0.4);
+  border: 3px solid #ffc107;
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 20px 50px rgba(255, 193, 7, 0.6), 0 0 30px rgba(255, 193, 7, 0.4);
+  }
+  50% {
+    box-shadow: 0 20px 50px rgba(255, 193, 7, 0.8), 0 0 50px rgba(255, 193, 7, 0.6);
+  }
+}
+
 .completed-projects,
 .parts-of-projects {
   padding: 10px;
@@ -2393,10 +2425,27 @@
 }
 
 .department-highlight {
-  outline: 3px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 22px rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.1);
+  outline: 4px solid #ffc107;
+  box-shadow: 0 0 30px rgba(255, 193, 7, 0.7), inset 0 0 20px rgba(255, 193, 7, 0.2);
+  background: rgba(255, 193, 7, 0.15);
   cursor: pointer;
+  transition: all 0.2s ease;
+  animation: department-pulse 1.2s ease-in-out infinite;
+}
+
+.department-highlight:hover {
+  outline-width: 5px;
+  box-shadow: 0 0 40px rgba(255, 193, 7, 0.9), inset 0 0 30px rgba(255, 193, 7, 0.3);
+  background: rgba(255, 193, 7, 0.25);
+}
+
+@keyframes department-pulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(255, 193, 7, 0.7), inset 0 0 20px rgba(255, 193, 7, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 45px rgba(255, 193, 7, 0.9), inset 0 0 30px rgba(255, 193, 7, 0.3);
+  }
 }
 
 .department-highlight::after {
@@ -2409,7 +2458,11 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.9);
+  color: #ffc107;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 12px;
+  border-radius: 4px;
 }
 
 /* Панель выбора карты основателя (только для основного режима) */

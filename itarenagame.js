@@ -575,9 +575,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
 
       // Проверяем, есть ли опции карт для текущего игрока (независимо от активного игрока)
+      // ВАЖНО: Показываем карты только в состоянии FounderSelection!
       const currentPlayerOptions = gamedatas?.founderOptions || gamedatas?.allPlayersFounderOptions?.[this.player_id] || []
 
-      if (isMainMode && currentPlayerOptions.length > 0) {
+      if (isFounderSelection && isMainMode && currentPlayerOptions.length > 0) {
         const hasSelectedFounder = gamedatas?.players?.[this.player_id]?.founder !== undefined
 
         console.log('🔍 setup - Current player has options:', {
@@ -710,6 +711,24 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           }
           const activeId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
           this.gamedatas.gamestate.active_player = activeId
+
+          // ВАЖНО: Очищаем опции выбора карт при входе в PlayerTurn
+          // Это состояние наступает после выбора карты, поэтому карты выбора больше не нужны
+          this.gamedatas.founderOptions = null
+          this.gamedatas.activeFounderOptions = null
+          this.gamedatas.allPlayersFounderOptions = null
+
+          // Очищаем карты выбора из DOM если они есть
+          const handContainerPlayerTurn = document.getElementById('active-player-hand-cards')
+          if (handContainerPlayerTurn) {
+            const selectableCardsPlayerTurn = handContainerPlayerTurn.querySelectorAll('.founder-card--selectable')
+            if (selectableCardsPlayerTurn.length > 0) {
+              console.log('PlayerTurn - Clearing ' + selectableCardsPlayerTurn.length + ' selectable cards from hand')
+              selectableCardsPlayerTurn.forEach(card => card.remove())
+              handContainerPlayerTurn.classList.remove('active-player-hand__center--selecting')
+            }
+          }
+
           this._renderPlayerMoney(this.gamedatas.players, activeId)
           this._renderFounderCard(this.gamedatas.players, activeId)
           this._toggleActivePlayerHand(activeId)
@@ -1053,7 +1072,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('notifications subscriptions setup')
 
       // automatically listen to the notifications, based on the `notif_xxx` function on this class.
-      this.bgaSetupPromiseNotifications()
+      this.bgaSetupPromiseNotifications({
+        onStart: (notifName, msg, args) => {
+          console.log('📢 Notification started:', notifName, msg, args)
+        },
+        onEnd: (notifName, msg, args) => {
+          console.log('✅ Notification ended:', notifName)
+        },
+      })
+
+      // Проверяем, что обработчик зарегистрирован
+      console.log(
+        'Registered notification handlers:',
+        Object.getOwnPropertyNames(this).filter((name) => name.startsWith('notif_'))
+      )
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -1240,54 +1272,189 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     notif_founderSelected: async function (args) {
-      // Обновляем данные о выборе карты основателя
+      console.log('🎉🎉🎉 notif_founderSelected CALLED! 🎉🎉🎉')
+      console.log('🎉 Full args:', JSON.stringify(args, null, 2))
+      
       const playerId = Number(args.player_id || 0)
-      const cardId = Number(args.card_id || 0)
       const founder = args.founder || null
+      const department = String(args.department || founder?.department || 'universal').trim().toLowerCase()
+      const isUniversal = department === 'universal'
 
-      console.log('notif_founderSelected called:', { playerId, cardId, founder })
+      console.log('🎉 notif_founderSelected - Processing:', { 
+        playerId, 
+        department, 
+        isUniversal, 
+        founderName: founder?.name,
+        founderId: founder?.id,
+        currentPlayerId: this.player_id
+      })
 
       if (playerId > 0 && founder) {
-        // Обновляем данные в gamedatas
-        if (!this.gamedatas.players[playerId]) {
-          this.gamedatas.players[playerId] = {}
-        }
-        this.gamedatas.players[playerId].founder = { ...founder }
-
         // Обновляем данные в founders
         if (!this.gamedatas.founders) {
           this.gamedatas.founders = {}
         }
-        this.gamedatas.founders[playerId] = { ...founder }
+        const founderData = { ...founder }
+        founderData.department = department
+        this.gamedatas.founders[playerId] = founderData
 
-        // Удаляем опции выбора для этого игрока
-        if (this.gamedatas.founderOptions) {
-          this.gamedatas.founderOptions = []
+        // Обновляем данные в players
+        if (!this.gamedatas.players[playerId]) {
+          this.gamedatas.players[playerId] = {}
         }
-        if (this.gamedatas.activeFounderOptions) {
-          this.gamedatas.activeFounderOptions = []
-        }
-        if (this.gamedatas.allPlayersFounderOptions && this.gamedatas.allPlayersFounderOptions[playerId]) {
+        this.gamedatas.players[playerId].founder = founderData
+
+        // Применяем локальные изменения
+        this._applyLocalFounders()
+
+        // ВАЖНО: Полностью очищаем опции выбора из всех источников
+        this.gamedatas.founderOptions = null
+        this.gamedatas.activeFounderOptions = null
+        if (this.gamedatas.allPlayersFounderOptions) {
           delete this.gamedatas.allPlayersFounderOptions[playerId]
         }
 
-        // Очищаем руку от карт выбора
         const handContainer = document.getElementById('active-player-hand-cards')
-        if (handContainer && Number(playerId) === Number(this.player_id)) {
-          handContainer.innerHTML = ''
+        console.log('🎉 Hand container found:', !!handContainer)
+
+        // ВАЖНО: Принудительно удаляем все карты выбора из DOM
+        if (handContainer) {
+          const selectableCards = handContainer.querySelectorAll('.founder-card--selectable')
+          console.log('🎉 Selectable cards to remove:', selectableCards.length)
+          selectableCards.forEach(card => {
+            console.log('🎉 Removing card:', card.dataset.cardId)
+            card.remove()
+          })
           handContainer.classList.remove('active-player-hand__center--selecting')
+          console.log('🎉 Hand container innerHTML after cleanup:', handContainer.innerHTML.substring(0, 100))
         }
 
-        // Обновляем отображение карты основателя
-        this._renderFounderCard(this.gamedatas.players, playerId)
+        // Если карта универсальная, показываем её на руке для текущего игрока
+        if (isUniversal && Number(playerId) === Number(this.player_id)) {
+          console.log('notif_founderSelected - Universal card selected by current player, showing on hand')
+          
+          // Очищаем контейнер полностью
+          if (handContainer) {
+            handContainer.innerHTML = ''
+          }
 
-        // Если карта универсальная, она остается на руке для размещения
-        // Если нет - она автоматически размещена в отделе
-        const department = founder.department || 'universal'
-        if (department !== 'universal') {
-          // Карта автоматически размещена, обновляем отображение
-          this._renderFounderCard(this.gamedatas.players, playerId)
+          // Рендерим одну карту на руке (универсальную) напрямую
+          this._renderUniversalFounderOnHand(founder, playerId)
+
+          // Переустанавливаем обработчики для возможности размещения
+          setTimeout(() => {
+            this._setupHandInteractions()
+          }, 100)
+
+        } else if (isUniversal && Number(playerId) !== Number(this.player_id)) {
+          // Для других игроков показываем рубашку на руке
+          console.log('notif_founderSelected - Universal card selected by other player, showing back')
+          
+          if (handContainer) {
+            handContainer.innerHTML = ''
+          }
+
+          // Показываем рубашку для других игроков
+          const backImageUrl = `${g_gamethemeurl}img/back-cards.png`
+          if (handContainer) {
+            handContainer.innerHTML = `
+              <div class="founder-card founder-card--back" data-player-id="${playerId}" data-department="universal">
+                <img src="${backImageUrl}" alt="${_('Рубашка карты')}" class="founder-card__image" />
+              </div>
+            `
+          }
+
+        } else {
+          // Не-универсальная карта - размещена в отдел автоматически
+          console.log('🎉 notif_founderSelected - Non-universal card, placing in department:', department)
+          
+          // Очищаем руку полностью
+          if (handContainer) {
+            console.log('🎉 Clearing hand container')
+            handContainer.innerHTML = ''
+          }
+
+          // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
+          console.log('🎉 Scheduling _renderFounderCardInDepartment...')
+          setTimeout(() => {
+            console.log('🎉 Executing _renderFounderCardInDepartment for department:', department)
+            this._renderFounderCardInDepartment(founder, playerId, department)
+          }, 100)
         }
+      }
+    },
+
+    // Прямая отрисовка карты в конкретном отделе
+    _renderFounderCardInDepartment: function (founder, playerId, department) {
+      console.log('🏢 _renderFounderCardInDepartment called:', { founder: founder?.name, playerId, department })
+      
+      const containers = {
+        'sales-department': document.querySelector('.sales-department__body'),
+        'back-office': document.querySelector('.back-office__body'),
+        'technical-department': document.querySelector('.technical-department__body'),
+      }
+
+      console.log('🏢 Available containers:', {
+        'sales-department': !!containers['sales-department'],
+        'back-office': !!containers['back-office'],
+        'technical-department': !!containers['technical-department'],
+      })
+
+      const container = containers[department]
+      if (!container) {
+        console.error('🏢 ❌ Container NOT FOUND for department:', department)
+        console.error('🏢 Looking for selector:', `.${department}__body`)
+        // Попробуем найти все body контейнеры
+        const allBodies = document.querySelectorAll('[class*="__body"]')
+        console.error('🏢 All __body elements:', Array.from(allBodies).map(el => el.className))
+        return
+      }
+
+      const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
+      const name = founder.name || ''
+
+      console.log('🏢 Creating card markup for:', { name, imageUrl: imageUrl?.substring(0, 50) })
+
+      const cardMarkup = `
+        <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
+          ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
+        </div>
+      `
+      container.innerHTML = cardMarkup
+
+      console.log('🏢 ✅✅✅ Card PLACED in', department, 'for player', playerId)
+      console.log('🏢 Container innerHTML:', container.innerHTML.substring(0, 100))
+    },
+
+    // Вспомогательная функция для отрисовки универсальной карты на руке
+    _renderUniversalFounderOnHand: function (founder, playerId) {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) return
+
+      const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
+      const name = founder.name || ''
+
+      // Создаем карту с классом для клика (обработчик добавляется в _setupHandInteractions)
+      const cardMarkup = `
+        <div class="founder-card founder-card--universal-clickable" data-player-id="${playerId}" data-department="universal" style="cursor: pointer;" title="${_('Кликните, чтобы выбрать отдел для размещения')}">
+          ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
+        </div>
+      `
+      handContainer.innerHTML = cardMarkup
+
+      console.log('_renderUniversalFounderOnHand - Universal card rendered for player', playerId)
+    },
+
+    notif_founderCardsDiscarded: function (args) {
+      // Карты отправлены в отбой, очищаем руку от карт выбора
+      const playerId = Number(args.player_id || 0)
+      console.log('notif_founderCardsDiscarded called:', { playerId, discardedCards: args.discarded_cards })
+
+      // Очищаем руку от карт выбора для всех игроков (чтобы все видели, что карты ушли)
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (handContainer) {
+        handContainer.innerHTML = ''
+        handContainer.classList.remove('active-player-hand__center--selecting')
       }
     },
 
@@ -1318,6 +1485,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
         this.gamedatas.founders[playerId] = { ...founder, department: department }
 
+        // Применяем локальные изменения (как в notif_roundStart)
+        this._applyLocalFounders()
+
         // Обновляем отображение карты основателя
         this._renderFounderCard(this.gamedatas.players, playerId)
 
@@ -1331,6 +1501,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._setDepartmentHighlight(false)
           this._setHandHighlight(false)
         }
+        
+        // Отрисовываем карты для всех игроков, у которых есть карты
+        Object.keys(this.gamedatas.players).forEach((pid) => {
+          if (this.gamedatas.players[pid]?.founder) {
+            this._renderFounderCard(this.gamedatas.players, Number(pid))
+          }
+        })
 
         // Обновляем локальные данные
         this.localFounders = this.localFounders || {}
@@ -1805,12 +1982,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderFounderCard(players, playerId)
     },
     _renderFounderCard: function (players, targetPlayerId) {
+      // Блок "Найм сотрудников" общий для всех игроков
+      // Контейнеры отделов находятся в блоке "Найм сотрудников"
       const containers = {
         'sales-department': document.querySelector('.sales-department__body'),
         'back-office': document.querySelector('.back-office__body'),
         'technical-department': document.querySelector('.technical-department__body'),
       }
+
       const handContainer = document.getElementById('active-player-hand-cards')
+
+      // Логируем найденные контейнеры для отладки
+      console.log('_renderFounderCard - Containers found:', {
+        'sales-department': !!containers['sales-department'],
+        'back-office': !!containers['back-office'],
+        'technical-department': !!containers['technical-department'],
+        targetPlayerId,
+        salesContainer: containers['sales-department'],
+        backOfficeContainer: containers['back-office'],
+        technicalContainer: containers['technical-department'],
+      })
+
+      // Если контейнеры не найдены, выводим предупреждение
+      if (!containers['sales-department'] && !containers['back-office'] && !containers['technical-department']) {
+        console.error('_renderFounderCard - ERROR: No containers found! Searching in DOM...')
+        const allContainers = document.querySelectorAll('.sales-department__body, .back-office__body, .technical-department__body')
+        console.error('_renderFounderCard - Found containers in DOM:', allContainers.length, Array.from(allContainers))
+      }
 
       this.pendingFounderMove = null // Сбрасываем ожидание перемещения карты основателя
       this._setDepartmentHighlight(false) // Сбрасываем выделение отдела
@@ -1819,9 +2017,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId
 
+      // Удаляем только карты конкретного игрока из контейнеров, а не очищаем полностью
+      // Это позволяет отображать карты всех игроков одновременно
       Object.values(containers).forEach((container) => {
         if (container) {
-          container.innerHTML = ''
+          const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
+          if (existingCard) {
+            existingCard.remove()
+          }
         }
       })
       if (handContainer) {
@@ -1915,6 +2118,16 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Если карта в отделе, показываем её всегда
       if (rawDepartment !== 'universal') {
         const container = containers[department] || containers['sales-department']
+        console.log('_renderFounderCard - Rendering card in department:', {
+          department,
+          rawDepartment,
+          containerFound: !!container,
+          playerId,
+          name,
+          imageUrl,
+          allContainers: Object.keys(containers).map((key) => ({ key, found: !!containers[key] })),
+        })
+
         if (container) {
           const cardMarkup = `
             <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
@@ -1922,6 +2135,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             </div>
           `
           container.innerHTML = cardMarkup
+          console.log('_renderFounderCard - ✅ Card added to container:', department, container, 'Markup length:', cardMarkup.length)
+
+          // Проверяем, что карта действительно добавлена
+          const addedCard = container.querySelector(`[data-player-id="${playerId}"]`)
+          if (addedCard) {
+            console.log('_renderFounderCard - ✅✅✅ Card verified in DOM:', addedCard)
+          } else {
+            console.error('_renderFounderCard - ❌ ERROR: Card not found in DOM after adding!')
+          }
+        } else {
+          console.error('_renderFounderCard - ❌ Container not found for department:', department)
+          console.error(
+            '_renderFounderCard - Available containers:',
+            Object.keys(containers).map((key) => ({ key, found: !!containers[key], element: containers[key] }))
+          )
+
+          // Попробуем найти контейнеры еще раз
+          const retryContainers = {
+            'sales-department': document.querySelector('.sales-department__body'),
+            'back-office': document.querySelector('.back-office__body'),
+            'technical-department': document.querySelector('.technical-department__body'),
+          }
+          console.error('_renderFounderCard - Retry search results:', retryContainers)
         }
         // Убеждаемся, что карта не в руке (она в отделе)
         if (handContainer) {
@@ -1942,6 +2178,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             </div>
           `
           handContainer.innerHTML = cardMarkup
+          
+          // Устанавливаем обработчики после рендеринга карты (для основного режима)
+          if (!this.gamedatas.isTutorialMode) {
+            // Переустанавливаем обработчики, чтобы они работали с новой картой
+            setTimeout(() => {
+              this._setupHandInteractions()
+            }, 100)
+          }
         } else {
           // Это ход другого игрока или не мой ход, показываю рубашку
           const backImageUrl = `${g_gamethemeurl}img/back-cards.png`
@@ -2086,27 +2330,79 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _selectFounderCard: function (cardId) {
-      if (!this.checkAction('actSelectFounder')) {
-        console.warn('Action actSelectFounder is not available')
-        return
-      }
+      console.log('🎯 _selectFounderCard called with cardId:', cardId)
+      
+      // Находим данные выбранной карты из опций
+      const founderOptions = this.gamedatas?.founderOptions || this.gamedatas?.activeFounderOptions || []
+      const selectedFounder = founderOptions.find(f => f.id === cardId || f.card_id === cardId)
+      
+      console.log('🎯 Selected founder:', selectedFounder)
 
-      console.log('Selecting founder card:', cardId)
-      this.ajaxcall(
-        `/itarenagame/itarenagame/actSelectFounder.html`,
-        {
-          cardId: cardId,
-          lock: true,
-        },
-        this,
-        function (result) {
-          console.log('Founder card selected successfully:', result)
-        },
-        function (error) {
-          console.error('Error selecting founder card:', error)
-          this.showMessage(error, 'error')
+      this.bgaPerformAction('actSelectFounder', {
+        cardId: cardId,
+      }).then(() => {
+        console.log('✅ Founder card selected successfully!')
+        
+        // Сразу обновляем UI, не дожидаясь уведомления
+        if (selectedFounder) {
+          const department = selectedFounder.department || 'universal'
+          const playerId = this.player_id
+          const isUniversal = department === 'universal'
+          
+          // Обновляем данные в gamedatas
+          if (!this.gamedatas.founders) this.gamedatas.founders = {}
+          if (!this.gamedatas.players[playerId]) this.gamedatas.players[playerId] = {}
+          
+          this.gamedatas.founders[playerId] = { ...selectedFounder, department }
+          this.gamedatas.players[playerId].founder = { ...selectedFounder, department }
+          
+          // Очищаем опции выбора
+          this.gamedatas.founderOptions = null
+          this.gamedatas.activeFounderOptions = null
+          
+          // Очищаем руку от карт выбора
+          const handContainer = document.getElementById('active-player-hand-cards')
+          if (handContainer) {
+            handContainer.innerHTML = ''
+            handContainer.classList.remove('active-player-hand__center--selecting')
+          }
+          
+          // Если карта универсальная - показываем на руке
+          if (isUniversal) {
+            console.log('🎯 Universal card - rendering on hand')
+            this._renderUniversalFounderOnHand(selectedFounder, playerId)
+            setTimeout(() => this._setupHandInteractions(), 100)
+          } else {
+            // Не универсальная - размещаем в отдел
+            console.log('🎯 Non-universal card - placing in department:', department)
+            this._renderFounderCardInDepartment(selectedFounder, playerId, department)
+          }
+          
+          // ВАЖНО: Добавляем кнопку "Завершить ход" после выбора карты
+          this._addFinishTurnButton(isUniversal)
         }
-      )
+      }).catch((error) => {
+        console.error('❌ Error selecting founder card:', error)
+      })
+    },
+    
+    // Добавляем кнопку "Завершить ход"
+    _addFinishTurnButton: function (isDisabled) {
+      // Удаляем старую кнопку если есть
+      const existingButton = document.getElementById('finish-turn-button')
+      if (existingButton) {
+        existingButton.remove()
+      }
+      
+      // Добавляем новую кнопку
+      this.statusBar.addActionButton(_('Завершить ход'), () => this.bgaPerformAction('actFinishTurn'), {
+        primary: true,
+        disabled: isDisabled,
+        tooltip: isDisabled ? _('Вы должны разместить карту основателя в один из отделов перед завершением хода') : undefined,
+        id: 'finish-turn-button',
+      })
+      
+      console.log('✅ Finish turn button added, disabled:', isDisabled)
     },
 
     _findPlayerData: function (players, playerId) {
@@ -2482,10 +2778,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const isTutorialGameSetup = this.gamedatas.isTutorialMode && this.gamedatas.gamestate?.name === 'GameSetup'
 
         if (!isTutorialGameSetup) {
-          // В других режимах проверяем активного игрока
+          // В основном режиме проверяем активного игрока
           const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
           if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
             return // Только активный игрок может управлять картами
+          }
+          
+          // В основном режиме проверяем, что это универсальная карта в руке
+          const currentState = this.gamedatas?.gamestate?.name
+          const isFounderSelection = currentState === 'FounderSelection'
+          const isPlayerTurn = currentState === 'PlayerTurn'
+          
+          // Разрешаем только в состояниях, где можно размещать карту
+          if (!isFounderSelection && !isPlayerTurn) {
+            return
           }
         }
 
@@ -2505,10 +2811,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           return // Карта не принадлежит текущему игроку
         }
 
+        // Проверяем, что это универсальная карта (department='universal')
+        const cardDepartment = card.dataset.department || ''
+        if (cardDepartment !== 'universal') {
+          console.log('Card is not universal, department:', cardDepartment)
+          return // Только универсальные карты можно размещать
+        }
+
+        // Переключаем активное состояние карты
         const isActive = card.classList.toggle('founder-card--active')
-        console.log('Card clicked, isActive:', isActive)
+        // Добавляем/убираем увеличение карты в 2 раза
+        card.classList.toggle('founder-card--enlarged', isActive)
+        
+        console.log('Universal card clicked, isActive:', isActive, 'isEnlarged:', isActive)
+        
+        // Подсвечиваем отделы для выбора
         this._setDepartmentHighlight(isActive)
         this._setHandHighlight(isActive)
+        
+        if (isActive) {
+          console.log('✅ Card activated - departments highlighted, click on department to place')
+        } else {
+          console.log('❌ Card deactivated - departments unhighlighted')
+        }
       }
 
       // Сохраняем ссылку на обработчик для возможности удаления
@@ -2535,11 +2860,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           const isTutorialGameSetup = this.gamedatas.isTutorialMode && this.gamedatas.gamestate?.name === 'GameSetup'
 
           if (!isTutorialGameSetup) {
-            // В других режимах проверяем активного игрока
+            // В основном режиме проверяем активного игрока
             const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
             if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
               console.log('Not active player, cannot place card')
               return // Только активный игрок может размещать карты
+            }
+            
+            // В основном режиме проверяем состояние игры
+            const currentState = this.gamedatas?.gamestate?.name
+            const isFounderSelection = currentState === 'FounderSelection'
+            const isPlayerTurn = currentState === 'PlayerTurn'
+            
+            // Разрешаем только в состояниях, где можно размещать карту
+            if (!isFounderSelection && !isPlayerTurn) {
+              console.log('Not in valid state for placing card:', currentState)
+              return
             }
           }
 
@@ -2562,12 +2898,48 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             return // Карта не принадлежит текущему игроку
           }
 
-          const founderId = Number(activeCard.dataset.founderId || 0)
-          console.log('Placing founder card', founderId, 'in department', department)
+          // Проверяем, что это универсальная карта
+          const cardDepartment = activeCard.dataset.department || ''
+          if (cardDepartment !== 'universal') {
+            console.log('Card is not universal, cannot place manually')
+            return
+          }
 
-          // Вызываем серверное действие для размещения карты
+          console.log('Placing universal founder card in department:', department)
+
+          // Сразу обновляем UI
           this._setHandHighlight(false)
           this._setDepartmentHighlight(false)
+          
+          // Перемещаем карту в отдел визуально
+          const founder = this.gamedatas?.founders?.[this.player_id] || this.gamedatas?.players?.[this.player_id]?.founder
+          if (founder) {
+            // Обновляем department в данных
+            founder.department = department
+            if (this.gamedatas?.players?.[this.player_id]?.founder) {
+              this.gamedatas.players[this.player_id].founder.department = department
+            }
+            if (this.gamedatas?.founders?.[this.player_id]) {
+              this.gamedatas.founders[this.player_id].department = department
+            }
+            
+            // Очищаем руку и отрисовываем карту в отделе
+            if (handContainer) {
+              handContainer.innerHTML = ''
+            }
+            this._renderFounderCardInDepartment(founder, this.player_id, department)
+          }
+
+          // Вызываем серверное действие для размещения карты
+          this.bgaPerformAction('actPlaceFounder', {
+            department: department,
+          }).then(() => {
+            console.log('✅ Founder card placed successfully')
+            // Активируем кнопку "Завершить ход" (теперь она не заблокирована)
+            this._addFinishTurnButton(false)
+          }).catch((error) => {
+            console.error('❌ Error placing founder card:', error)
+          })
         }
 
         // Сохраняем ссылку на обработчик для возможности удаления

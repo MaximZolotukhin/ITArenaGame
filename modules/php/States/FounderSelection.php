@@ -90,7 +90,7 @@ class FounderSelection extends GameState
      * Действие игрока: выбор карты основателя
      */
     #[PossibleAction]
-    public function actSelectFounder(int $activePlayerId, int $cardId)
+    public function actSelectFounder(int $cardId, int $activePlayerId)
     {
         $this->game->checkAction('actSelectFounder');
         
@@ -117,6 +117,15 @@ class FounderSelection extends GameState
         // Уведомляем о выборе
         $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
         $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
+        
+        // Получаем актуальный отдел из globals (может быть установлен автоматически)
+        $founderDepartment = $this->game->globals->get('founder_department_' . $activePlayerId, null);
+        if ($founderDepartment === null) {
+            $founderDepartment = $founderCard['department'] ?? 'universal';
+        }
+        
+        // Обновляем department в данных карты для уведомления
+        $founderCard['department'] = $founderDepartment;
 
         $this->notify->all('founderSelected', clienttranslate('${player_name} выбрал карту основателя: ${founder_name}'), [
             'player_id' => $activePlayerId,
@@ -124,19 +133,51 @@ class FounderSelection extends GameState
             'founder_name' => $founderName,
             'card_id' => $cardId,
             'founder' => $founderCard,
+            'department' => $founderDepartment,
         ]);
         
         $this->game->giveExtraTime($activePlayerId);
         
-        // Если карта универсальная, остаемся в этом состоянии для размещения
-        // Иначе переходим к следующему игроку
-        $founderDepartment = $founderCard['department'] ?? 'universal';
-        if ($founderDepartment !== 'universal') {
-            // Карта автоматически размещена, переходим к следующему игроку
-            return NextPlayer::class;
+        // После выбора карты НЕ переходим автоматически к следующему игроку
+        // Игрок должен нажать кнопку "Завершить ход"
+        return null;
+    }
+
+    /**
+     * Действие игрока: размещение универсальной карты основателя в отдел
+     */
+    #[PossibleAction]
+    public function actPlaceFounder(string $department, int $activePlayerId)
+    {
+        // Проверяем, что у игрока есть неразмещенная универсальная карта
+        if (!$this->game->hasUnplacedUniversalFounder($activePlayerId)) {
+            throw new UserException(clienttranslate('У вас нет универсальной карты основателя для размещения'));
         }
-        
-        // Карта универсальная, остаемся в состоянии для размещения
+
+        // Размещаем карту в отдел
+        $this->game->placeFounder($activePlayerId, $department);
+
+        $founder = $this->game->getFoundersByPlayer()[$activePlayerId] ?? null;
+        $departmentNames = [
+            'sales-department' => clienttranslate('Отдел продаж'),
+            'back-office' => clienttranslate('Бэк-офис'),
+            'technical-department' => clienttranslate('Техотдел'),
+        ];
+        $departmentName = $departmentNames[$department] ?? $department;
+
+        $this->notify->all('founderPlaced', clienttranslate('${player_name} разместил основателя в ${department_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'department' => $department,
+            'department_name' => $departmentName,
+            'founder' => $founder,
+            'i18n' => ['department_name'],
+        ]);
+
+        $this->game->giveExtraTime($activePlayerId);
+
+        // После размещения карты НЕ переходим автоматически к следующему игроку
+        // Игрок должен нажать кнопку "Завершить ход"
         return null;
     }
 
@@ -146,6 +187,12 @@ class FounderSelection extends GameState
     #[PossibleAction]
     public function actFinishTurn(int $activePlayerId)
     {
+        // Проверяем, выбрал ли игрок карту основателя
+        $hasSelectedFounder = $this->game->globals->get('founder_player_' . $activePlayerId, null) !== null;
+        if (!$hasSelectedFounder) {
+            throw new UserException(clienttranslate('Вы должны выбрать карту основателя перед завершением хода'));
+        }
+        
         // Проверяем, есть ли у игрока неразмещенная универсальная карта основателя
         if ($this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));

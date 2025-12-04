@@ -115,12 +115,15 @@ class GameSetup extends GameState
             $this->game->activeNextPlayer();
             $activePlayerId = $this->game->getActivePlayerId();
             error_log('GameSetup::onEnteringState - Set active player for FounderSelection: ' . $activePlayerId);
+            
+            // Уведомление "ЭТАП 2: НАЧАЛО ИГРЫ" будет отправлено только после того,
+            // как ВСЕ игроки завершат выбор карт основателей (в NextPlayer.php)
+        } else {
+            // В обучающем режиме сразу переходим к началу игры
+            $this->notify->all('gameStart', clienttranslate('🎮 ЭТАП 2: НАЧАЛО ИГРЫ'), [
+                'stageName' => clienttranslate('Начало игры'),
+            ]);
         }
-        
-        // Уведомляем о переходе к следующему этапу
-        $this->notify->all('gameStart', clienttranslate('🎮 ЭТАП 2: НАЧАЛО ИГРЫ'), [
-            'stageName' => clienttranslate('Начало игры'),
-        ]);
         
         // Автоматически переходим к следующему состоянию
         error_log('GameSetup::onEnteringState - Automatically transitioning to state ID: ' . $nextStateId);
