@@ -29,91 +29,105 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         // Give some extra time to the active player when he completed an action
         $this->game->giveExtraTime($activePlayerId);
         
-        // Мой код для уведомления о конце раунда
-        $this->notify->all('roundEnd', clienttranslate('Конец раунда ${round}'), [
-            'round' => (int)$this->game->getGameStateValue('round_number'), // Текущий раунд
-        ]);
-        // Decrement remaining players in this round
-        $remaining = (int)$this->game->getGameStateValue('players_left_in_round'); // Количество игроков в раунде
-        $remaining = max(0, $remaining - 1); // Количество игроков в раунде после выхода одного игрока
-        $this->game->setGameStateValue('players_left_in_round', $remaining); // Количество игроков в раунде после выхода одного игрока
-
-        // If round is finished, increment round and either end the game or start next round
-        if ($remaining === 0) {
-            $currentRound = (int)$this->game->getGameStateValue('round_number'); // Текущий раунд
-            $totalRounds = (int)$this->game->getGameStateValue('total_rounds'); // Общее количество раундов
-            $nextRound = $currentRound + 1; // Следующий раунд
-
-            // Уведомление о начале следующего раунда отправим ниже, после обновления счетчиков и с именем этапа
-            if ($nextRound > $totalRounds) {
-                // Announce end of game and go to EndScore
-                $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), [ // Общее количество раундов
-                    'rounds' => $totalRounds, // Общее количество раундов
-                ]);
-                return EndScore::class; // Конец игры
-            }
-
-            // Prepare next round counters and go to Phase 1: "Событие"
-            $this->game->setGameStateValue('round_number', $nextRound); // Следующий раунд
-            $playersCount = count($this->game->loadPlayersBasicInfos());
-            $this->game->setGameStateValue('players_left_in_round', $playersCount); // Количество игроков в раунде
-            return RoundEvent::class;
-        }
-
-        // Проверяем, есть ли еще игроки, которые не выбрали карты основателей (для основного режима)
         $isTutorial = $this->game->isTutorialMode();
+        $currentRound = (int)$this->game->getGameStateValue('round_number');
         
+        error_log('NextPlayer - isTutorial: ' . ($isTutorial ? 'yes' : 'no') . ', currentRound: ' . $currentRound);
+        
+        // ========================================
+        // ЭТАП 1: ПОДГОТОВКА К ИГРЕ (только для основного режима)
+        // ========================================
         if (!$isTutorial) {
-            // Основной режим: проверяем, все ли игроки выбрали карты
+            // Проверяем, все ли игроки выбрали карты основателей
             $allPlayersSelected = $this->game->allPlayersSelectedFounders();
             error_log('NextPlayer - allPlayersSelected: ' . ($allPlayersSelected ? 'yes' : 'no'));
             
             if (!$allPlayersSelected) {
-                // Еще есть игроки без выбранных карт - переходим к выбору карты следующего игрока
+                // Мы всё ещё на ЭТАПЕ 1 - переходим к следующему игроку для выбора карты
                 $this->game->activeNextPlayer();
                 $nextPlayerId = $this->game->getActivePlayerId();
-                error_log('NextPlayer - Moving to next player for FounderSelection: ' . $nextPlayerId);
+                error_log('NextPlayer - ЭТАП 1: Moving to next player for FounderSelection: ' . $nextPlayerId);
                 
                 // Проверяем, выбрал ли следующий игрок карту
                 $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
                 if ($nextPlayerFounder === null) {
-                    // Игрок еще не выбрал карту - переходим к выбору
                     return FounderSelection::class;
-                } else {
-                    // Игрок уже выбрал карту - продолжаем искать следующего, кто не выбрал
-                    // Рекурсивно ищем игрока, который еще не выбрал карту
-                    $players = array_keys($this->game->loadPlayersBasicInfos());
-                    foreach ($players as $playerId) {
-                        $founder = $this->game->globals->get('founder_player_' . $playerId, null);
-                        if ($founder === null) {
-                            // Нашли игрока без карты
-                            $this->game->gamestate->changeActivePlayer((int)$playerId);
-                            return FounderSelection::class;
-                        }
+                }
+                
+                // Ищем игрока, который ещё не выбрал карту
+                $players = array_keys($this->game->loadPlayersBasicInfos());
+                foreach ($players as $playerId) {
+                    $founder = $this->game->globals->get('founder_player_' . $playerId, null);
+                    if ($founder === null) {
+                        $this->game->gamestate->changeActivePlayer((int)$playerId);
+                        return FounderSelection::class;
                     }
-                    // Все выбрали - переходим к началу игры
                 }
             }
             
-            // Все игроки выбрали карты - отправляем уведомление о начале ЭТАПА 2
-            error_log('NextPlayer - All players selected founders! Starting ЭТАП 2');
+            // Все игроки выбрали карты - проверяем, начался ли уже ЭТАП 2
+            if ($currentRound === 0) {
+                // Переход от ЭТАПА 1 к ЭТАПУ 2
+                error_log('NextPlayer - ✅ Все игроки выбрали карты! Переход к ЭТАПУ 2');
+                
+                // Отправляем уведомление о начале ЭТАПА 2
+                $this->notify->all('gameStart', '', [
+                    'stageName' => clienttranslate('Начало игры'),
+                ]);
+                
+                // Устанавливаем раунд 1
+                $this->game->setGameStateValue('round_number', 1);
+                
+                // Инициализируем счётчик игроков для первого раунда
+                $playersCount = count($this->game->loadPlayersBasicInfos());
+                $this->game->setGameStateValue('players_left_in_round', $playersCount);
+                
+                // Переходим к первому раунду (RoundEvent)
+                return RoundEvent::class;
+            }
+            // Если currentRound > 0, значит ЭТАП 2 уже начался, продолжаем логику раундов ниже
+        }
+        
+        // ========================================
+        // ЭТАП 2: ОСНОВНАЯ ИГРА (раунды)
+        // Выполняется для всех режимов после начала раундов
+        // ========================================
+        
+        // Уменьшаем счётчик игроков в раунде
+        $remaining = (int)$this->game->getGameStateValue('players_left_in_round');
+        $remaining = max(0, $remaining - 1);
+        $this->game->setGameStateValue('players_left_in_round', $remaining);
+        
+        error_log('NextPlayer - ЭТАП 2: remaining players in round: ' . $remaining);
+
+        // Если раунд завершён (все игроки сделали ходы)
+        if ($remaining === 0) {
+            $currentRound = (int)$this->game->getGameStateValue('round_number');
+            $totalRounds = (int)$this->game->getGameStateValue('total_rounds');
+            $nextRound = $currentRound + 1;
             
-            $this->notify->all('gameStart', clienttranslate('🎮 ЭТАП 2: НАЧАЛО ИГРЫ'), [
-                'stageName' => clienttranslate('Начало игры'),
-            ]);
-            
-            // Сбрасываем счетчик игроков для первого раунда
+            error_log('NextPlayer - Round finished! currentRound: ' . $currentRound . ', nextRound: ' . $nextRound . ', totalRounds: ' . $totalRounds);
+
+            if ($nextRound > $totalRounds) {
+                // Игра окончена
+                $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), [
+                    'rounds' => $totalRounds,
+                ]);
+                return EndScore::class;
+            }
+
+            // Подготовка к следующему раунду
+            $this->game->setGameStateValue('round_number', $nextRound);
             $playersCount = count($this->game->loadPlayersBasicInfos());
             $this->game->setGameStateValue('players_left_in_round', $playersCount);
             
-            // Переходим к первому раунду (RoundEvent)
+            error_log('NextPlayer - Starting round ' . $nextRound);
             return RoundEvent::class;
         }
         
-        // Обучающий режим: обычный переход к следующему игроку
-        // Move to next active player and continue normal play
-        // Мой код для перехода к следующему игроку
+        // Переход к следующему игроку в текущем раунде
         $this->game->activeNextPlayer();
+        error_log('NextPlayer - Moving to next player in current round');
         return PlayerTurn::class;
     }
 }

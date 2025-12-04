@@ -656,6 +656,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Setup game notifications to handle (see "setupNotifications" method below)
       // Мой код для уведомлений
       this.setupNotifications()
+      
+      // Обновляем баннер с текущим этапом игры
+      console.log('🏷️ Calling _updateStageBanner from setup...')
+      this._updateStageBanner()
+      
+      // Дополнительно: убеждаемся что баннер виден
+      const stageBanner = document.getElementById('round-banner')
+      if (stageBanner) {
+        stageBanner.style.display = 'block'
+        stageBanner.style.visibility = 'visible'
+        console.log('🏷️ Stage banner element found and made visible')
+      } else {
+        console.error('🏷️ Stage banner element NOT FOUND!')
+      }
 
       console.log('Ending game setup')
 
@@ -733,6 +747,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._renderFounderCard(this.gamedatas.players, activeId)
           this._toggleActivePlayerHand(activeId)
           this._updateHandHighlight(activeId)
+          
+          // Обновляем баннер - теперь ЭТАП 2
+          this._updateStageBanner()
           break
         case 'FounderSelection':
           // Состояние выбора карты основателя
@@ -821,6 +838,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
           this._toggleActivePlayerHand(activeIdFounderSelection)
           this._updateHandHighlight(activeIdFounderSelection)
+          
+          // Обновляем баннер - ЭТАП 1
+          this._updateStageBanner()
           break
         case 'RoundEvent':
           // Состояние события раунда - обновляем данные кубика и карты событий
@@ -882,6 +902,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
           if (round && stageName) {
             this._renderRoundBanner(round, this.totalRounds, stageName, cubeFace, phaseName)
+          } else {
+            // Обновляем баннер - ЭТАП 2
+            this._updateStageBanner()
           }
           break
       }
@@ -1234,20 +1257,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     notif_gameStart: async function (args) {
-      console.log('=== notif_gameStart CALLED ===')
+      console.log('=== 🎮 notif_gameStart CALLED - ПЕРЕХОД К ЭТАПУ 2! ===')
       console.log('notif_gameStart called with args:', args)
-      console.log('Current game state after gameStart:', this.gamedatas?.gamestate?.name)
-      console.log('Expected next state: FounderSelection (in main mode)')
 
-      // Отображаем начало игры
+      // Отображаем начало ЭТАПА 2
       const banner = document.getElementById('round-banner')
       if (banner) {
         const stageName = args.stageName || _('Начало игры')
         const content = banner.querySelector('.round-banner__content')
+        const bannerText = _('🎮 ЭТАП 2: ${stageName}').replace('${stageName}', stageName)
+        
         if (content) {
-          content.textContent = _('🎮 ЭТАП 2: ${stageName}').replace('${stageName}', stageName)
+          content.textContent = bannerText
         } else {
-          banner.textContent = _('🎮 ЭТАП 2: ${stageName}').replace('${stageName}', stageName)
+          banner.textContent = bannerText
         }
         banner.className = 'round-banner round-banner--game-start'
         banner.style.backgroundColor = '#2196F3'
@@ -1256,6 +1279,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         banner.style.fontWeight = 'bold'
         banner.style.padding = '10px 0px'
         banner.style.textAlign = 'center'
+        
+        console.log('🎮 Banner updated to ЭТАП 2:', bannerText)
       }
     },
 
@@ -1553,22 +1578,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
     _renderGameSetup: function () {
       // Отображает информацию о подготовке игры
-      const banner = document.getElementById('round-banner')
-      if (banner) {
-        const content = banner.querySelector('.round-banner__content')
-        if (content) {
-          content.textContent = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
-        } else {
-          banner.textContent = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
-        }
-        banner.className = 'round-banner round-banner--setup'
-        banner.style.backgroundColor = '#FFA500'
-        banner.style.color = '#FFFFFF'
-        banner.style.fontSize = '20px'
-        banner.style.fontWeight = 'bold'
-        banner.style.padding = '10px 0px'
-        banner.style.textAlign = 'center'
-      }
+      this._updateStageBanner()
 
       // Отображаем индикаторы игроков на плашете событий
       // Ждем, пока трек раундов будет отрендерен
@@ -1583,6 +1593,65 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }, 300)
 
       console.log('Game setup in progress...')
+    },
+    
+    // Обновляет баннер с текущим этапом игры
+    _updateStageBanner: function () {
+      const banner = document.getElementById('round-banner')
+      if (!banner) {
+        console.error('🏷️ _updateStageBanner: banner element not found!')
+        return
+      }
+      
+      const content = banner.querySelector('.round-banner__content')
+      const currentState = this.gamedatas?.gamestate?.name
+      const roundNumber = this.gamedatas?.round || this.gamedatas?.roundNumber || this.gamedatas?.round_number || 0
+      const stageName = this.gamedatas?.stageName || ''
+      
+      console.log('🏷️ _updateStageBanner called:', { currentState, roundNumber, stageName })
+      
+      // Определяем текущий этап
+      // ЭТАП 1: GameSetup, FounderSelection (выбор карт основателей)
+      // ЭТАП 2: RoundEvent, PlayerTurn, NextPlayer и т.д.
+      const isStage1 = currentState === 'GameSetup' || currentState === 'FounderSelection'
+      
+      let bannerText = ''
+      let bgColor = ''
+      let bannerClass = ''
+      
+      if (isStage1) {
+        bannerText = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
+        bgColor = '#FFA500' // Оранжевый
+        bannerClass = 'round-banner round-banner--setup'
+      } else if (roundNumber > 0) {
+        // ЭТАП 2 с номером раунда
+        bannerText = _('🎮 ЭТАП 2: РАУНД ${round}').replace('${round}', roundNumber)
+        bgColor = '#2196F3' // Синий
+        bannerClass = 'round-banner round-banner--game-start'
+      } else {
+        // ЭТАП 2 без данных о раунде
+        bannerText = _('🎮 ЭТАП 2: НАЧАЛО ИГРЫ')
+        bgColor = '#2196F3' // Синий
+        bannerClass = 'round-banner round-banner--game-start'
+      }
+      
+      // Обновляем баннер
+      if (content) {
+        content.textContent = bannerText
+      } else {
+        banner.textContent = bannerText
+      }
+      banner.className = bannerClass
+      banner.style.backgroundColor = bgColor
+      banner.style.color = '#FFFFFF'
+      banner.style.fontSize = '20px'
+      banner.style.fontWeight = 'bold'
+      banner.style.padding = '10px 0px'
+      banner.style.textAlign = 'center'
+      banner.style.display = 'block'
+      banner.style.visibility = 'visible'
+      
+      console.log('🏷️ Stage banner updated:', bannerText, 'state:', currentState, 'bgColor:', bgColor)
     },
 
     _renderPlayerIndicators: function (container) {
