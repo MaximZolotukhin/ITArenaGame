@@ -61,7 +61,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     if ($founder === null) {
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
                         return FounderSelection::class;
-                    }
+                }
                 }
             }
             
@@ -83,7 +83,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $this->game->setGameStateValue('players_left_in_round', $playersCount);
                 
                 // Переходим к первому раунду (RoundEvent)
-                return RoundEvent::class;
+                    return RoundEvent::class;
             }
             // Если currentRound > 0, значит ЭТАП 2 уже начался, продолжаем логику раундов ниже
         }

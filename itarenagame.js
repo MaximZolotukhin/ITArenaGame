@@ -40,6 +40,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     setup: function (gamedatas) {
       console.log('Starting game setup')
+      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-09-v1 🔴🔴🔴')
 
       // Example to add a div on the game area
       // Мой код для баннера раунда
@@ -550,6 +551,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }, 200)
 
+      // Отображаем жетоны проектов на планшете проектов (ВАЖНО: до return!)
+      console.log('=== PROJECT TOKENS DEBUG ===')
+      console.log('gamedatas.projectTokensOnBoard:', gamedatas.projectTokensOnBoard)
+      console.log('projectTokensOnBoard length:', gamedatas.projectTokensOnBoard?.length || 0)
+      setTimeout(() => {
+        this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
+      }, 200)
+
       // Обновляем отображение кубика
       this._updateCubeFace(gamedatas.cubeFace)
       const initialEventCards = gamedatas.roundEventCards || []
@@ -645,11 +654,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       setTimeout(() => {
         this._renderTaskTokens(gamedatas.players)
       }, 150)
-
-      // Отображаем жетоны проектов на планшете проектов
-      setTimeout(() => {
-        this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
-      }, 200)
 
       // TODO: Set up your game interface here, according to "gamedatas"
 
@@ -1370,6 +1374,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           setTimeout(() => {
             this._setupHandInteractions()
           }, 100)
+          
+          // ВАЖНО: Добавляем кнопку "Завершить ход" (заблокированную, т.к. нужно разместить карту)
+          this._addFinishTurnButton(true)
 
         } else if (isUniversal && Number(playerId) !== Number(this.player_id)) {
           // Для других игроков показываем рубашку на руке
@@ -1405,6 +1412,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             console.log('🎉 Executing _renderFounderCardInDepartment for department:', department)
             this._renderFounderCardInDepartment(founder, playerId, department)
           }, 100)
+          
+          // ВАЖНО: Добавляем кнопку "Завершить ход" (активную, т.к. карта уже размещена)
+          if (Number(playerId) === Number(this.player_id)) {
+            this._addFinishTurnButton(false)
+          }
         }
       }
     },
@@ -2027,16 +2039,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const coinData = this._getBestCoinForAmount(amount)
       const imageUrl = coinData?.image_url ? (coinData.image_url.startsWith('http') ? coinData.image_url : `${g_gamethemeurl}${coinData.image_url}`) : `${g_gamethemeurl}img/money/1.png`
       let color = String(playerData.color || '').trim()
+      console.log('_renderPlayerMoney - Raw color from playerData:', playerData.color, 'Trimmed:', color)
       if (color && !color.startsWith('#')) {
         color = `#${color.replace(/^#+/, '')}`
       }
+      // Если цвет пустой или только #, используем белый по умолчанию
+      if (!color || color === '#') {
+        color = '#ffffff'
+      }
+      console.log('_renderPlayerMoney - Final color:', color, 'for player:', playerId)
       const panel = panelBody.closest('.player-money-panel')
       if (panel) {
-        panel.style.setProperty('--player-money-color', color || 'rgba(255,255,255,0.6)')
+        panel.style.setProperty('--player-money-color', color)
         panel.setAttribute('data-player-id', String(playerId))
         const colorBadge = panel.querySelector('.player-money-panel__color-badge')
         if (colorBadge) {
-          colorBadge.style.backgroundColor = color || 'rgba(255, 255, 255, 0.4)'
+          colorBadge.style.backgroundColor = color
+          console.log('_renderPlayerMoney - Applied color to colorBadge:', color)
         }
       }
 
@@ -2408,7 +2427,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('🎯 Selected founder:', selectedFounder)
 
       this.bgaPerformAction('actSelectFounder', {
-        cardId: cardId,
+          cardId: cardId,
       }).then(() => {
         console.log('✅ Founder card selected successfully!')
         
@@ -2449,7 +2468,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // ВАЖНО: Добавляем кнопку "Завершить ход" после выбора карты
           this._addFinishTurnButton(isUniversal)
-        }
+          }
       }).catch((error) => {
         console.error('❌ Error selecting founder card:', error)
       })
@@ -2583,24 +2602,39 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _renderProjectTokensOnBoard: function (projectTokens) {
-      console.log('_renderProjectTokensOnBoard called', { projectTokens })
+      console.log('=== _renderProjectTokensOnBoard CALLED ===')
+      console.log('projectTokens:', projectTokens)
+      console.log('projectTokens type:', typeof projectTokens)
+      console.log('projectTokens length:', projectTokens?.length || 0)
 
       if (!projectTokens || projectTokens.length === 0) {
-        console.log('No project tokens to render')
+        console.warn('⚠️ No project tokens to render - array is empty or undefined')
         return
       }
+
+      // Проверяем наличие контейнера
+      const allRows = document.querySelectorAll('.project-board-panel__row[data-label]')
+      console.log('Found project board rows:', allRows.length, Array.from(allRows).map(r => r.dataset.label))
 
       // Отображаем каждый жетон в соответствующей позиции
       projectTokens.forEach((tokenData) => {
         const boardPosition = tokenData.board_position
+        console.log('Processing token:', { 
+          token_id: tokenData.token_id, 
+          number: tokenData.number, 
+          board_position: boardPosition,
+          image_url: tokenData.image_url 
+        })
+        
         if (!boardPosition) {
+          console.warn('Token has no board_position:', tokenData)
           return
         }
 
         // Находим div с соответствующим data-label
         const rowElement = document.querySelector(`.project-board-panel__row[data-label="${boardPosition}"]`)
         if (!rowElement) {
-          console.warn('Row element not found for position:', boardPosition)
+          console.warn('Row element not found for position:', boardPosition, 'Available positions:', Array.from(allRows).map(r => r.dataset.label))
           return
         }
 
@@ -2616,21 +2650,26 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Создаем изображение жетона
         if (tokenData.image_url) {
           const img = document.createElement('img')
-          img.src = tokenData.image_url.startsWith('http') ? tokenData.image_url : `${g_gamethemeurl}${tokenData.image_url}`
+          const imageUrl = tokenData.image_url.startsWith('http') ? tokenData.image_url : `${g_gamethemeurl}${tokenData.image_url}`
+          img.src = imageUrl
           img.alt = tokenData.name || 'Project token'
           img.className = 'project-token__image'
+          img.onerror = () => console.error('Failed to load project token image:', imageUrl)
+          img.onload = () => console.log('Loaded project token image:', imageUrl)
           tokenElement.appendChild(img)
+          console.log('Created project token with image:', imageUrl)
         } else {
           // Если нет изображения, создаем текстовый элемент
           const text = document.createElement('div')
           text.className = 'project-token__text'
           text.textContent = tokenData.name || `Token ${tokenData.number}`
           tokenElement.appendChild(text)
+          console.log('Created project token with text:', text.textContent)
         }
 
         // Добавляем жетон в строку
         rowElement.appendChild(tokenElement)
-        console.log('Rendered project token', tokenData.number, 'at position', boardPosition)
+        console.log('Rendered project token', tokenData.number, 'at position', boardPosition, 'rowElement:', rowElement)
       })
     },
 
@@ -3001,7 +3040,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
           // Вызываем серверное действие для размещения карты
           this.bgaPerformAction('actPlaceFounder', {
-            department: department,
+              department: department,
           }).then(() => {
             console.log('✅ Founder card placed successfully')
             // Активируем кнопку "Завершить ход" (теперь она не заблокирована)

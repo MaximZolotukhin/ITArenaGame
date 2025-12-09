@@ -296,6 +296,12 @@ class Game extends \Bga\GameFramework\Table
 
         // Добавляем жетоны проектов на планшете (доступны всем игрокам)
         $result['projectTokensOnBoard'] = $this->getProjectTokensOnBoard();
+        error_log('Game::getAllDatas() - projectTokensOnBoard count: ' . count($result['projectTokensOnBoard']));
+        if (count($result['projectTokensOnBoard']) > 0) {
+            error_log('Game::getAllDatas() - First token: ' . json_encode($result['projectTokensOnBoard'][0]));
+        } else {
+            error_log('Game::getAllDatas() - WARNING: No project tokens on board!');
+        }
 
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
@@ -331,8 +337,8 @@ class Game extends \Bga\GameFramework\Table
             // Получаем опции для текущего игрока ТОЛЬКО если он еще не выбрал карту
             $founderOptions = [];
             if (!$currentPlayerHasFounder) {
-                $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
-                error_log('getAllDatas - Current player ' . $current_player_id . ' has ' . count($founderOptions) . ' founder options');
+            $founderOptions = $this->getFounderOptionsForPlayer($current_player_id);
+            error_log('getAllDatas - Current player ' . $current_player_id . ' has ' . count($founderOptions) . ' founder options');
             } else {
                 error_log('getAllDatas - Skipping founderOptions for current player (already has founder)');
             }
@@ -350,11 +356,11 @@ class Game extends \Bga\GameFramework\Table
                 // Проверяем, выбрал ли активный игрок уже карту
                 $activePlayerHasFounder = $this->globals->get('founder_player_' . (int)$activePlayerId, null) !== null;
                 if (!$activePlayerHasFounder) {
-                    $activeFounderOptions = $this->getFounderOptionsForPlayer((int)$activePlayerId);
-                    error_log('getAllDatas - Active player ' . $activePlayerId . ' has ' . count($activeFounderOptions) . ' founder options');
-                    if (!empty($activeFounderOptions)) {
-                        $result['activeFounderOptions'] = $activeFounderOptions; // Карты на выбор для активного игрока
-                        error_log('getAllDatas - Added activeFounderOptions to result: ' . count($activeFounderOptions) . ' cards');
+                $activeFounderOptions = $this->getFounderOptionsForPlayer((int)$activePlayerId);
+                error_log('getAllDatas - Active player ' . $activePlayerId . ' has ' . count($activeFounderOptions) . ' founder options');
+                if (!empty($activeFounderOptions)) {
+                    $result['activeFounderOptions'] = $activeFounderOptions; // Карты на выбор для активного игрока
+                    error_log('getAllDatas - Added activeFounderOptions to result: ' . count($activeFounderOptions) . ' cards');
                     }
                 } else {
                     error_log('getAllDatas - Active player ' . $activePlayerId . ' already has founder, skipping options');
@@ -380,10 +386,10 @@ class Game extends \Bga\GameFramework\Table
                 // Проверяем, выбрал ли этот игрок уже карту
                 $playerHasFounder = $this->globals->get('founder_player_' . $playerId, null) !== null;
                 if (!$playerHasFounder) {
-                    $playerOptions = $this->getFounderOptionsForPlayer($playerId);
-                    if (!empty($playerOptions)) {
-                        $allPlayersFounderOptions[$playerId] = $playerOptions;
-                        error_log('getAllDatas - Player ' . $playerId . ' has ' . count($playerOptions) . ' founder options');
+                $playerOptions = $this->getFounderOptionsForPlayer($playerId);
+                if (!empty($playerOptions)) {
+                    $allPlayersFounderOptions[$playerId] = $playerOptions;
+                    error_log('getAllDatas - Player ' . $playerId . ' has ' . count($playerOptions) . ' founder options');
                     }
                 } else {
                     error_log('getAllDatas - Player ' . $playerId . ' already has founder, skipping options');
@@ -1569,6 +1575,11 @@ class Game extends \Bga\GameFramework\Table
      */
     public function getProjectTokensOnBoard(): array
     {
+        // Сначала проверим, сколько всего токенов в таблице
+        $totalCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token`");
+        $withPositionCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token` WHERE `board_position` IS NOT NULL");
+        error_log("getProjectTokensOnBoard - Total tokens in DB: $totalCount, with board_position: $withPositionCount");
+        
         $tokens = $this->getCollectionFromDb("
             SELECT 
                 pt.`token_id`,
@@ -1589,6 +1600,8 @@ class Game extends \Bga\GameFramework\Table
             AND pt.`board_position` IS NOT NULL
             ORDER BY pt.`board_position`, pt.`number`
         ");
+        
+        error_log("getProjectTokensOnBoard - Query returned: " . count($tokens) . " tokens");
         
         $result = [];
         foreach ($tokens as $token) {
@@ -1635,7 +1648,9 @@ class Game extends \Bga\GameFramework\Table
     public function initializeProjectTokensIfNeeded(): void
     {
         $existingCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token`");
+        error_log("initializeProjectTokensIfNeeded - Existing count: $existingCount");
         if ($existingCount > 0) {
+            error_log("initializeProjectTokensIfNeeded - Tokens already exist, skipping initialization");
             return; // Уже инициализированы
         }
         
@@ -1701,8 +1716,12 @@ class Game extends \Bga\GameFramework\Table
      */
     public function placeProjectTokensOnRedColumn(): void
     {
+        error_log("placeProjectTokensOnRedColumn - STARTING");
+        
         // Проверяем, не размещены ли уже жетоны
         $placedCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token` WHERE `board_position` IN ('red-hex', 'red-square', 'red-circle-1', 'red-circle-2')");
+        error_log("placeProjectTokensOnRedColumn - Already placed count: $placedCount");
+        
         if ($placedCount >= 4) {
             error_log("placeProjectTokensOnRedColumn - Tokens already placed, count: $placedCount");
             return; // Уже размещены
