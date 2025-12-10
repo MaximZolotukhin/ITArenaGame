@@ -306,6 +306,31 @@
   }
 }
 
+/* Карты основателей в отделах - увеличение на 200% при наведении */
+.sales-department__body .founder-card,
+.back-office__body .founder-card,
+.technical-department__body .founder-card {
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, z-index 0s;
+}
+
+.sales-department__body .founder-card:hover,
+.back-office__body .founder-card:hover,
+.technical-department__body .founder-card:hover {
+  transform: scale(2);
+  z-index: 1000;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(76, 175, 80, 0.4);
+}
+
+/* Изображение карты в отделе */
+.sales-department__body .founder-card__image,
+.back-office__body .founder-card__image,
+.technical-department__body .founder-card__image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .completed-projects,
 .parts-of-projects {
   padding: 10px;

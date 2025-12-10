@@ -40,7 +40,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     setup: function (gamedatas) {
       console.log('Starting game setup')
-      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-10-v10 🔴🔴🔴')
+      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-10-v12 🔴🔴🔴')
 
       // Example to add a div on the game area
       // Мой код для баннера раунда
@@ -1412,22 +1412,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Не-универсальная карта - размещена в отдел автоматически
           console.log('🎉 notif_founderSelected - Non-universal card, placing in department:', department)
           
-          // Очищаем руку полностью
-          if (handContainer) {
-            console.log('🎉 Clearing hand container')
-            handContainer.innerHTML = ''
-          }
-
-          // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
-          console.log('🎉 Scheduling _renderFounderCardInDepartment...')
-          setTimeout(() => {
-            console.log('🎉 Executing _renderFounderCardInDepartment for department:', department)
-            this._renderFounderCardInDepartment(founder, playerId, department)
-          }, 100)
-          
-          // ВАЖНО: Добавляем кнопку "Завершить ход" (активную, т.к. карта уже размещена)
+          // ВАЖНО: Рендерим карту в отделе ТОЛЬКО для текущего игрока
+          // Для других игроков не рендерим - иначе setTimeout срабатывает после _clearDepartmentsForNewPlayer
           if (Number(playerId) === Number(this.player_id)) {
+            // Очищаем руку полностью
+            if (handContainer) {
+              console.log('🎉 Clearing hand container')
+              handContainer.innerHTML = ''
+            }
+
+            // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
+            console.log('🎉 Scheduling _renderFounderCardInDepartment for current player...')
+            setTimeout(() => {
+              console.log('🎉 Executing _renderFounderCardInDepartment for department:', department)
+              this._renderFounderCardInDepartment(founder, playerId, department)
+            }, 100)
+          
+            // Добавляем кнопку "Завершить ход" (активную, т.к. карта уже размещена)
             this._addFinishTurnButton(false)
+          } else {
+            console.log('🎉 Skipping render for other player:', playerId)
+            // Очищаем руку, т.к. другой игрок сделал выбор
+            if (handContainer) {
+              handContainer.innerHTML = ''
+            }
           }
         }
       }
@@ -2102,10 +2110,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (players && players[targetPlayerId]) {
         const player = players[targetPlayerId]
         const badgers = player.badgers || 0
-        console.log('Player ' + targetPlayerId + ' badgers:', badgers, '(expected: 5)')
-        if (badgers !== 5) {
-          console.warn('WARNING: Player ' + targetPlayerId + ' has incorrect badgers! Expected: 5, Got: ' + badgers)
-        }
+        console.log('Player ' + targetPlayerId + ' badgers:', badgers)
       }
       // Обновляем деньги игрока
       const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
@@ -2158,7 +2163,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           <span class="player-money-panel__amount">${amount}</span>
         </div>
       `
-      this._renderFounderCard(players, playerId)
+      // УБРАНО: _renderFounderCard теперь вызывается отдельно, не из _renderPlayerMoney
+      // Это исправляет баг, когда карта другого игрока появлялась при обновлении денег
     },
     _renderFounderCard: function (players, targetPlayerId) {
       // Блок "Найм сотрудников" общий для всех игроков
