@@ -95,8 +95,8 @@ class Game extends \Bga\GameFramework\Table
         return $isTutorial;
     }
 
-    // Названия этапов
-    public function getStageName(int $round): string
+    // Названия раундов (внутри этапа игры)
+    public function getRoundName(int $round): string
     {
         return match ($round) {
             1 => clienttranslate('Рождение идеи'),
@@ -306,7 +306,7 @@ class Game extends \Bga\GameFramework\Table
         // Round info for client banner
         $result['round'] = (int)$this->getGameStateValue('round_number'); // Текущий раунд
         $result['totalRounds'] = (int)$this->getGameStateValue('total_rounds'); // Общее количество раундов
-        $result['stageName'] = $this->getStageName($result['round']); // Название этапа
+        $result['roundName'] = $this->getRoundName($result['round']); // Название раунда
         $faces = $this->getCubeFaces(); // Значения граней кубика
         $faceIndex = (int)$this->getGameStateValue('round_cube_face'); // Индекс текущей грани кубика (0..19)
         $result['cubeFace'] = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : ''; // Значение кубика на раунд
@@ -621,6 +621,36 @@ class Game extends \Bga\GameFramework\Table
         }
 
         return true;
+    }
+
+    /**
+     * Возвращает баджерсы в банк (при списании у игрока)
+     * @param int $amount Количество баджерсов для возврата
+     */
+    private function depositBadgersToBank(int $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        // Разбиваем сумму на монеты, начиная с самых крупных
+        $denominations = array_keys(BadgersData::getDenominations());
+        rsort($denominations);
+
+        $remaining = $amount;
+        foreach ($denominations as $value) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $count = intdiv($remaining, $value);
+            if ($count > 0) {
+                $current = (int)$this->getGameStateValue('badgers_supply_' . $value);
+                $this->setGameStateValue('badgers_supply_' . $value, $current + $count);
+                $remaining -= $count * $value;
+            }
+        }
+
+        error_log("depositBadgersToBank - Deposited $amount badgers to bank");
     }
 
     private function findBadgersCombination(int $amount, array $available, array $values, int $index): ?array // Находим комбинацию баджерсов для снятия
@@ -953,6 +983,145 @@ class Game extends \Bga\GameFramework\Table
 
         // Удаляем опции выбора (они больше не нужны - две другие карты ушли в отбой)
         $this->globals->set('founder_options_' . $playerId, null);
+    }
+
+    /**
+     * Применяет эффект карты основателя на указанном этапе игры
+     * @param int $playerId ID игрока
+     * @param int $cardId ID карты основателя
+     * @param string $currentStage Текущий этап игры (например, 'GameSetup')
+     * @return array Массив с информацией о применённых эффектах
+     */
+    public function applyFounderEffect(int $playerId, int $cardId, string $currentStage): array
+    {
+        $founderCard = FoundersData::getCard($cardId);
+        if ($founderCard === null) {
+            error_log("applyFounderEffect - Card not found: $cardId");
+            return [];
+        }
+        
+        $activationStage = $founderCard['activationStage'] ?? null;
+        $effect = $founderCard['effect'] ?? null;
+        
+        error_log("applyFounderEffect - Player: $playerId, Card: $cardId, CurrentStage: $currentStage, ActivationStage: $activationStage");
+        
+        // Если этап активации не совпадает с текущим, не применяем эффект
+        if ($activationStage === null || $activationStage !== $currentStage) {
+            error_log("applyFounderEffect - Stage mismatch, skipping effect");
+            return [];
+        }
+        
+        // Если эффект пустой, пропускаем
+        if (empty($effect) || !is_array($effect)) {
+            error_log("applyFounderEffect - No effect or invalid format");
+            return [];
+        }
+        
+        $appliedEffects = [];
+        
+        // Обрабатываем каждый тип эффекта
+        foreach ($effect as $effectType => $effectValue) {
+            $result = $this->processFounderEffectType($playerId, $effectType, $effectValue, $founderCard);
+            if ($result !== null) {
+                $appliedEffects[] = $result;
+            }
+        }
+        
+        error_log("applyFounderEffect - Applied effects: " . json_encode($appliedEffects));
+        
+        return $appliedEffects;
+    }
+    
+    /**
+     * Обрабатывает конкретный тип эффекта карты основателя
+     * @param int $playerId ID игрока
+     * @param string $effectType Тип эффекта (badger, card, task, track и т.д.)
+     * @param mixed $effectValue Значение эффекта (например, '+ 4')
+     * @param array $founderCard Данные карты основателя
+     * @return array|null Информация о применённом эффекте или null
+     */
+    private function processFounderEffectType(int $playerId, string $effectType, $effectValue, array $founderCard): ?array
+    {
+        error_log("processFounderEffectType - Player: $playerId, Type: $effectType, Value: $effectValue");
+        
+        switch ($effectType) {
+            case 'badger':
+                return $this->applyBadgerEffect($playerId, $effectValue, $founderCard);
+            
+            // Здесь можно добавить другие типы эффектов в будущем:
+            // case 'card': return $this->applyCardEffect($playerId, $effectValue, $founderCard);
+            // case 'task': return $this->applyTaskEffect($playerId, $effectValue, $founderCard);
+            // case 'track': return $this->applyTrackEffect($playerId, $effectValue, $founderCard);
+            
+            default:
+                error_log("processFounderEffectType - Unknown effect type: $effectType");
+                return null;
+        }
+    }
+    
+    /**
+     * Применяет эффект изменения баджерсов
+     * @param int $playerId ID игрока
+     * @param string $effectValue Значение эффекта (например, '+ 4', '- 2')
+     * @param array $founderCard Данные карты основателя
+     * @return array Информация о применённом эффекте
+     */
+    private function applyBadgerEffect(int $playerId, string $effectValue, array $founderCard): array
+    {
+        // Парсим значение: '+ 4' -> +4, '- 2' -> -2
+        $cleanValue = str_replace(' ', '', $effectValue);
+        $amount = (int)$cleanValue;
+        
+        error_log("applyBadgerEffect - Player: $playerId, CleanValue: $cleanValue, Amount: $amount");
+        
+        if ($amount === 0) {
+            return [
+                'type' => 'badger',
+                'amount' => 0,
+                'message' => 'Эффект баджерсов не применён (значение 0)',
+            ];
+        }
+        
+        // Получаем текущее количество баджерсов через PlayerCounter
+        $currentBadgers = $this->playerBadgers->get($playerId);
+        
+        // Добавляем/вычитаем баджерсы через PlayerCounter
+        if ($amount > 0) {
+            // Списываем баджерсы из банка
+            if (!$this->withdrawBadgersFromBank($amount)) {
+                error_log("applyBadgerEffect - ERROR: Failed to withdraw $amount badgers from bank");
+                return [
+                    'type' => 'badger',
+                    'amount' => 0,
+                    'message' => 'Недостаточно баджерсов в банке',
+                ];
+            }
+            $this->playerBadgers->inc($playerId, $amount);
+        } else {
+            // При отрицательном значении уменьшаем, но не ниже 0
+            // и возвращаем баджерсы в банк
+            $decreaseAmount = min(abs($amount), $currentBadgers);
+            $this->playerBadgers->inc($playerId, -$decreaseAmount);
+            $this->depositBadgersToBank($decreaseAmount);
+        }
+        
+        // Получаем новое значение
+        $newBadgers = $this->playerBadgers->get($playerId);
+        
+        error_log("applyBadgerEffect - Updated badgers from $currentBadgers to $newBadgers for player $playerId");
+        
+        // Формируем сообщение для уведомления
+        $actionText = $amount > 0 ? 'получает' : 'теряет';
+        $absAmount = abs($amount);
+        
+        return [
+            'type' => 'badger',
+            'amount' => $amount,
+            'oldValue' => $currentBadgers,
+            'newValue' => $newBadgers,
+            'message' => "Игрок $actionText {$absAmount}Б благодаря эффекту карты «{$founderCard['name']}»",
+            'founderName' => $founderCard['name'],
+        ];
     }
 
     /**

@@ -51,7 +51,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
         return [
             'cubeFace' => $cubeFace,
             'round' => $round,
-            'stageName' => $this->game->getStageName($round),
+            'roundName' => $this->game->getRoundName($round),
             'phaseName' => $this->game->getPhaseName('event'),
             'roundEventCards' => $roundEventCards,
             'eventCard' => $roundEventCards[0] ?? null,
@@ -73,13 +73,13 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
         // Уведомляем игроков о начале раунда и значении кубика
         $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [ // Уведомление о начале раунда
             'round' => $round, // Текущий раунд
-            'stageName' => $this->game->getStageName($round), // Название этапа
+            'roundName' => $this->game->getRoundName($round), // Название этапа
             'cubeFace' => $cubeFace, // Значение кубика на раунд
             'phaseName' => $this->game->getPhaseName('event'), // Название фазы
             'roundEventCards' => $eventCards,
             'eventCard' => $eventCards[0] ?? null,
             'founders' => $this->game->getFoundersByPlayer(),
-            'i18n' => ['stageName', 'phaseName'], // Название этапа и фазы
+            'i18n' => ['roundName', 'phaseName'], // Название раунда и фазы
         ]); // Уведомление о начале раунда
 
         // После события — активируем первого игрока и переходим к его ходу

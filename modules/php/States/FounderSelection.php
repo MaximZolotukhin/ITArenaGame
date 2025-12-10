@@ -114,6 +114,33 @@ class FounderSelection extends GameState
         // Выбираем карту для игрока
         $this->game->selectFounderForPlayer($activePlayerId, $cardId);
         
+        // Применяем эффект карты, если он активируется на этапе подготовки (GameSetup)
+        $appliedEffects = $this->game->applyFounderEffect($activePlayerId, $cardId, 'GameSetup');
+        
+        // Если были применены эффекты, отправляем уведомления
+        if (!empty($appliedEffects)) {
+            foreach ($appliedEffects as $effect) {
+                if ($effect['type'] === 'badger' && $effect['amount'] !== 0) {
+                    // Получаем актуальное состояние банка
+                    $badgersSupply = $this->game->getBadgersSupply();
+                    error_log('FounderSelection - Sending badgersChanged with badgersSupply count: ' . count($badgersSupply));
+                    
+                    // Отправляем уведомление об изменении баджерсов (включая данные банка)
+                    $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря эффекту карты «${founder_name}»'), [
+                        'player_id' => $activePlayerId,
+                        'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                        'action_text' => $effect['amount'] > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
+                        'amount' => abs($effect['amount']),
+                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                        'oldValue' => $effect['oldValue'],
+                        'newValue' => $effect['newValue'],
+                        'badgersSupply' => $badgersSupply,
+                        'i18n' => ['action_text'],
+                    ]);
+                }
+            }
+        }
+        
         // Уведомляем о выборе
         $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
         $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
