@@ -6,6 +6,7 @@ namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
 use Bga\Games\itarenagame\Game;
+use Bga\Games\itarenagame\States\SpecialistSelection;
 
 class NextPlayer extends \Bga\GameFramework\States\GameState
 {
@@ -38,15 +39,17 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         // ЭТАП 1: ПОДГОТОВКА К ИГРЕ (только для основного режима)
         // ========================================
         if (!$isTutorial) {
-            // Проверяем, все ли игроки выбрали карты основателей
-            $allPlayersSelected = $this->game->allPlayersSelectedFounders();
-            error_log('NextPlayer - allPlayersSelected: ' . ($allPlayersSelected ? 'yes' : 'no'));
+            // ----------------------------------------
+            // ЭТАП 1.1: Выбор карт ОСНОВАТЕЛЕЙ
+            // ----------------------------------------
+            $allFoundersSelected = $this->game->allPlayersSelectedFounders();
+            error_log('NextPlayer - allFoundersSelected: ' . ($allFoundersSelected ? 'yes' : 'no'));
             
-            if (!$allPlayersSelected) {
-                // Мы всё ещё на ЭТАПЕ 1 - переходим к следующему игроку для выбора карты
+            if (!$allFoundersSelected) {
+                // Мы всё ещё на ЭТАПЕ 1.1 - переходим к следующему игроку для выбора карты основателя
                 $this->game->activeNextPlayer();
                 $nextPlayerId = $this->game->getActivePlayerId();
-                error_log('NextPlayer - ЭТАП 1: Moving to next player for FounderSelection: ' . $nextPlayerId);
+                error_log('NextPlayer - ЭТАП 1.1: Moving to next player for FounderSelection: ' . $nextPlayerId);
                 
                 // Проверяем, выбрал ли следующий игрок карту
                 $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
@@ -61,11 +64,33 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     if ($founder === null) {
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
                         return FounderSelection::class;
-                }
+                    }
                 }
             }
             
-            // Все игроки выбрали карты - проверяем, начался ли уже ЭТАП 2
+            // ----------------------------------------
+            // ЭТАП 1.2: Выбор карт СОТРУДНИКОВ (после основателей)
+            // ----------------------------------------
+            $allSpecialistsSelected = $this->game->allPlayersSelectedSpecialists();
+            error_log('NextPlayer - allSpecialistsSelected: ' . ($allSpecialistsSelected ? 'yes' : 'no'));
+            
+            if (!$allSpecialistsSelected) {
+                // Ищем первого игрока, который ещё не выбрал карты сотрудников
+                $players = array_keys($this->game->loadPlayersBasicInfos());
+                foreach ($players as $playerId) {
+                    $done = $this->game->globals->get('specialist_selection_done_' . $playerId, false);
+                    error_log('NextPlayer - ЭТАП 1.2: Checking player ' . $playerId . ', done: ' . ($done ? 'yes' : 'no'));
+                    if (!$done) {
+                        error_log('NextPlayer - ЭТАП 1.2: Переход к SpecialistSelection для игрока: ' . $playerId);
+                        $this->game->gamestate->changeActivePlayer((int)$playerId);
+                        return SpecialistSelection::class;
+                    }
+                }
+            }
+            
+            // ----------------------------------------
+            // Все выбрали основателей И сотрудников - проверяем, начался ли уже ЭТАП 2
+            // ----------------------------------------
             if ($currentRound === 0) {
                 // Переход от ЭТАПА 1 к ЭТАПУ 2
                 error_log('NextPlayer - ✅ Все игроки выбрали карты! Переход к ЭТАПУ 2');
@@ -83,7 +108,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $this->game->setGameStateValue('players_left_in_round', $playersCount);
                 
                 // Переходим к первому раунду (RoundEvent)
-                    return RoundEvent::class;
+                return RoundEvent::class;
             }
             // Если currentRound > 0, значит ЭТАП 2 уже начался, продолжаем логику раундов ниже
         }

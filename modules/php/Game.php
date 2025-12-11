@@ -403,6 +403,63 @@ class Game extends \Bga\GameFramework\Table
             error_log('getAllDatas - Tutorial mode: skipping founder options');
         }
 
+        // ========================================
+        // Данные о картах сотрудников (JSON) - храним только ID!
+        // ========================================
+        
+        // ID карт сотрудников на руке (для выбора) - только для текущего игрока
+        $specialistHandIdsJson = $this->globals->get('specialist_hand_' . $current_player_id, '');
+        $specialistHandIds = !empty($specialistHandIdsJson) ? json_decode($specialistHandIdsJson, true) : [];
+        if (!empty($specialistHandIds)) {
+            // Получаем полные данные карт по ID
+            $specialistHand = [];
+            foreach ($specialistHandIds as $cardId) {
+                $card = SpecialistsData::getCard((int)$cardId);
+                if ($card) {
+                    $specialistHand[] = $card;
+                }
+            }
+            $result['specialistHand'] = $specialistHand;
+            $selectedJson = $this->globals->get('specialist_selected_' . $current_player_id, '');
+            $result['selectedSpecialists'] = !empty($selectedJson) ? json_decode($selectedJson, true) : [];
+            error_log('getAllDatas - Player ' . $current_player_id . ' has ' . count($specialistHand) . ' specialist cards in hand');
+        }
+        
+        // ID выбранных карт сотрудников (после подтверждения)
+        $playerSpecialistIdsJson = $this->globals->get('player_specialists_' . $current_player_id, '');
+        $playerSpecialistIds = !empty($playerSpecialistIdsJson) ? json_decode($playerSpecialistIdsJson, true) : [];
+        if (!empty($playerSpecialistIds)) {
+            // Получаем полные данные карт по ID
+            $playerSpecialists = [];
+            foreach ($playerSpecialistIds as $cardId) {
+                $card = SpecialistsData::getCard((int)$cardId);
+                if ($card) {
+                    $playerSpecialists[] = $card;
+                }
+            }
+            $result['playerSpecialists'] = $playerSpecialists;
+            error_log('getAllDatas - Player ' . $current_player_id . ' has ' . count($playerSpecialists) . ' confirmed specialists');
+        }
+        
+        // Добавляем сотрудников всех игроков в players
+        foreach ($result["players"] as &$player) {
+            $playerId = (int)($player['id'] ?? 0);
+            $specialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+            $specialistIds = !empty($specialistIdsJson) ? json_decode($specialistIdsJson, true) : [];
+            if (!empty($specialistIds)) {
+                // Получаем полные данные карт по ID
+                $specialists = [];
+                foreach ($specialistIds as $cardId) {
+                    $card = SpecialistsData::getCard((int)$cardId);
+                    if ($card) {
+                        $specialists[] = $card;
+                    }
+                }
+                $player['specialists'] = $specialists;
+            }
+        }
+        unset($player);
+
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
         return $result;
@@ -2170,6 +2227,145 @@ class Game extends \Bga\GameFramework\Table
         
         $finalCount = $this->getUniqueValueFromDb("SELECT COUNT(*) FROM `project_token` WHERE `board_position` IN ('green-hex', 'green-square', 'green-circle-1', 'green-circle-2')");
         error_log("placeProjectTokensOnGreenColumn - Completed placement, final count: $finalCount");
+    }
+
+    // ========================================
+    // МЕТОДЫ ДЛЯ РАБОТЫ С КАРТАМИ СОТРУДНИКОВ
+    // ========================================
+
+    /**
+     * Раздаёт указанное количество случайных карт сотрудников игроку
+     * @param int $playerId ID игрока
+     * @param int $count Количество карт для раздачи
+     * @return array Массив раздаённых карт
+     */
+    public function dealSpecialistCards(int $playerId, int $count): array
+    {
+        // Получаем все карты сотрудников
+        $allCards = SpecialistsData::getAllCards();
+        
+        // Получаем уже использованные карты (у других игроков или в сбросе)
+        $usedCardIds = $this->getUsedSpecialistCardIds();
+        
+        // Фильтруем доступные карты
+        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
+            return !in_array($card['id'], $usedCardIds, true);
+        });
+        
+        // Перемешиваем и берём нужное количество
+        $availableCards = array_values($availableCards);
+        shuffle($availableCards);
+        
+        $dealtCards = array_slice($availableCards, 0, $count);
+        
+        error_log("dealSpecialistCards - Dealt " . count($dealtCards) . " cards to player $playerId");
+        
+        return $dealtCards;
+    }
+
+    /**
+     * Получает ID всех использованных карт сотрудников
+     * @return array Массив ID карт
+     */
+    private function getUsedSpecialistCardIds(): array
+    {
+        $usedIds = [];
+        
+        // Карты на руках игроков (теперь хранятся только ID!)
+        $players = array_keys($this->loadPlayersBasicInfos());
+        foreach ($players as $playerId) {
+            // ID карт в процессе выбора (JSON)
+            $handCardIdsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+            $handCardIds = !empty($handCardIdsJson) ? json_decode($handCardIdsJson, true) : [];
+            if (!empty($handCardIds) && is_array($handCardIds)) {
+                $usedIds = array_merge($usedIds, $handCardIds);
+            }
+            
+            // ID выбранных карт (JSON)
+            $keptCardIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+            $keptCardIds = !empty($keptCardIdsJson) ? json_decode($keptCardIdsJson, true) : [];
+            if (!empty($keptCardIds) && is_array($keptCardIds)) {
+                $usedIds = array_merge($usedIds, $keptCardIds);
+            }
+        }
+        
+        // ID карт в сбросе (JSON)
+        $discardPileJson = $this->globals->get('specialist_discard_pile', '');
+        $discardPile = !empty($discardPileJson) ? json_decode($discardPileJson, true) : [];
+        if (!empty($discardPile) && is_array($discardPile)) {
+            $usedIds = array_merge($usedIds, $discardPile);
+        }
+        
+        return array_unique($usedIds);
+    }
+
+    /**
+     * Проверяет, все ли игроки выбрали карты сотрудников
+     * @return bool
+     */
+    public function allPlayersSelectedSpecialists(): bool
+    {
+        $players = array_keys($this->loadPlayersBasicInfos());
+        foreach ($players as $playerId) {
+            $done = $this->globals->get('specialist_selection_done_' . $playerId, false);
+            if (!$done) {
+                error_log("allPlayersSelectedSpecialists - Player $playerId has NOT selected specialists yet");
+                return false;
+            }
+        }
+        error_log("allPlayersSelectedSpecialists - All players have selected specialists");
+        return true;
+    }
+
+    /**
+     * Получает карты сотрудников игрока (полные данные по ID)
+     * @param int $playerId ID игрока
+     * @return array Массив карт
+     */
+    public function getPlayerSpecialists(int $playerId): array
+    {
+        $idsJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $ids = !empty($idsJson) ? json_decode($idsJson, true) : [];
+        
+        $cards = [];
+        foreach ($ids as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $cards[] = $card;
+            }
+        }
+        return $cards;
+    }
+
+    /**
+     * Получает карты сотрудников для выбора (на руке) - полные данные по ID
+     * @param int $playerId ID игрока
+     * @return array Массив карт
+     */
+    public function getSpecialistHandCards(int $playerId): array
+    {
+        $idsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+        $ids = !empty($idsJson) ? json_decode($idsJson, true) : [];
+        
+        $cards = [];
+        foreach ($ids as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $cards[] = $card;
+            }
+        }
+        return $cards;
+    }
+
+    /**
+     * Получает выбранные карты сотрудников (ещё не подтверждённые)
+     * @param int $playerId ID игрока
+     * @return array Массив ID карт
+     */
+    public function getSelectedSpecialistIds(int $playerId): array
+    {
+        $json = $this->globals->get('specialist_selected_' . $playerId, '');
+        return !empty($json) ? json_decode($json, true) : [];
     }
 
 }
