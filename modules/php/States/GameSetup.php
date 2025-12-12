@@ -106,23 +106,21 @@ class GameSetup extends GameState
         
         // Определяем следующее состояние для перехода
         $isTutorial = $this->game->isTutorialMode();
-        // ID состояний: RoundEvent = 15, FounderSelection = 20
-        $nextStateId = $isTutorial ? 15 : 20;
-        error_log('GameSetup::onEnteringState - Tutorial mode: ' . ($isTutorial ? 'YES' : 'NO') . ', Next state ID: ' . $nextStateId);
+        error_log('GameSetup::onEnteringState - Tutorial mode: ' . ($isTutorial ? 'YES' : 'NO'));
         
-        if (!$isTutorial) {
+        if ($isTutorial) {
+            // В обучающем режиме используем ту же логику что и в основном режиме (FounderSelection)
+            // Карта уже выбрана и лежит в globals, игроку нужно только разместить если universal
+            $nextStateId = 20; // FounderSelection - та же логика что в основном режиме
+            $this->game->activeNextPlayer();
+            $activePlayerId = $this->game->getActivePlayerId();
+            error_log('GameSetup::onEnteringState - Tutorial: Going to FounderSelection (same as main mode), active player: ' . $activePlayerId);
+        } else {
             // Основной режим: устанавливаем первого активного игрока для выбора основателя
+            $nextStateId = 20; // FounderSelection
             $this->game->activeNextPlayer();
             $activePlayerId = $this->game->getActivePlayerId();
             error_log('GameSetup::onEnteringState - Set active player for FounderSelection: ' . $activePlayerId);
-        
-            // Уведомление "ЭТАП 2: НАЧАЛО ИГРЫ" будет отправлено только после того,
-            // как ВСЕ игроки завершат выбор карт основателей (в NextPlayer.php)
-        } else {
-            // В обучающем режиме сразу переходим к началу игры (без текста в логе)
-            $this->notify->all('gameStart', '', [
-            'stageName' => clienttranslate('Начало игры'),
-        ]);
         }
         
         // Автоматически переходим к следующему состоянию

@@ -111,8 +111,21 @@ class FounderSelection extends GameState
             throw new UserException(clienttranslate('Карта основателя уже выбрана'));
         }
         
-        // Выбираем карту для игрока
+        // Выбираем карту для игрока (этот метод уже обрабатывает размещение не-универсальных карт)
         $this->game->selectFounderForPlayer($activePlayerId, $cardId);
+        
+        // Получаем данные карты
+        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
+        $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
+        
+        // Получаем актуальный отдел из globals (установлен в selectFounderForPlayer)
+        $founderDepartment = $this->game->globals->get('founder_department_' . $activePlayerId, null);
+        if ($founderDepartment === null) {
+            $founderDepartment = $founderCard['department'] ?? 'universal';
+        }
+        
+        // Обновляем department в данных карты для уведомления
+        $founderCard['department'] = $founderDepartment;
         
         // Применяем эффект карты, если он активируется на этапе подготовки (GameSetup)
         $appliedEffects = $this->game->applyFounderEffect($activePlayerId, $cardId, 'GameSetup');
@@ -142,17 +155,6 @@ class FounderSelection extends GameState
         }
         
         // Уведомляем о выборе
-        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
-        $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
-        
-        // Получаем актуальный отдел из globals (может быть установлен автоматически)
-        $founderDepartment = $this->game->globals->get('founder_department_' . $activePlayerId, null);
-        if ($founderDepartment === null) {
-            $founderDepartment = $founderCard['department'] ?? 'universal';
-        }
-        
-        // Обновляем department в данных карты для уведомления
-        $founderCard['department'] = $founderDepartment;
 
         $this->notify->all('founderSelected', clienttranslate('${player_name} выбрал карту основателя: ${founder_name}'), [
             'player_id' => $activePlayerId,

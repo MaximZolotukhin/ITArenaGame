@@ -854,25 +854,32 @@ class Game extends \Bga\GameFramework\Table
 
         if ($isTutorial) {
             // В обучающем режиме: раздаем по одной карте каждому игроку
+            // ВАЖНО: Сохраняем карту в founder_options_, чтобы она показывалась на руке как опция (как в основном режиме)
             foreach ($playerIds as $playerId) {
                 $playerId = (int)$playerId;
                 $cardId = (int)array_shift($availableIds);
                 $founder = $founders[$cardId] ?? null;
                 $founderName = $founder['name'] ?? 'unknown';
-                error_log('assignInitialFounders - Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
+                error_log('assignInitialFounders - Tutorial: Assigning founder ID ' . $cardId . ' (' . $founderName . ') to player ' . $playerId);
+                
+                // Сохраняем карту в founder_options_, чтобы она показывалась на руке (как в основном режиме)
+                $key = 'founder_options_' . $playerId;
+                $jsonValue = json_encode([$cardId]);
+                $this->globals->set($key, $jsonValue);
+                error_log('assignInitialFounders - Tutorial: Saved founder option for player ' . $playerId . ': ' . $jsonValue);
                 
                 // Получаем данные карты, чтобы проверить её department
                 $founderCard = FoundersData::getCard($cardId);
                 $founderDepartment = $founderCard['department'] ?? 'universal';
                 
-                // Если универсальная, оставляем на руке (department='universal')
-                // Иначе автоматически размещаем в указанном отделе
+                // В Tutorial режиме карта НЕ считается "выбранной" до клика пользователя
+                // Поэтому НЕ устанавливаем founder_player_ здесь - это будет сделано при клике
+                // Но устанавливаем department='universal' для универсальных карт, чтобы они показывались на руке
                 if ($founderDepartment !== 'universal') {
-                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' has department ' . $founderDepartment . ', placing automatically');
-                    $this->setFounderForPlayer($playerId, $cardId, $founderDepartment);
+                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' has department ' . $founderDepartment . ', will be placed automatically on click');
+                    // Не размещаем автоматически - пользователь должен кликнуть на карту
                 } else {
-                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' is universal, leaving in hand');
-                    $this->setFounderForPlayer($playerId, $cardId, 'universal');
+                    error_log('assignInitialFounders - Tutorial: Founder ' . $cardId . ' is universal, will be shown on hand for placement');
                 }
             }
         } else {
@@ -934,7 +941,10 @@ class Game extends \Bga\GameFramework\Table
         $this->globals->set('founder_player_' . $playerId, $cardId);
         if ($department !== null) {
             $this->globals->set('founder_department_' . $playerId, $department);
+            error_log('setFounderForPlayer - Player ' . $playerId . ', card ' . $cardId . ', department set to: ' . $department);
         }
+        // Очищаем кэш, чтобы getFoundersByPlayer() перечитал данные из globals
+        // Это важно, т.к. expandFounders() читает department из globals
     }
 
     /**
@@ -1038,7 +1048,7 @@ class Game extends \Bga\GameFramework\Table
             $this->setFounderForPlayer($playerId, $cardId, 'universal');
         }
 
-        // Удаляем опции выбора (они больше не нужны - две другие карты ушли в отбой)
+        // Удаляем опции выбора (они больше не нужны - в основном режиме две другие карты ушли в отбой, в Tutorial режиме карта выбрана)
         $this->globals->set('founder_options_' . $playerId, null);
     }
 
@@ -1200,6 +1210,35 @@ class Game extends \Bga\GameFramework\Table
         return true;
     }
 
+    /**
+     * Проверяет, все ли игроки разместили свои универсальные карты основателей
+     * Используется в Tutorial режиме
+     */
+    public function allFoundersPlaced(): bool
+    {
+        $playerIds = array_keys($this->loadPlayersBasicInfos());
+        
+        foreach ($playerIds as $playerId) {
+            $playerId = (int)$playerId;
+            
+            // Получаем данные основателя для детального логирования
+            $founders = $this->getFoundersByPlayer();
+            $founder = $founders[$playerId] ?? null;
+            $department = $founder['department'] ?? 'none';
+            
+            error_log('allFoundersPlaced - Checking player ' . $playerId . ', founder: ' . ($founder ? 'yes' : 'no') . ', department: ' . $department);
+            
+            // Проверяем, есть ли у игрока неразмещённая универсальная карта
+            if ($this->hasUnplacedUniversalFounder($playerId)) {
+                error_log('allFoundersPlaced - Player ' . $playerId . ' has unplaced universal founder (department=' . $department . ')');
+                return false;
+            }
+        }
+        
+        error_log('allFoundersPlaced - All founders placed');
+        return true;
+    }
+
     public function placeFounder(int $playerId, string $department): void
     {
         $validDepartments = ['sales-department', 'back-office', 'technical-department'];
@@ -1224,22 +1263,31 @@ class Game extends \Bga\GameFramework\Table
     {
         $founders = $this->getFoundersByPlayer();
         if (!isset($founders[$playerId])) {
+            error_log('hasUnplacedUniversalFounder - Player ' . $playerId . ' has no founder');
             return false;
         }
 
         $founder = $founders[$playerId];
         $department = strtolower(trim($founder['department'] ?? ''));
         
+        // Также проверяем напрямую из globals для надежности
+        $globalsDepartment = $this->globals->get('founder_department_' . $playerId, null);
+        if ($globalsDepartment !== null) {
+            $globalsDepartment = strtolower(trim($globalsDepartment));
+        }
+        
+        error_log('hasUnplacedUniversalFounder - Player ' . $playerId . ', department from founder: ' . $department . ', from globals: ' . ($globalsDepartment ?? 'null'));
+        
         // Если отдел 'universal', значит карта еще на руках
-        return $department === 'universal';
+        $isUnplaced = $department === 'universal';
+        error_log('hasUnplacedUniversalFounder - Player ' . $playerId . ' has unplaced founder: ' . ($isUnplaced ? 'yes' : 'no'));
+        return $isUnplaced;
     }
 
     public function getFoundersByPlayer(): array
     {
-        if (!empty($this->founderAssignments)) {
-            return $this->expandFounders($this->founderAssignments);
-        }
-
+        // Всегда перечитываем из globals, чтобы получить актуальный department
+        // (кэш founderAssignments может быть устаревшим после placeFounder)
         $result = [];
         foreach ($this->loadPlayersBasicInfos() as $playerId => $info) {
             $value = $this->globals->get('founder_player_' . (int)$playerId, null);
@@ -1248,11 +1296,21 @@ class Game extends \Bga\GameFramework\Table
             }
         }
 
-        if (!empty($result)) {
-            $this->founderAssignments = $result;
-        }
+        // Обновляем кэш
+        $this->founderAssignments = $result;
 
         return $this->expandFounders($result);
+    }
+
+    /**
+     * Получает данные основателя для конкретного игрока
+     * @param int $playerId ID игрока
+     * @return array|null Данные основателя или null если не найден
+     */
+    public function getFounderForPlayer(int $playerId): ?array
+    {
+        $founders = $this->getFoundersByPlayer();
+        return $founders[$playerId] ?? null;
     }
 
     private function expandFounders(array $assignments): array
@@ -1508,45 +1566,61 @@ class Game extends \Bga\GameFramework\Table
         // Получаем все карты специалистов
         $allSpecialists = SpecialistsData::getAllCards();
         
-        // Фильтруем только стартовые карты (starterOrFinisher = 'S')
-        $startingSpecialists = [];
-        foreach ($allSpecialists as $cardId => $card) {
-            if (isset($card['starterOrFinisher']) && $card['starterOrFinisher'] === 'S') {
-                $startingSpecialists[$cardId] = $card;
+        // В Tutorial режиме раздаём 3 случайные карты, в основном - 1 стартовую
+        $isTutorial = $this->isTutorialMode();
+        $cardsPerPlayer = $isTutorial ? 3 : 1;
+        
+        error_log('distributeStartingSpecialistCards - Tutorial mode: ' . ($isTutorial ? 'YES' : 'NO') . ', cards per player: ' . $cardsPerPlayer);
+        
+        if ($isTutorial) {
+            // В Tutorial режиме раздаём случайные карты (не только стартовые)
+            $availableCards = $allSpecialists;
+        } else {
+            // В основном режиме только стартовые карты (starterOrFinisher = 'S')
+            $availableCards = [];
+            foreach ($allSpecialists as $cardId => $card) {
+                if (isset($card['starterOrFinisher']) && $card['starterOrFinisher'] === 'S') {
+                    $availableCards[$cardId] = $card;
+                }
             }
         }
 
-        if (empty($startingSpecialists)) {
-            error_log('distributeStartingSpecialistCards - No starting specialist cards found');
+        if (empty($availableCards)) {
+            error_log('distributeStartingSpecialistCards - No specialist cards found');
             return;
         }
 
-        // Раздаем по одной стартовой карте каждому игроку
-        $availableIds = array_keys($startingSpecialists);
+        // Подготавливаем пул карт для раздачи
+        $availableIds = array_keys($availableCards);
         shuffle($availableIds);
 
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
-            if (empty($availableIds)) {
-                // Если карт не хватает, перемешиваем заново
-                $availableIds = array_keys($startingSpecialists);
-                shuffle($availableIds);
-            }
+            $playerSpecialists = [];
             
-            $cardId = (int)array_shift($availableIds);
-            $card = $startingSpecialists[$cardId] ?? null;
-            
-            if ($card !== null) {
-                // Сохраняем карту специалиста для игрока в globals
-                $playerSpecialists = json_decode($this->globals->get('specialist_cards_' . $playerId, '[]'), true);
-                if (!is_array($playerSpecialists)) {
-                    $playerSpecialists = [];
+            for ($i = 0; $i < $cardsPerPlayer; $i++) {
+                if (empty($availableIds)) {
+                    // Если карт не хватает, перемешиваем заново
+                    $availableIds = array_keys($availableCards);
+                    shuffle($availableIds);
                 }
+                
+                $cardId = (int)array_shift($availableIds);
                 $playerSpecialists[] = $cardId;
-                $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
                 
                 error_log('distributeStartingSpecialistCards - Assigned specialist card ' . $cardId . ' to player ' . $playerId);
             }
+            
+            // Сохраняем карты специалиста для игрока в globals
+            $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
+            
+            // В Tutorial режиме сразу подтверждаем карты (нет этапа выбора)
+            if ($isTutorial) {
+                $this->globals->set('player_specialists_' . $playerId, json_encode($playerSpecialists));
+                error_log('distributeStartingSpecialistCards - Tutorial mode: cards immediately confirmed for player ' . $playerId);
+            }
+            
+            error_log('distributeStartingSpecialistCards - Player ' . $playerId . ' has ' . count($playerSpecialists) . ' specialist cards: ' . json_encode($playerSpecialists));
         }
     }
 

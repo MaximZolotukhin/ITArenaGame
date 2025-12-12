@@ -40,7 +40,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     setup: function (gamedatas) {
       console.log('Starting game setup')
-      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-11-v6 🔴🔴🔴')
+      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-12-v15 🔴🔴🔴')
 
       // Example to add a div on the game area
       // Мой код для баннера раунда
@@ -150,7 +150,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                             <div class="project-board-panel__column project-board-panel__column--complex project-board-panel__column--red">
                               <div class="project-board-panel__column-header">${_('Сложные - Красный')}</div>
                               <div class="project-board-panel__column-body">
-                                ${['red-circle-1', 'red-hex', 'red-square', 'red-circle-2'].map((label) => `<div class="project-board-panel__row" data-label="${label}"></div>`).join('')}
+                                ${['red-circle-1',  'red-square', 'red-hex', 'red-circle-2'].map((label) => `<div class="project-board-panel__row" data-label="${label}"></div>`).join('')}
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--long-term project-board-panel__column--blue">
@@ -474,71 +474,37 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._applyLocalFounders()
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
 
-      // Проверяем баджерсы игроков
-      console.log('=== CHECKING PLAYER BADGERS ===')
+      // Проверяем баджерсы игроков (проверка без логирования)
       if (gamedatas.players) {
         Object.values(gamedatas.players).forEach((player) => {
           const badgers = player.badgers || 0
-          console.log('Player ' + player.id + ' (' + player.name + ') has ' + badgers + ' badgers (expected: 5)')
           if (badgers !== 5) {
+            // Только предупреждение об ошибке, без обычных логов
             console.warn('WARNING: Player ' + player.id + ' has incorrect badgers count! Expected: 5, Got: ' + badgers)
           }
         })
-      } else {
-        console.warn('No players data found in gamedatas')
       }
 
-      // Проверяем карты основателей
-      console.log('=== CHECKING FOUNDER CARDS ===')
-      console.log('Game mode:', gamedatas.gameMode, '(1=TUTORIAL, 2=MAIN)')
-      console.log('Tutorial mode:', gamedatas.isTutorialMode)
-      console.log('Founder options in gamedatas:', gamedatas.founderOptions)
-      console.log('Founder options length:', gamedatas.founderOptions?.length || 0)
-      console.log('Active founder options in gamedatas:', gamedatas.activeFounderOptions)
-      console.log('Active founder options length:', gamedatas.activeFounderOptions?.length || 0)
-      console.log('All players founder options:', gamedatas.allPlayersFounderOptions)
-
+      // Проверяем карты основателей (без логирования)
       if (!gamedatas.isTutorialMode) {
-        console.log('MAIN MODE: Checking founder cards distribution')
-
-        if (gamedatas.players) {
-          Object.values(gamedatas.players).forEach((player) => {
-            console.log('Player ' + player.id + ' (' + player.name + ') - checking founder data')
-            // Проверяем, есть ли у игрока выбранный основатель
-            if (player.founder) {
-              console.log('Player ' + player.id + ' has selected founder:', player.founder)
-            } else {
-              console.log('Player ' + player.id + ' has NO selected founder (expected in main mode)')
-            }
-          })
-        }
-
         // Проверяем, есть ли опции для текущего игрока
         if (gamedatas.founderOptions && gamedatas.founderOptions.length > 0) {
-          console.log('✅ Current player has ' + gamedatas.founderOptions.length + ' founder options (expected: 3)')
           if (gamedatas.founderOptions.length !== 3) {
             console.warn('⚠️ WARNING: Current player should have 3 options, but got ' + gamedatas.founderOptions.length)
           }
         } else {
           console.error('❌ ERROR: Current player has NO founder options! This should not happen in MAIN mode!')
-          console.error('This means cards were not distributed or not passed to client')
         }
 
         // Проверяем активного игрока
-        if (gamedatas.activeFounderOptions && gamedatas.activeFounderOptions.length > 0) {
-          console.log('✅ Active player has ' + gamedatas.activeFounderOptions.length + ' founder options')
-        } else {
+        if (!gamedatas.activeFounderOptions || gamedatas.activeFounderOptions.length === 0) {
           console.warn('⚠️ Active player has NO founder options')
         }
-      } else {
-        console.log('TUTORIAL MODE: Founder selection skipped (cards assigned directly)')
       }
 
       // Режим игры (1 - Обучающий, 2 - Основной)
       this.gameMode = gamedatas.gameMode || 1
       this.isTutorialMode = gamedatas.isTutorialMode !== undefined ? gamedatas.isTutorialMode : this.gameMode === 1
-
-      console.log('Game mode:', this.gameMode === 1 ? 'Tutorial' : 'Main', 'isTutorialMode:', this.isTutorialMode)
       this._renderRoundTrack(this.totalRounds)
       this._renderRoundBanner(gamedatas.round, this.totalRounds, gamedatas.roundName, gamedatas.cubeFace, gamedatas.phaseName)
       this._renderGameModeBanner()
@@ -547,7 +513,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       setTimeout(() => {
         const roundPanel = document.querySelector('.round-panel__wrapper')
         if (roundPanel) {
-          console.log('Calling _renderPlayerIndicators from setup')
           this._renderPlayerIndicators(roundPanel)
         } else {
           console.error('roundPanel not found in setup!')
@@ -555,9 +520,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }, 200)
 
       // Отображаем жетоны проектов на планшете проектов (ВАЖНО: до return!)
-      console.log('=== PROJECT TOKENS DEBUG ===')
-      console.log('gamedatas.projectTokensOnBoard:', gamedatas.projectTokensOnBoard)
-      console.log('projectTokensOnBoard length:', gamedatas.projectTokensOnBoard?.length || 0)
       setTimeout(() => {
         this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
       }, 200)
@@ -570,6 +532,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderBadgers(gamedatas.badgers || [])
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
+      
+      // Рендерим сохранённые карты сотрудников (если есть)
+      if (gamedatas.playerSpecialists && gamedatas.playerSpecialists.length > 0) {
+        console.log('🎴 Setup - Found', gamedatas.playerSpecialists.length, 'saved specialist cards')
+        this._renderPlayerSpecialists()
+      }
 
       // Проверяем, нужно ли отобразить карты для выбора (в основном режиме, в состоянии FounderSelection)
       const currentState = gamedatas?.gamestate?.name
@@ -828,14 +796,32 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               },
             })
 
+            // В Tutorial режиме карта уже выбрана, нужно проверить нужно ли разместить
+            const isTutorial = this.gamedatas.isTutorialMode
+            const tutorialHasFounder = isTutorial && this.gamedatas?.players?.[targetPlayerId]?.founder
+            const actualHasSelectedFounder = hasSelectedFounder || tutorialHasFounder
+            
             // Если карта еще не выбрана и есть опции, показываем карты для выбора
-            if (!hasSelectedFounder && founderOptions.length > 0) {
+            if (!actualHasSelectedFounder && founderOptions.length > 0) {
               console.log('✅ Rendering selection cards in onEnteringState, count:', founderOptions.length, 'for player:', targetPlayerId)
               setTimeout(() => {
                 this._renderFounderSelectionCards(founderOptions, targetPlayerId)
               }, 100)
+            } else if (actualHasSelectedFounder) {
+              // Если карта уже выбрана (основной режим или Tutorial), показываем обычное отображение
+              // В Tutorial режиме карта уже выбрана, нужно показать её на руке если universal
+              const founder = this.gamedatas?.players?.[targetPlayerId]?.founder
+              if (isTutorial && founder && founder.department === 'universal' && Number(targetPlayerId) === Number(this.player_id)) {
+                // В Tutorial режиме показываем универсальную карту на руке
+                this._renderUniversalFounderOnHand(founder, targetPlayerId)
+                setTimeout(() => {
+                  this._setupHandInteractions()
+                }, 100)
+              } else {
+                this._renderFounderCard(this.gamedatas.players, targetPlayerId)
+              }
             } else {
-              // Если карта уже выбрана, показываем обычное отображение
+              // Нет опций и карта не выбрана
               console.log('Founder already selected or no options, rendering normal card')
               this._renderFounderCard(this.gamedatas.players, targetPlayerId)
             }
@@ -897,6 +883,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Обновляем баннер - всё ещё ЭТАП 1
           this._updateStageBanner()
           break
+        // TutorialFounderPlacement удалён - используем FounderSelection с той же логикой
         case 'RoundEvent':
           // Состояние события раунда - обновляем данные кубика и карты событий
           // Приоритет: сначала args (данные из getArgs()), потом gamedatas
@@ -1005,9 +992,16 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
 
-      if (this.isCurrentPlayerActive()) {
+      // Для FounderSelection проверяем активного игрока из args, а не только текущего
+      const isFounderSelection = stateName === 'FounderSelection'
+      const shouldProcessActions = this.isCurrentPlayerActive() || isFounderSelection
+      
+      if (shouldProcessActions) {
         switch (stateName) {
           case 'PlayerTurn':
+            if (!this.isCurrentPlayerActive()) {
+              break // PlayerTurn только для активного игрока
+            }
             const playableCardsIds = args.playableCardsIds // returned by the argPlayerTurn
             const mustPlaceFounderPlayerTurn = args.mustPlaceFounder === true // Обязательно ли разместить карту основателя
 
@@ -1030,6 +1024,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             break
           case 'FounderSelection':
             // В состоянии выбора карты основателя
+            // ВАЖНО: Этот блок выполняется для всех игроков, но кнопка показывается только активному
             console.log('FounderSelection onUpdateActionButtons, args:', args)
             // args может быть null или иметь структуру { args: { ... } }
             const founderSelectionActionArgs = args?.args || args || {}
@@ -1037,9 +1032,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             const hasSelectedFounder = founderSelectionActionArgs?.hasSelectedFounder === true
             const mustPlaceFounderFounderSelection = founderSelectionActionArgs?.mustPlaceFounder === true
             const founderOptionsFromArgs = founderSelectionActionArgs?.founderOptions || []
+            const activePlayerIdFromArgs = founderSelectionActionArgs?.activePlayerId || this._getActivePlayerIdFromDatas(this.gamedatas) || this.player_id
+            
+            // В Tutorial режиме проверяем также через gamedatas для АКТИВНОГО игрока
+            const isTutorial = this.gamedatas.isTutorialMode
+            const activePlayerId = Number(activePlayerIdFromArgs)
+            const tutorialHasFounder = isTutorial && this.gamedatas?.players?.[activePlayerId]?.founder
+            const actualHasSelectedFounder = hasSelectedFounder || tutorialHasFounder
+            
+            // Проверяем, является ли текущий игрок активным
+            const isActivePlayer = Number(activePlayerId) === Number(this.player_id)
 
             console.log('FounderSelection onUpdateActionButtons:', {
+              activePlayerId,
               hasSelectedFounder,
+              tutorialHasFounder,
+              actualHasSelectedFounder,
               mustPlaceFounderFounderSelection,
               founderOptionsCount: founderOptionsFromArgs.length,
               founderOptions: founderOptionsFromArgs,
@@ -1080,20 +1088,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               }, 100)
             }
 
-            if (hasSelectedFounder) {
+            // В Tutorial режиме карта уже выбрана, нужно проверить нужно ли разместить
+            // Кнопка показывается только активному игроку
+            const shouldShowFinishButton = actualHasSelectedFounder && isActivePlayer
+            
+            if (shouldShowFinishButton) {
               // Игрок уже выбрал карту - показываем кнопку "Завершить ход"
-              console.log('Adding finish turn button')
+              // Кнопка блокируется, если карта не размещена в отдел
+              // Переход к следующему этапу/игроку происходит только по нажатию кнопки
+              console.log('✅ Adding finish turn button for active player:', activePlayerId)
               this.statusBar.addActionButton(_('Завершить ход'), () => this.bgaPerformAction('actFinishTurn'), {
                 primary: true,
-                disabled: mustPlaceFounderFounderSelection,
+                disabled: mustPlaceFounderFounderSelection, // Блокируется, если карта не размещена
                 tooltip: mustPlaceFounderFounderSelection ? _('Вы должны разместить карту основателя в один из отделов перед завершением хода') : undefined,
                 id: 'finish-turn-button',
               })
             } else {
-              console.log('No selected founder, not showing finish turn button')
+              console.log('❌ Not showing finish button:', {
+                actualHasSelectedFounder,
+                isActivePlayer,
+                activePlayerId,
+                currentPlayerId: this.player_id,
+              })
             }
             // Карты выбираются кликом, размещение карты тоже через клик
             break
+
+          // TutorialFounderPlacement удалён - используем FounderSelection
 
           case 'SpecialistSelection':
             // Состояние выбора карт сотрудников
@@ -1405,25 +1426,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     notif_founderSelected: async function (notif) {
-      console.log('🎉🎉🎉 notif_founderSelected CALLED! 🎉🎉🎉')
-      
       // BGA передаёт объект notif, данные в notif.args
       const args = notif.args || notif
-      console.log('🎉 Extracted args:', args)
       
       const playerId = Number(args.player_id || 0)
       const founder = args.founder || null
       const department = String(args.department || founder?.department || 'universal').trim().toLowerCase()
       const isUniversal = department === 'universal'
-
-      console.log('🎉 notif_founderSelected - Processing:', { 
-        playerId, 
-        department, 
-        isUniversal, 
-        founderName: founder?.name,
-        founderId: founder?.id,
-        currentPlayerId: this.player_id
-      })
 
       if (playerId > 0 && founder) {
         // Обновляем данные в founders
@@ -1451,23 +1460,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
 
         const handContainer = document.getElementById('active-player-hand-cards')
-        console.log('🎉 Hand container found:', !!handContainer)
 
         // ВАЖНО: Принудительно удаляем все карты выбора из DOM
         if (handContainer) {
           const selectableCards = handContainer.querySelectorAll('.founder-card--selectable')
-          console.log('🎉 Selectable cards to remove:', selectableCards.length)
           selectableCards.forEach(card => {
-            console.log('🎉 Removing card:', card.dataset.cardId)
             card.remove()
           })
           handContainer.classList.remove('active-player-hand__center--selecting')
-          console.log('🎉 Hand container innerHTML after cleanup:', handContainer.innerHTML.substring(0, 100))
         }
 
         // Если карта универсальная, показываем её на руке для текущего игрока
         if (isUniversal && Number(playerId) === Number(this.player_id)) {
-          console.log('notif_founderSelected - Universal card selected by current player, showing on hand')
           
           // Очищаем контейнер полностью
           if (handContainer) {
@@ -1487,7 +1491,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
         } else if (isUniversal && Number(playerId) !== Number(this.player_id)) {
           // Для других игроков показываем рубашку на руке
-          console.log('notif_founderSelected - Universal card selected by other player, showing back')
           
           if (handContainer) {
             handContainer.innerHTML = ''
@@ -1505,21 +1508,16 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
         } else {
           // Не-универсальная карта - размещена в отдел автоматически
-          console.log('🎉 notif_founderSelected - Non-universal card, placing in department:', department)
-          
           // ВАЖНО: Рендерим карту в отделе ТОЛЬКО для текущего игрока
           // Для других игроков не рендерим - иначе setTimeout срабатывает после _clearDepartmentsForNewPlayer
           if (Number(playerId) === Number(this.player_id)) {
             // Очищаем руку полностью
             if (handContainer) {
-              console.log('🎉 Clearing hand container')
               handContainer.innerHTML = ''
             }
 
             // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
-            console.log('🎉 Scheduling _renderFounderCardInDepartment for current player...')
             setTimeout(() => {
-              console.log('🎉 Executing _renderFounderCardInDepartment for department:', department)
               this._renderFounderCardInDepartment(founder, playerId, department)
             }, 100)
           
@@ -1554,7 +1552,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Обновляем данные в gamedatas
       if (playerId > 0 && this.gamedatas.players[playerId]) {
         this.gamedatas.players[playerId].badgers = newValue
-        console.log('💰 Updated gamedatas.players[' + playerId + '].badgers =', newValue)
       }
       
       // Обновляем банк баджерсов, если данные пришли с сервера
@@ -1566,7 +1563,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       // Обновляем отображение денег игрока (передаём оба аргумента!)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
-      console.log('💰 Re-rendered money panel for player:', playerId)
       
       // Визуальная анимация изменения
       if (amount !== 0) {
@@ -1613,34 +1609,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     // Прямая отрисовка карты в конкретном отделе
     _renderFounderCardInDepartment: function (founder, playerId, department) {
-      console.log('🏢 _renderFounderCardInDepartment called:', { founder: founder?.name, playerId, department })
-      
       const containers = {
         'sales-department': document.querySelector('.sales-department__body'),
         'back-office': document.querySelector('.back-office__body'),
         'technical-department': document.querySelector('.technical-department__body'),
       }
 
-      console.log('🏢 Available containers:', {
-        'sales-department': !!containers['sales-department'],
-        'back-office': !!containers['back-office'],
-        'technical-department': !!containers['technical-department'],
-      })
-
       const container = containers[department]
       if (!container) {
-        console.error('🏢 ❌ Container NOT FOUND for department:', department)
-        console.error('🏢 Looking for selector:', `.${department}__body`)
-        // Попробуем найти все body контейнеры
-        const allBodies = document.querySelectorAll('[class*="__body"]')
-        console.error('🏢 All __body elements:', Array.from(allBodies).map(el => el.className))
+        console.error('_renderFounderCardInDepartment - Container NOT FOUND for department:', department)
         return
+      }
+
+      // В Tutorial режиме очищаем весь контейнер перед размещением карты
+      // В основном режиме можно оставить другие карты
+      const isTutorial = this.isTutorialMode
+      if (isTutorial) {
+        container.innerHTML = ''
+      } else {
+        // Удаляем только карту этого игрока, если она уже есть
+        const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
+        if (existingCard) {
+          existingCard.remove()
+        }
       }
 
       const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
       const name = founder.name || ''
-
-      console.log('🏢 Creating card markup for:', { name, imageUrl: imageUrl?.substring(0, 50) })
 
       const cardMarkup = `
         <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
@@ -1648,9 +1643,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         </div>
       `
       container.innerHTML = cardMarkup
-
-      console.log('🏢 ✅✅✅ Card PLACED in', department, 'for player', playerId)
-      console.log('🏢 Container innerHTML:', container.innerHTML.substring(0, 100))
     },
 
     // Вспомогательная функция для отрисовки универсальной карты на руке
@@ -1669,7 +1661,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       `
       handContainer.innerHTML = cardMarkup
 
-      console.log('_renderUniversalFounderOnHand - Universal card rendered for player', playerId)
     },
 
     notif_founderCardsDiscarded: function (notif) {
@@ -1719,8 +1710,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Применяем локальные изменения (как в notif_roundStart)
         this._applyLocalFounders()
 
-        // Обновляем отображение карты основателя
-        this._renderFounderCard(this.gamedatas.players, playerId)
+        // Если карта была размещена текущим игроком, разблокируем кнопку "Завершить ход"
+        if (Number(playerId) === Number(this.player_id)) {
+          // Обновляем кнопку "Завершить ход" - разблокируем её
+          const finishButton = document.getElementById('finish-turn-button')
+          if (finishButton) {
+            finishButton.disabled = false
+            finishButton.removeAttribute('title') // Убираем tooltip
+            console.log('✅ Finish turn button unlocked after placing founder')
+          } else {
+            // Если кнопки нет, добавляем её (активную)
+            this._addFinishTurnButton(false)
+          }
+        }
 
         // Если карта была размещена из руки (была универсальной), удаляем её из руки
         // После размещения карта должна быть в отделе, а не на руке
@@ -1733,12 +1735,21 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._setHandHighlight(false)
         }
         
-        // Отрисовываем карты для всех игроков, у которых есть карты
-        Object.keys(this.gamedatas.players).forEach((pid) => {
-          if (this.gamedatas.players[pid]?.founder) {
-            this._renderFounderCard(this.gamedatas.players, Number(pid))
-          }
-        })
+        // Обновляем отображение карты основателя
+        // В Tutorial режиме отрисовываем только карту текущего игрока, чтобы не показывать карты других игроков
+        const isTutorial = this.gamedatas.isTutorialMode
+        if (isTutorial) {
+          // В Tutorial режиме отрисовываем только карту игрока, который разместил карту
+          this._renderFounderCard(this.gamedatas.players, playerId)
+        } else {
+          // В основном режиме отрисовываем карты всех игроков
+          this._renderFounderCard(this.gamedatas.players, playerId)
+          Object.keys(this.gamedatas.players).forEach((pid) => {
+            if (this.gamedatas.players[pid]?.founder) {
+              this._renderFounderCard(this.gamedatas.players, Number(pid))
+            }
+          })
+        }
 
         // Обновляем локальные данные
         this.localFounders = this.localFounders || {}
@@ -2075,7 +2086,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       setTimeout(() => {
         const roundPanel = document.querySelector('.round-panel__wrapper')
         if (roundPanel) {
-          console.log('Calling _renderPlayerIndicators from _renderGameSetup')
           this._renderPlayerIndicators(roundPanel)
         } else {
           console.error('roundPanel not found in _renderGameSetup!')
@@ -2289,7 +2299,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         
         */
     _renderRoundEventCards: function (roundEventCards) {
-      console.log('renderRoundEventCards', roundEventCards)
       const container = document.querySelector('.events-cube-section')
       if (!container) return
 
@@ -2316,20 +2325,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _updateCubeFace: function (cubeFace) {
-      console.log('updateCubeFace called', cubeFace, 'type:', typeof cubeFace)
       const display = document.getElementById('cube-face-display')
       if (!display) {
         console.warn('cube-face-display element not found')
         return
       }
       const value = cubeFace ? String(cubeFace).trim() : ''
-      console.log('Setting cube face value to:', value)
       display.textContent = value
-
-      // Если значение пустое, показываем предупреждение
-      if (!value) {
-        console.warn('Cube face value is empty!')
-      }
     },
 
     _renderRoundTrack: function (totalRounds) {
@@ -2483,14 +2485,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       panelBody.innerHTML = html
     },
     _renderPlayerMoney: function (players, targetPlayerId) {
-      console.log('_renderPlayerMoney called for player:', targetPlayerId)
-      console.log('Players data:', players)
-
-      if (players && players[targetPlayerId]) {
-        const player = players[targetPlayerId]
-        const badgers = player.badgers || 0
-        console.log('Player ' + targetPlayerId + ' badgers:', badgers)
-      }
       // Обновляем деньги игрока
       const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
       if (!panelBody) return
@@ -2514,7 +2508,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const coinData = this._getBestCoinForAmount(amount)
       const imageUrl = coinData?.image_url ? (coinData.image_url.startsWith('http') ? coinData.image_url : `${g_gamethemeurl}${coinData.image_url}`) : `${g_gamethemeurl}img/money/1.png`
       let color = String(playerData.color || '').trim()
-      console.log('_renderPlayerMoney - Raw color from playerData:', playerData.color, 'Trimmed:', color)
       if (color && !color.startsWith('#')) {
         color = `#${color.replace(/^#+/, '')}`
       }
@@ -2522,7 +2515,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (!color || color === '#') {
         color = '#ffffff'
       }
-      console.log('_renderPlayerMoney - Final color:', color, 'for player:', playerId)
       const panel = panelBody.closest('.player-money-panel')
       if (panel) {
         panel.style.setProperty('--player-money-color', color)
@@ -2530,7 +2522,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const colorBadge = panel.querySelector('.player-money-panel__color-badge')
         if (colorBadge) {
           colorBadge.style.backgroundColor = color
-          console.log('_renderPlayerMoney - Applied color to colorBadge:', color)
         }
       }
 
@@ -2573,13 +2564,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId
 
-      // Удаляем только карты конкретного игрока из контейнеров, а не очищаем полностью
-      // Это позволяет отображать карты всех игроков одновременно
+      // В Tutorial режиме очищаем ВСЕ карты из отделов перед отрисовкой
+      // В основном режиме удаляем только карты конкретного игрока
+      const isTutorial = this.isTutorialMode
       Object.values(containers).forEach((container) => {
         if (container) {
-          const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
-          if (existingCard) {
-            existingCard.remove()
+          if (isTutorial) {
+            // В Tutorial режиме очищаем все карты
+            container.innerHTML = ''
+          } else {
+            // В основном режиме удаляем только карты конкретного игрока
+            const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
+            if (existingCard) {
+              existingCard.remove()
+            }
           }
         }
       })
@@ -2936,7 +2934,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         id: 'finish-turn-button',
       })
       
-      console.log('✅ Finish turn button added, disabled:', isDisabled)
     },
 
     _findPlayerData: function (players, playerId) {
@@ -3326,10 +3323,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       // Создаем новый обработчик
       const handClickHandler = (e) => {
-        // В обучающем режиме в GameSetup разрешаем управление картами текущему игроку
-        const isTutorialGameSetup = this.gamedatas.isTutorialMode && this.gamedatas.gamestate?.name === 'GameSetup'
+        const currentState = this.gamedatas?.gamestate?.name
+        
+        // В обучающем режиме разрешаем управление картами текущему игроку
+        // Tutorial использует FounderSelection так же как основной режим
+        const isTutorialMode = this.gamedatas.isTutorialMode && currentState === 'GameSetup'
 
-        if (!isTutorialGameSetup) {
+        if (!isTutorialMode) {
           // В основном режиме проверяем активного игрока
           const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
           if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
@@ -3337,7 +3337,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           }
           
           // В основном режиме проверяем, что это универсальная карта в руке
-          const currentState = this.gamedatas?.gamestate?.name
           const isFounderSelection = currentState === 'FounderSelection'
           const isPlayerTurn = currentState === 'PlayerTurn'
           
@@ -3375,17 +3374,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Добавляем/убираем увеличение карты в 2 раза
         card.classList.toggle('founder-card--enlarged', isActive)
         
-        console.log('Universal card clicked, isActive:', isActive, 'isEnlarged:', isActive)
-        
         // Подсвечиваем отделы для выбора
         this._setDepartmentHighlight(isActive)
         this._setHandHighlight(isActive)
-        
-        if (isActive) {
-          console.log('✅ Card activated - departments highlighted, click on department to place')
-        } else {
-          console.log('❌ Card deactivated - departments unhighlighted')
-        }
       }
 
       // Сохраняем ссылку на обработчик для возможности удаления
@@ -3406,12 +3397,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
         // Создаем новый обработчик
         const deptClickHandler = () => {
-          console.log('Department click handler called for:', department)
+          
+          const currentState = this.gamedatas?.gamestate?.name
 
-          // В обучающем режиме в GameSetup разрешаем размещение карт текущему игроку
-          const isTutorialGameSetup = this.gamedatas.isTutorialMode && this.gamedatas.gamestate?.name === 'GameSetup'
+          // В обучающем режиме разрешаем размещение карт текущему игроку
+          // Tutorial использует FounderSelection так же как основной режим
+          const isTutorialMode = this.gamedatas.isTutorialMode && currentState === 'GameSetup'
 
-          if (!isTutorialGameSetup) {
+          if (!isTutorialMode) {
             // В основном режиме проверяем активного игрока
             const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
             if (!activePlayerId || Number(activePlayerId) !== Number(this.player_id)) {
@@ -3420,7 +3413,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             }
             
             // В основном режиме проверяем состояние игры
-            const currentState = this.gamedatas?.gamestate?.name
             const isFounderSelection = currentState === 'FounderSelection'
             const isPlayerTurn = currentState === 'PlayerTurn'
             
@@ -3457,8 +3449,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             return
           }
 
-          console.log('Placing universal founder card in department:', department)
-
           // Сразу обновляем UI
           this._setHandHighlight(false)
           this._setDepartmentHighlight(false)
@@ -3486,8 +3476,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.bgaPerformAction('actPlaceFounder', {
               department: department,
           }).then(() => {
-            console.log('✅ Founder card placed successfully')
-            // Активируем кнопку "Завершить ход" (теперь она не заблокирована)
+            // Активируем кнопку "Завершить ход" (теперь карта размещена)
             this._addFinishTurnButton(false)
           }).catch((error) => {
             console.error('❌ Error placing founder card:', error)

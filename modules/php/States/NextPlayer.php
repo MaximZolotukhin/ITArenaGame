@@ -7,6 +7,7 @@ namespace Bga\Games\itarenagame\States;
 use Bga\GameFramework\StateType;
 use Bga\Games\itarenagame\Game;
 use Bga\Games\itarenagame\States\SpecialistSelection;
+use Bga\Games\itarenagame\States\FounderSelection;
 
 class NextPlayer extends \Bga\GameFramework\States\GameState
 {
@@ -36,11 +37,90 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         error_log('NextPlayer - isTutorial: ' . ($isTutorial ? 'yes' : 'no') . ', currentRound: ' . $currentRound);
         
         // ========================================
-        // ЭТАП 1: ПОДГОТОВКА К ИГРЕ (только для основного режима)
+        // ЭТАП 1: ПОДГОТОВКА К ИГРЕ
         // ========================================
-        if (!$isTutorial) {
+        
+        if ($isTutorial) {
             // ----------------------------------------
-            // ЭТАП 1.1: Выбор карт ОСНОВАТЕЛЕЙ
+            // TUTORIAL: Проверяем, все ли игроки ВЫБРАЛИ и РАЗМЕСТИЛИ карты основателей
+            // В Tutorial режиме карты показываются на руке, игрок должен кликнуть на карту
+            // ----------------------------------------
+            
+            // Сначала проверяем, все ли игроки выбрали карты (как в основном режиме)
+            $allFoundersSelected = $this->game->allPlayersSelectedFounders();
+            error_log('NextPlayer - TUTORIAL: allFoundersSelected: ' . ($allFoundersSelected ? 'yes' : 'no'));
+            
+            if (!$allFoundersSelected) {
+                // Ищем следующего игрока, который ещё не выбрал карту
+                $this->game->activeNextPlayer();
+                $nextPlayerId = $this->game->getActivePlayerId();
+                
+                // Проверяем, выбрал ли следующий игрок карту
+                $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
+                if ($nextPlayerFounder === null) {
+                    error_log('NextPlayer - TUTORIAL: Player ' . $nextPlayerId . ' needs to select founder');
+                    return FounderSelection::class;
+                }
+                
+                // Ищем любого игрока, который ещё не выбрал карту
+                $players = array_keys($this->game->loadPlayersBasicInfos());
+                foreach ($players as $playerId) {
+                    $founder = $this->game->globals->get('founder_player_' . (int)$playerId, null);
+                    if ($founder === null) {
+                        $this->game->gamestate->changeActivePlayer((int)$playerId);
+                        error_log('NextPlayer - TUTORIAL: Found player ' . $playerId . ' who needs to select founder');
+                        return FounderSelection::class;
+                    }
+                }
+            }
+            
+            // Все игроки выбрали карты - проверяем размещение
+            $allFoundersPlaced = $this->game->allFoundersPlaced();
+            error_log('NextPlayer - TUTORIAL: allFoundersPlaced: ' . ($allFoundersPlaced ? 'yes' : 'no'));
+            
+            if (!$allFoundersPlaced) {
+                // Ищем следующего игрока, который ещё не разместил карту
+                $this->game->activeNextPlayer();
+                $nextPlayerId = $this->game->getActivePlayerId();
+                
+                // Проверяем, есть ли у следующего игрока неразмещённая универсальная карта
+                if ($this->game->hasUnplacedUniversalFounder((int)$nextPlayerId)) {
+                    error_log('NextPlayer - TUTORIAL: Player ' . $nextPlayerId . ' needs to place founder');
+                    return FounderSelection::class;
+                }
+                
+                // Ищем любого игрока с неразмещённой картой
+                $players = array_keys($this->game->loadPlayersBasicInfos());
+                foreach ($players as $playerId) {
+                    if ($this->game->hasUnplacedUniversalFounder((int)$playerId)) {
+                        $this->game->gamestate->changeActivePlayer((int)$playerId);
+                        error_log('NextPlayer - TUTORIAL: Found player ' . $playerId . ' with unplaced founder');
+                        return FounderSelection::class;
+                    }
+                }
+                
+                // Если дошли сюда, значит что-то не так - логируем и возвращаемся к FounderSelection для текущего игрока
+                error_log('NextPlayer - TUTORIAL: WARNING - allFoundersPlaced=false but no player found with unplaced founder!');
+                return FounderSelection::class;
+            }
+            
+            // Все карты размещены в Tutorial - переход к ЭТАПУ 2
+            if ($currentRound === 0) {
+                error_log('NextPlayer - TUTORIAL: ✅ Все карты размещены! Переход к ЭТАПУ 2');
+                
+                $this->notify->all('gameStart', '', [
+                    'stageName' => clienttranslate('Начало игры'),
+                ]);
+                
+                $this->game->setGameStateValue('round_number', 1);
+                $playersCount = count($this->game->loadPlayersBasicInfos());
+                $this->game->setGameStateValue('players_left_in_round', $playersCount);
+                
+                return RoundEvent::class;
+            }
+        } else {
+            // ----------------------------------------
+            // ОСНОВНОЙ РЕЖИМ: ЭТАП 1.1: Выбор карт ОСНОВАТЕЛЕЙ
             // ----------------------------------------
             $allFoundersSelected = $this->game->allPlayersSelectedFounders();
             error_log('NextPlayer - allFoundersSelected: ' . ($allFoundersSelected ? 'yes' : 'no'));
@@ -69,7 +149,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             }
             
             // ----------------------------------------
-            // ЭТАП 1.2: Выбор карт СОТРУДНИКОВ (после основателей)
+            // ОСНОВНОЙ РЕЖИМ: ЭТАП 1.2: Выбор карт СОТРУДНИКОВ (после основателей)
             // ----------------------------------------
             $allSpecialistsSelected = $this->game->allPlayersSelectedSpecialists();
             error_log('NextPlayer - allSpecialistsSelected: ' . ($allSpecialistsSelected ? 'yes' : 'no'));
@@ -89,7 +169,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             }
             
             // ----------------------------------------
-            // Все выбрали основателей И сотрудников - проверяем, начался ли уже ЭТАП 2
+            // ОСНОВНОЙ РЕЖИМ: Все выбрали основателей И сотрудников - проверяем, начался ли уже ЭТАП 2
             // ----------------------------------------
             if ($currentRound === 0) {
                 // Переход от ЭТАПА 1 к ЭТАПУ 2
