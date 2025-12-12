@@ -282,14 +282,16 @@
 }
 
 .founder-card--universal-clickable:hover {
-  transform: translateY(-4px);
+  transform: scale(1.5) translateY(-4px);
   box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
   border-color: #ffc107;
+  z-index: 100;
+  position: relative;
 }
 
-/* Активная универсальная карта - увеличена в 2 раза */
+/* Активная универсальная карта - увеличена в 1.5 раза (150%) */
 .founder-card--active.founder-card--enlarged {
-  transform: scale(2);
+  transform: scale(1.5);
   z-index: 100;
   position: relative;
   box-shadow: 0 20px 50px rgba(255, 193, 7, 0.6), 0 0 30px rgba(255, 193, 7, 0.4);
@@ -2767,8 +2769,8 @@
 
 /* Карта сотрудника */
 .specialist-card {
-  width: 120px;
-  height: 170px;
+  width: 173px; /* Увеличено еще на 20%: 144px * 1.2 = 172.8px ≈ 173px */
+  height: 245px; /* Увеличено еще на 20%: 204px * 1.2 = 244.8px ≈ 245px */
   border-radius: 10px;
   cursor: pointer;
   position: relative;
@@ -2918,8 +2920,8 @@
 /* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {
   .specialist-card {
-    width: 100px;
-    height: 140px;
+    width: 144px; /* Увеличено еще на 20%: 120px * 1.2 = 144px */
+    height: 202px; /* Увеличено еще на 20%: 168px * 1.2 = 201.6px ≈ 202px */
   }
 
   .specialist-selection-title {
@@ -2933,8 +2935,8 @@
 
 @media (max-width: 480px) {
   .specialist-card {
-    width: 80px;
-    height: 115px;
+    width: 115px; /* Увеличено еще на 20%: 96px * 1.2 = 115.2px ≈ 115px */
+    height: 166px; /* Увеличено еще на 20%: 138px * 1.2 = 165.6px ≈ 166px */
   }
 
   .specialist-card__check {
