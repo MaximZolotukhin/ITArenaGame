@@ -623,8 +623,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       // Отображаем жетоны задач для всех игроков - с небольшой задержкой для загрузки DOM
       setTimeout(() => {
-        this._renderTaskTokens(gamedatas.players)
-      }, 150)
+        console.log('🔄 setup: Calling _renderTaskTokens, players:', gamedatas.players)
+        if (gamedatas.players) {
+          try {
+            this._renderTaskTokens(gamedatas.players)
+          } catch (error) {
+            console.error('❌ Error in _renderTaskTokens:', error)
+          }
+        } else {
+          console.warn('⚠️ _renderTaskTokens: gamedatas.players is not available')
+        }
+      }, 200)
 
       // TODO: Set up your game interface here, according to "gamedatas"
       // (setupNotifications уже вызван в начале setup)
@@ -711,6 +720,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // ВАЖНО: Рендерим сохранённые карты сотрудников на руке
           this._renderPlayerSpecialists()
+          
+          // Рендерим жетоны задач в панели спринта
+          this._renderTaskTokens(this.gamedatas.players)
           
           // Обновляем баннер - теперь ЭТАП 2
           this._updateStageBanner()
@@ -830,6 +842,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             console.log('Not current player, rendering normal card')
             this._renderFounderCard(this.gamedatas.players, activeIdFounderSelection)
           }
+          
+          // Рендерим жетоны задач в панели спринта (на этапе подготовки)
+          setTimeout(() => {
+            this._renderTaskTokens(this.gamedatas.players)
+          }, 200)
 
           this._toggleActivePlayerHand(activeIdFounderSelection)
           this._updateHandHighlight(activeIdFounderSelection)
@@ -891,6 +908,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // ВАЖНО: Рендерим сохранённые карты сотрудников на руке
           this._renderPlayerSpecialists()
+          
+          // Рендерим жетоны задач в панели спринта
+          this._renderTaskTokens(this.gamedatas.players)
 
           // Получаем данные из args или gamedatas
           const cubeFaceFromArgs = args?.args?.cubeFace
@@ -1642,7 +1662,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
         </div>
       `
-      container.innerHTML = cardMarkup
+      // В основном режиме добавляем карту, не заменяя содержимое (чтобы не затереть карты других игроков)
+      // В Tutorial режиме уже очистили контейнер выше
+      container.insertAdjacentHTML('beforeend', cardMarkup)
     },
 
     // Вспомогательная функция для отрисовки универсальной карты на руке
@@ -1742,13 +1764,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // В Tutorial режиме отрисовываем только карту игрока, который разместил карту
           this._renderFounderCard(this.gamedatas.players, playerId)
         } else {
-          // В основном режиме отрисовываем карты всех игроков
+          // В основном режиме отрисовываем только карту игрока, который разместил карту
+          // Не отрисовываем карты всех игроков, чтобы не показывать карты других игроков
           this._renderFounderCard(this.gamedatas.players, playerId)
-          Object.keys(this.gamedatas.players).forEach((pid) => {
-            if (this.gamedatas.players[pid]?.founder) {
-              this._renderFounderCard(this.gamedatas.players, Number(pid))
-            }
-          })
         }
 
         // Обновляем локальные данные
@@ -2649,12 +2667,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (rawDepartment !== 'universal') {
         const container = containers[department] || containers['sales-department']
         if (container) {
+          // В основном режиме удаляем только карту этого игрока, чтобы не затереть карты других игроков
+          const isTutorial = this.gamedatas.isTutorialMode
+          if (isTutorial) {
+            // В Tutorial режиме очищаем весь контейнер
+            container.innerHTML = ''
+          } else {
+            // В основном режиме удаляем только карту этого игрока
+            const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
+            if (existingCard) {
+              existingCard.remove()
+            }
+          }
+          
           const cardMarkup = `
             <div class="founder-card" data-player-id="${playerId}" data-department="${department}">
               ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
             </div>
           `
-          container.innerHTML = cardMarkup
+          container.insertAdjacentHTML('beforeend', cardMarkup)
         } else {
           console.error('_renderFounderCard - ❌ Container not found for department:', department)
           console.error(
@@ -3115,85 +3146,123 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _renderTaskTokens: function (players) {
-      // Отображаем жетоны задач в бэклоге на планшете игрока
+      // Отображаем жетоны задач во всех колонках спринт-панели
       const currentPlayerId = this.player_id
-      const currentPlayer = players[currentPlayerId]
+      
+      // players может быть объектом или массивом
+      let currentPlayer = null
+      if (Array.isArray(players)) {
+        currentPlayer = players.find(p => Number(p.id) === Number(currentPlayerId))
+      } else if (players) {
+        // Пробуем разные варианты ключей
+        currentPlayer = players[currentPlayerId] || players[String(currentPlayerId)] || players[Number(currentPlayerId)]
+      }
 
-      console.log('_renderTaskTokens called', { players, currentPlayerId, currentPlayer })
+      console.log('_renderTaskTokens called', { 
+        players, 
+        currentPlayerId, 
+        currentPlayer, 
+        playersType: Array.isArray(players) ? 'array' : typeof players,
+        playersKeys: players && !Array.isArray(players) ? Object.keys(players) : 'N/A'
+      })
 
-      // Находим колонку бэклога
-      const backlogColumn = document.getElementById('sprint-column-backlog')
-      if (!backlogColumn) {
-        console.error('Backlog column not found!')
+      if (!currentPlayer) {
+        console.warn('⚠️ _renderTaskTokens: Current player not found!', { 
+          currentPlayerId, 
+          playersKeys: players && !Array.isArray(players) ? Object.keys(players) : 'N/A',
+          playersIsArray: Array.isArray(players)
+        })
         return
       }
 
-      console.log('Backlog column found:', backlogColumn)
-
-      // Очищаем колонку бэклога от старых жетонов
-      const existingTokens = backlogColumn.querySelectorAll('.task-token')
-      existingTokens.forEach((token) => token.remove())
-
-      // Получаем жетоны задач для текущего игрока, которые находятся в бэклоге
+      // Получаем жетоны задач для текущего игрока
       const taskTokens = currentPlayer?.taskTokens || []
-      const backlogTokens = taskTokens.filter((token) => token.location === 'backlog')
-
-      console.log('Task tokens for player:', taskTokens)
-      console.log('Backlog tokens:', backlogTokens)
-
-      // Создаем контейнер для жетонов задач в бэклоге, если его еще нет
-      let tokensContainer = backlogColumn.querySelector('.task-tokens-container')
-      if (!tokensContainer) {
-        tokensContainer = document.createElement('div')
-        tokensContainer.className = 'task-tokens-container'
-        backlogColumn.appendChild(tokensContainer)
+      console.log('Task tokens for player:', taskTokens, 'count:', taskTokens.length)
+      
+      if (taskTokens.length === 0) {
+        console.log('ℹ️ No task tokens to render for player', currentPlayerId, 'taskTokens:', taskTokens)
       }
 
-      // Очищаем контейнер
-      tokensContainer.innerHTML = ''
+      // Маппинг локаций на ID колонок
+      const locationToColumnId = {
+        'backlog': 'sprint-column-backlog',
+        'in-progress': 'sprint-column-in-progress',
+        'testing': 'sprint-column-testing',
+        'completed': 'sprint-column-completed',
+      }
 
-      // Отображаем жетоны задач
-      backlogTokens.forEach((tokenData, index) => {
-        const token = document.createElement('div')
-        token.className = 'task-token'
-        token.dataset.playerId = currentPlayerId
-        token.dataset.tokenId = tokenData?.token_id || ''
-        token.dataset.color = tokenData?.color || ''
-        token.dataset.location = tokenData?.location || 'backlog'
-
-        // Добавляем класс для цвета жетона
-        if (tokenData?.color) {
-          token.classList.add(`task-token--${tokenData.color}`)
+      // Рендерим жетоны для каждой колонки
+      Object.keys(locationToColumnId).forEach((location) => {
+        const columnId = locationToColumnId[location]
+        const column = document.getElementById(columnId)
+        
+        if (!column) {
+          console.warn('Column not found:', columnId)
+          return
         }
 
-        // Создаем изображение жетона
-        const tokenImage = document.createElement('img')
-        const colorData = this._getTaskTokenColorData(tokenData?.color)
-        if (colorData && colorData.image_url) {
-          tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
-          tokenImage.alt = colorData.name || _('Жетон задачи')
-          tokenImage.className = 'task-token__image'
-        } else {
-          // Если нет изображения, используем цветной круг
-          token.style.backgroundColor = this._getTaskTokenColorCode(tokenData?.color)
-          token.style.borderRadius = '50%'
+        // Очищаем колонку от старых жетонов
+        const existingTokens = column.querySelectorAll('.task-token')
+        existingTokens.forEach((token) => token.remove())
+
+        // Получаем жетоны для этой локации
+        const locationTokens = taskTokens.filter((token) => token.location === location)
+        console.log(`${location} tokens:`, locationTokens)
+
+        // Создаем контейнер для жетонов, если его еще нет
+        let tokensContainer = column.querySelector('.task-tokens-container')
+        if (!tokensContainer) {
+          tokensContainer = document.createElement('div')
+          tokensContainer.className = 'task-tokens-container'
+          column.appendChild(tokensContainer)
         }
 
-        if (tokenImage.src) {
-          token.appendChild(tokenImage)
-        }
+        // Очищаем контейнер
+        tokensContainer.innerHTML = ''
 
-        // Позиционируем жетоны вертикально с небольшим отступом
-        token.style.position = 'absolute'
-        token.style.left = '50%'
-        token.style.transform = 'translateX(-50%)'
-        token.style.top = `${20 + index * 50}px`
+        // Отображаем жетоны задач
+        locationTokens.forEach((tokenData, index) => {
+          const token = document.createElement('div')
+          token.className = 'task-token'
+          token.dataset.playerId = currentPlayerId
+          token.dataset.tokenId = tokenData?.token_id || ''
+          token.dataset.color = tokenData?.color || ''
+          token.dataset.location = tokenData?.location || location
 
-        tokensContainer.appendChild(token)
-        console.log('Task token created:', { index, color: tokenData?.color, token })
+          // Добавляем класс для цвета жетона
+          if (tokenData?.color) {
+            token.classList.add(`task-token--${tokenData.color}`)
+          }
+
+          // Создаем изображение жетона
+          const tokenImage = document.createElement('img')
+          const colorData = this._getTaskTokenColorData(tokenData?.color)
+          if (colorData && colorData.image_url) {
+            tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
+            tokenImage.alt = colorData.name || _('Жетон задачи')
+            tokenImage.className = 'task-token__image'
+          } else {
+            // Если нет изображения, используем цветной круг
+            token.style.backgroundColor = this._getTaskTokenColorCode(tokenData?.color)
+            token.style.borderRadius = '50%'
+          }
+
+          if (tokenImage.src) {
+            token.appendChild(tokenImage)
+          }
+
+          // Позиционируем жетоны вертикально с небольшим отступом
+          token.style.position = 'absolute'
+          token.style.left = '50%'
+          token.style.transform = 'translateX(-50%)'
+          token.style.top = `${20 + index * 50}px`
+
+          tokensContainer.appendChild(token)
+          console.log('Task token created:', { location, index, color: tokenData?.color, token })
+        })
+
+        console.log(`${location} tokens rendered:`, locationTokens.length)
       })
-
-      console.log('Task tokens rendered:', backlogTokens.length)
     },
 
     _getTaskTokenColorData: function (colorId) {
