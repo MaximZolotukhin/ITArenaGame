@@ -313,4 +313,3 @@ class FoundersData
         return self::CARDS[$id] ?? null;
     }
 }
-

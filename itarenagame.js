@@ -868,8 +868,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             handCardsLength: specialistArgs.handCards?.length || 0,
           })
           
-          // ВАЖНО: Очищаем отделы от карт основателей других игроков
+          // ВАЖНО: Очищаем карты предыдущего игрока и отрисовываем карты активного игрока
+          // Карты основателей и сотрудников хранятся в gamedatas.players[playerId]
           this._clearDepartmentsForNewPlayer(specialistActivePlayerId)
+          
+          // Отрисовываем карту основателя ТОЛЬКО для активного игрока
+          if (this.gamedatas.players && this.gamedatas.players[specialistActivePlayerId]?.founder) {
+            this._renderFounderCard(this.gamedatas.players, Number(specialistActivePlayerId))
+          }
           
           // Обновляем gamedatas
           if (specialistArgs.handCards && specialistArgs.handCards.length > 0) {
@@ -1592,6 +1598,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     // Очищает отделы от карт других игроков при переходе хода
+    // ВАЖНО: Удаляет ВСЕ карты, кроме карт активного игрока
     _clearDepartmentsForNewPlayer: function (activePlayerId) {
       console.log('🧹 _clearDepartmentsForNewPlayer called for player:', activePlayerId)
       
@@ -1600,30 +1607,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       departments.forEach(dept => {
         const container = document.querySelector(`.${dept}__body`)
         if (container) {
-          // Удаляем карты других игроков из отдела
-          const cards = container.querySelectorAll('.founder-card')
-          cards.forEach(card => {
+          // Удаляем ВСЕ карты из отдела (они будут отрисованы заново для активного игрока)
+          container.innerHTML = ''
+        }
+      })
+      
+      // Также очищаем руку от карт других игроков (но не трогаем карты специалистов в состоянии SpecialistSelection)
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (handContainer) {
+        const currentState = this.gamedatas?.gamestate?.name
+        const isSpecialistSelection = currentState === 'SpecialistSelection'
+        
+        // В состоянии SpecialistSelection не трогаем контейнер руки (там карты специалистов)
+        if (!isSpecialistSelection) {
+          // Удаляем только карты основателей, не трогая карты специалистов
+          const founderCards = handContainer.querySelectorAll('.founder-card')
+          founderCards.forEach(card => {
             const cardPlayerId = card.getAttribute('data-player-id')
-            // Удаляем карту если она принадлежит другому игроку
             if (cardPlayerId && Number(cardPlayerId) !== Number(activePlayerId)) {
-              console.log('🧹 Removing card from', dept, 'for other player:', cardPlayerId)
+              console.log('🧹 Removing hand card for other player:', cardPlayerId)
               card.remove()
             }
           })
         }
-      })
-      
-      // Также очищаем руку от карт других игроков
-      const handContainer = document.getElementById('active-player-hand-cards')
-      if (handContainer) {
-        const handCards = handContainer.querySelectorAll('.founder-card')
-        handCards.forEach(card => {
-          const cardPlayerId = card.getAttribute('data-player-id')
-          if (cardPlayerId && Number(cardPlayerId) !== Number(activePlayerId)) {
-            console.log('🧹 Removing hand card for other player:', cardPlayerId)
-            card.remove()
-          }
-        })
       }
     },
 
@@ -1662,9 +1668,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
         </div>
       `
-      // В основном режиме добавляем карту, не заменяя содержимое (чтобы не затереть карты других игроков)
-      // В Tutorial режиме уже очистили контейнер выше
-      container.insertAdjacentHTML('beforeend', cardMarkup)
+      container.innerHTML = cardMarkup
     },
 
     // Вспомогательная функция для отрисовки универсальной карты на руке
@@ -2582,46 +2586,48 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId
 
-      // В Tutorial режиме очищаем ВСЕ карты из отделов перед отрисовкой
-      // В основном режиме удаляем только карты конкретного игрока
+      // Проверяем состояние ДО очистки отделов
+      const currentState = this.gamedatas?.gamestate?.name
+      const isSpecialistSelection = currentState === 'SpecialistSelection'
+
+      // ВАЖНО: В состоянии SpecialistSelection отделы уже очищены в _clearDepartmentsForNewPlayer
+      // Здесь просто удаляем старую карту этого игрока (если есть) перед отрисовкой новой
       const isTutorial = this.isTutorialMode
       Object.values(containers).forEach((container) => {
         if (container) {
-          if (isTutorial) {
-            // В Tutorial режиме очищаем все карты
-            container.innerHTML = ''
-          } else {
-            // В основном режиме удаляем только карты конкретного игрока
-            const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
-            if (existingCard) {
-              existingCard.remove()
-            }
+          // Удаляем только карту этого игрока (если есть)
+          const existingCard = container.querySelector(`[data-player-id="${playerId}"]`)
+          if (existingCard) {
+            existingCard.remove()
           }
         }
       })
+      
       if (handContainer) {
-        // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
-        const hasSelectableCards = handContainer.querySelector('.founder-card--selectable')
-        const currentState = this.gamedatas?.gamestate?.name
-        const isFounderSelection = currentState === 'FounderSelection'
-        const isMainMode = !this.isTutorialMode
-        const isCurrentPlayer = Number(playerId) === Number(this.player_id)
+        // ВАЖНО: В состоянии SpecialistSelection НЕ трогаем контейнер руки вообще!
+        // Карты специалистов должны оставаться на руке, карты основателей - в отделах
+        if (!isSpecialistSelection) {
+          // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
+          const hasSelectableCards = handContainer.querySelector('.founder-card--selectable')
+          const isFounderSelection = currentState === 'FounderSelection'
+          const isMainMode = !this.isTutorialMode
+          const isCurrentPlayer = Number(playerId) === Number(this.player_id)
 
-        // Если это состояние выбора и текущий игрок, не очищаем контейнер
-        if (isFounderSelection && isMainMode && isCurrentPlayer && hasSelectableCards) {
-          // Не очищаем контейнер, если там есть карты для выбора
-        } else if (!hasSelectableCards) {
-          handContainer.innerHTML = ''
-        }
+          // Если это состояние выбора основателя и текущий игрок, не очищаем контейнер
+          if (isFounderSelection && isMainMode && isCurrentPlayer && hasSelectableCards) {
+            // Не очищаем контейнер, если там есть карты для выбора
+          } else if (!hasSelectableCards) {
+            handContainer.innerHTML = ''
+          }
 
-        // Убираем выделение только если нет карт для выбора
-        if (!hasSelectableCards) {
-          handContainer.classList.remove('active-player-hand__center--selecting')
+          // Убираем выделение только если нет карт для выбора
+          if (!hasSelectableCards) {
+            handContainer.classList.remove('active-player-hand__center--selecting')
+          }
         }
       }
 
       // Проверяем, есть ли карты для выбора (в основном режиме)
-      const currentState = this.gamedatas?.gamestate?.name
       const isFounderSelection = currentState === 'FounderSelection'
       const isMainMode = !this.isTutorialMode
 
@@ -2685,7 +2691,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
             </div>
           `
-          container.insertAdjacentHTML('beforeend', cardMarkup)
+          container.innerHTML = cardMarkup
         } else {
           console.error('_renderFounderCard - ❌ Container not found for department:', department)
           console.error(
