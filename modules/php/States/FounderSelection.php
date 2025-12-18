@@ -111,48 +111,22 @@ class FounderSelection extends GameState
             throw new UserException(clienttranslate('Карта основателя уже выбрана'));
         }
         
+        // Получаем данные карты ДО выбора, чтобы проверить department
+        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
+        $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
+        $founderDepartment = $founderCard['department'] ?? 'universal';
+        
         // Выбираем карту для игрока (этот метод уже обрабатывает размещение не-универсальных карт)
         $this->game->selectFounderForPlayer($activePlayerId, $cardId);
         
-        // Получаем данные карты
-        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
-        $founderName = $founderCard['name'] ?? clienttranslate('Неизвестный основатель');
-        
         // Получаем актуальный отдел из globals (установлен в selectFounderForPlayer)
-        $founderDepartment = $this->game->globals->get('founder_department_' . $activePlayerId, null);
-        if ($founderDepartment === null) {
-            $founderDepartment = $founderCard['department'] ?? 'universal';
+        $actualDepartment = $this->game->globals->get('founder_department_' . $activePlayerId, null);
+        if ($actualDepartment === null) {
+            $actualDepartment = $founderDepartment;
         }
         
         // Обновляем department в данных карты для уведомления
-        $founderCard['department'] = $founderDepartment;
-        
-        // Применяем эффект карты, если он активируется на этапе подготовки (GameSetup)
-        $appliedEffects = $this->game->applyFounderEffect($activePlayerId, $cardId, 'GameSetup');
-        
-        // Если были применены эффекты, отправляем уведомления
-        if (!empty($appliedEffects)) {
-            foreach ($appliedEffects as $effect) {
-                if ($effect['type'] === 'badger' && $effect['amount'] !== 0) {
-                    // Получаем актуальное состояние банка
-                    $badgersSupply = $this->game->getBadgersSupply();
-                    error_log('FounderSelection - Sending badgersChanged with badgersSupply count: ' . count($badgersSupply));
-                    
-                    // Отправляем уведомление об изменении баджерсов (включая данные банка)
-                    $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря эффекту карты «${founder_name}»'), [
-                        'player_id' => $activePlayerId,
-                        'player_name' => $this->game->getPlayerNameById($activePlayerId),
-                        'action_text' => $effect['amount'] > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
-                        'amount' => abs($effect['amount']),
-                        'founder_name' => $effect['founderName'] ?? 'Основатель',
-                        'oldValue' => $effect['oldValue'],
-                        'newValue' => $effect['newValue'],
-                        'badgersSupply' => $badgersSupply,
-                        'i18n' => ['action_text'],
-                    ]);
-                }
-            }
-        }
+        $founderCard['department'] = $actualDepartment;
         
         // Уведомляем о выборе
 
@@ -162,8 +136,32 @@ class FounderSelection extends GameState
             'founder_name' => $founderName,
             'card_id' => $cardId,
             'founder' => $founderCard,
-            'department' => $founderDepartment,
+            'department' => $actualDepartment,
         ]);
+        
+        // ВАЖНО: Если карта не-универсальная, она уже автоматически размещена в отдел
+        // Применяем эффекты сразу после размещения
+        if ($actualDepartment !== 'universal') {
+            // Отправляем уведомление о размещении (для единообразия с универсальными картами)
+            $departmentNames = [
+                'sales-department' => clienttranslate('Отдел продаж'),
+                'back-office' => clienttranslate('Бэк-офис'),
+                'technical-department' => clienttranslate('Техотдел'),
+            ];
+            $departmentName = $departmentNames[$actualDepartment] ?? $actualDepartment;
+            
+            $this->notify->all('founderPlaced', clienttranslate('${player_name} разместил основателя в ${department_name}'), [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'department' => $actualDepartment,
+                'department_name' => $departmentName,
+                'founder' => $founderCard,
+                'i18n' => ['department_name'],
+            ]);
+            
+            // Применяем эффекты карты после размещения
+            $this->applyFounderEffectsAfterPlacement($activePlayerId, $cardId);
+        }
         
         $this->game->giveExtraTime($activePlayerId);
         
@@ -203,11 +201,143 @@ class FounderSelection extends GameState
             'i18n' => ['department_name'],
         ]);
 
+        // ВАЖНО: После размещения карты применяем эффекты, если activationStage == 'GameSetup'
+        $cardId = $founder['id'] ?? null;
+        if ($cardId !== null) {
+            $this->applyFounderEffectsAfterPlacement($activePlayerId, $cardId);
+        }
+
         $this->game->giveExtraTime($activePlayerId);
 
         // После размещения карты НЕ переходим автоматически к следующему игроку
         // Игрок должен нажать кнопку "Завершить ход"
         return null;
+    }
+    
+    /**
+     * Применяет эффекты карты основателя после размещения в отдел
+     * Вызывается для универсальных карт после размещения и для не-универсальных после автоматического размещения
+     */
+    private function applyFounderEffectsAfterPlacement(int $playerId, int $cardId): void
+    {
+        $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
+        if ($founderCard === null) {
+            error_log("applyFounderEffectsAfterPlacement - Card not found: $cardId");
+            return;
+        }
+        
+        $activationStage = $founderCard['activationStage'] ?? null;
+        $effect = $founderCard['effect'] ?? null;
+        
+        error_log("applyFounderEffectsAfterPlacement - Player: $playerId, Card: $cardId");
+        error_log("applyFounderEffectsAfterPlacement - ActivationStage: " . ($activationStage ?? 'null'));
+        error_log("applyFounderEffectsAfterPlacement - Effect: " . json_encode($effect));
+        
+        // Применяем эффекты только если activationStage == 'GameSetup'
+        if ($activationStage !== 'GameSetup') {
+            // Если activationStage != 'GameSetup', эффекты не применяются, но кнопка все равно разблокируется
+            error_log("applyFounderEffectsAfterPlacement - ActivationStage mismatch, skipping effects");
+            $this->notify->player($playerId, 'founderEffectsApplied', '', [
+                'player_id' => $playerId,
+            ]);
+            return;
+        }
+        
+        // Применяем эффект карты
+        error_log("applyFounderEffectsAfterPlacement - Calling applyFounderEffect");
+        error_log("applyFounderEffectsAfterPlacement - Full card data: " . json_encode($founderCard));
+        
+        // ВАЖНО: Проверяем, что эффект содержит все необходимые типы
+        if (empty($effect) || !is_array($effect)) {
+            error_log("applyFounderEffectsAfterPlacement - ERROR: Effect is empty or not an array!");
+        } else {
+            $expectedEffects = ['badger', 'card', 'task'];
+            foreach ($expectedEffects as $expectedType) {
+                if (!isset($effect[$expectedType])) {
+                    error_log("applyFounderEffectsAfterPlacement - WARNING: Effect '$expectedType' is missing from card data!");
+                } else {
+                    error_log("applyFounderEffectsAfterPlacement - Found effect '$expectedType': " . $effect[$expectedType]);
+                }
+            }
+        }
+        
+        $appliedEffects = $this->game->applyFounderEffect($playerId, $cardId, 'GameSetup');
+        error_log("applyFounderEffectsAfterPlacement - Applied effects count: " . count($appliedEffects));
+        error_log("applyFounderEffectsAfterPlacement - Applied effects: " . json_encode($appliedEffects));
+        
+        // Если были применены эффекты, отправляем уведомления
+        // ВАЖНО: Обрабатываем эффекты в строгом порядке: badger -> card -> task
+        if (!empty($appliedEffects)) {
+            // Сортируем эффекты по порядку обработки для четкой последовательности
+            $effectOrder = ['badger' => 1, 'card' => 2, 'task' => 3];
+            usort($appliedEffects, function($a, $b) use ($effectOrder) {
+                $orderA = $effectOrder[$a['type']] ?? 999;
+                $orderB = $effectOrder[$b['type']] ?? 999;
+                return $orderA <=> $orderB;
+            });
+            
+            foreach ($appliedEffects as $effect) {
+                $effectType = $effect['type'] ?? 'unknown';
+                error_log("FounderSelection - Processing notification for effect type: $effectType");
+                
+                // Эффект 1: BADGER - изменение баджерсов
+                if ($effectType === 'badger' && isset($effect['amount']) && $effect['amount'] !== 0) {
+                    // Получаем актуальное состояние банка
+                    $badgersSupply = $this->game->getBadgersSupply();
+                    error_log('FounderSelection - Sending badgersChanged notification');
+                    
+                    // Отправляем уведомление об изменении баджерсов (включая данные банка)
+                    $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря эффекту карты «${founder_name}»'), [
+                        'player_id' => $playerId,
+                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'action_text' => $effect['amount'] > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
+                        'amount' => abs($effect['amount']),
+                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                        'oldValue' => $effect['oldValue'],
+                        'newValue' => $effect['newValue'],
+                        'badgersSupply' => $badgersSupply,
+                        'i18n' => ['action_text'],
+                    ]);
+                }
+                // Эффект 2: CARD - выдача карт специалистов на руку (для выбора)
+                elseif ($effectType === 'card' && isset($effect['amount']) && $effect['amount'] > 0) {
+                    $cardNames = implode(', ', $effect['cardNames'] ?? []);
+                    error_log('FounderSelection - Sending specialistsDealtToHand notification');
+                    
+                    // Отправляем уведомление о выдаче карт специалистов на руку
+                    $this->notify->all('specialistsDealtToHand', clienttranslate('${player_name} получает ${amount} карт специалистов благодаря эффекту карты «${founder_name}»'), [
+                        'player_id' => $playerId,
+                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'amount' => $effect['amount'],
+                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                        'cardIds' => $effect['cardIds'] ?? [],
+                        'cardNames' => $cardNames,
+                    ]);
+                    
+                    // Обновляем данные игрока для клиента
+                    $this->game->notify->player($playerId, 'specialistsUpdated', '', [
+                        'player_id' => $playerId,
+                    ]);
+                    
+                    error_log('FounderSelection - Player ' . $playerId . ' received ' . $effect['amount'] . ' specialist cards (card): ' . $cardNames);
+                }
+                // Эффект 3: TASK - выдача задач (task tokens)
+                // ВАЖНО: Эффект 'task' еще не реализован, пропускаем отправку уведомления
+                elseif ($effectType === 'task' && isset($effect['amount']) && $effect['amount'] > 0) {
+                    error_log('FounderSelection - Effect "task" (task tokens) is NOT IMPLEMENTED YET, skipping notification');
+                }
+            }
+            
+            // После применения всех эффектов отправляем уведомление о готовности к завершению хода
+            $this->notify->player($playerId, 'founderEffectsApplied', '', [
+                'player_id' => $playerId,
+            ]);
+        } else {
+            // Если эффектов нет, все равно разблокируем кнопку
+            $this->notify->player($playerId, 'founderEffectsApplied', '', [
+                'player_id' => $playerId,
+            ]);
+        }
     }
 
     /**

@@ -317,6 +317,7 @@ class Game extends \Bga\GameFramework\Table
         $phaseKey = $this->globals->get('current_phase_name', '');
         $result['phaseName'] = $this->getPhaseName($phaseKey);
         $result['eventCards'] = EventCardsData::getAllCards();
+        $result['specialists'] = SpecialistsData::getAllCards(); // Все карты специалистов для клиента
         $roundEventCards = $this->getRoundEventCards();
         $result['roundEventCards'] = $roundEventCards;
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
@@ -1071,6 +1072,8 @@ class Game extends \Bga\GameFramework\Table
         $effect = $founderCard['effect'] ?? null;
         
         error_log("applyFounderEffect - Player: $playerId, Card: $cardId, CurrentStage: $currentStage, ActivationStage: $activationStage");
+        error_log("applyFounderEffect - Card name: " . ($founderCard['name'] ?? 'unknown'));
+        error_log("applyFounderEffect - Effect from FoundersData: " . json_encode($effect));
         
         // Если этап активации не совпадает с текущим, не применяем эффект
         if ($activationStage === null || $activationStage !== $currentStage) {
@@ -1087,7 +1090,9 @@ class Game extends \Bga\GameFramework\Table
         $appliedEffects = [];
         
         // Обрабатываем каждый тип эффекта
+        error_log("applyFounderEffect - Effect array: " . json_encode($effect));
         foreach ($effect as $effectType => $effectValue) {
+            error_log("applyFounderEffect - Processing effect type: $effectType, value: $effectValue");
             $result = $this->processFounderEffectType($playerId, $effectType, $effectValue, $founderCard);
             if ($result !== null) {
                 $appliedEffects[] = $result;
@@ -1111,17 +1116,27 @@ class Game extends \Bga\GameFramework\Table
     {
         error_log("processFounderEffectType - Player: $playerId, Type: $effectType, Value: $effectValue");
         
+        // Поэтапная обработка каждого эффекта
         switch ($effectType) {
             case 'badger':
+                error_log("processFounderEffectType - Applying BADGER effect: $effectValue");
                 return $this->applyBadgerEffect($playerId, $effectValue, $founderCard);
             
+            case 'card':
+                error_log("processFounderEffectType - Applying CARD effect: $effectValue");
+                return $this->applyCardEffect($playerId, $effectValue, $founderCard);
+            
+            case 'task':
+                // ВАЖНО: Эффект 'task' еще не реализован, пропускаем его применение
+                // Это другая механика, которую предстоит реализовать в будущем
+                error_log("processFounderEffectType - Effect 'task' is NOT IMPLEMENTED YET, skipping");
+                return null;
+            
             // Здесь можно добавить другие типы эффектов в будущем:
-            // case 'card': return $this->applyCardEffect($playerId, $effectValue, $founderCard);
-            // case 'task': return $this->applyTaskEffect($playerId, $effectValue, $founderCard);
             // case 'track': return $this->applyTrackEffect($playerId, $effectValue, $founderCard);
             
             default:
-                error_log("processFounderEffectType - Unknown effect type: $effectType");
+                error_log("processFounderEffectType - Unknown effect type: $effectType, skipping");
                 return null;
         }
     }
@@ -1187,6 +1202,196 @@ class Game extends \Bga\GameFramework\Table
             'oldValue' => $currentBadgers,
             'newValue' => $newBadgers,
             'message' => "Игрок $actionText {$absAmount}Б благодаря эффекту карты «{$founderCard['name']}»",
+            'founderName' => $founderCard['name'],
+        ];
+    }
+    
+    /**
+     * Применяет эффект выдачи задач (task tokens)
+     * ВАЖНО: Эффект 'task' еще не реализован, этот метод не используется
+     * @param int $playerId ID игрока
+     * @param string $effectValue Значение эффекта (например, '+ 3')
+     * @param array $founderCard Данные карты основателя
+     * @return array Информация о применённом эффекте
+     */
+    private function applyTaskEffect(int $playerId, string $effectValue, array $founderCard): array
+    {
+        // Парсим значение: '+ 3' -> 3
+        $cleanValue = str_replace(' ', '', $effectValue);
+        $amount = (int)$cleanValue;
+        
+        error_log("applyTaskEffect - Player: $playerId, CleanValue: $cleanValue, Amount: $amount");
+        
+        if ($amount <= 0) {
+            return [
+                'type' => 'task',
+                'amount' => 0,
+                'message' => 'Эффект выдачи карт специалистов не применён (значение <= 0)',
+            ];
+        }
+        
+        // Получаем текущие карты специалистов игрока
+        $currentSpecialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $currentSpecialistIds = !empty($currentSpecialistIdsJson) ? json_decode($currentSpecialistIdsJson, true) : [];
+        if (!is_array($currentSpecialistIds)) {
+            $currentSpecialistIds = [];
+        }
+        
+        // Получаем все карты специалистов
+        $allCards = SpecialistsData::getAllCards();
+        
+        // Получаем уже использованные карты
+        $usedCardIds = $this->getUsedSpecialistCardIds();
+        
+        // Добавляем текущие карты игрока к использованным (чтобы не выдавать дубликаты)
+        $usedCardIds = array_merge($usedCardIds, $currentSpecialistIds);
+        $usedCardIds = array_unique($usedCardIds);
+        
+        // Фильтруем доступные карты
+        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
+            return !in_array($card['id'], $usedCardIds, true);
+        });
+        
+        if (empty($availableCards)) {
+            error_log("applyTaskEffect - ERROR: No available specialist cards for player $playerId");
+            return [
+                'type' => 'task',
+                'amount' => 0,
+                'message' => 'Нет доступных карт специалистов для выдачи',
+            ];
+        }
+        
+        // Перемешиваем и берём нужное количество
+        $availableCardIds = array_keys($availableCards);
+        shuffle($availableCardIds);
+        
+        // Берём не больше доступных карт
+        $cardsToDeal = min($amount, count($availableCardIds));
+        $dealtCardIds = array_slice($availableCardIds, 0, $cardsToDeal);
+        
+        // Добавляем новые карты к существующим
+        $newSpecialistIds = array_merge($currentSpecialistIds, $dealtCardIds);
+        
+        // Сохраняем обновлённый список карт специалистов игрока
+        $this->globals->set('player_specialists_' . $playerId, json_encode($newSpecialistIds));
+        
+        error_log("applyTaskEffect - Player $playerId: Added $cardsToDeal specialist cards. Total: " . count($newSpecialistIds));
+        error_log("applyTaskEffect - Dealt card IDs: " . json_encode($dealtCardIds));
+        
+        // Получаем данные выданных карт для сообщения
+        $dealtCards = [];
+        foreach ($dealtCardIds as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $dealtCards[] = $card['name'] ?? 'Карта #' . $cardId;
+            }
+        }
+        
+        return [
+            'type' => 'task',
+            'amount' => $cardsToDeal,
+            'cardIds' => $dealtCardIds,
+            'cardNames' => $dealtCards,
+            'message' => "Игрок получает {$cardsToDeal} карт специалистов благодаря эффекту карты «{$founderCard['name']}»",
+            'founderName' => $founderCard['name'],
+        ];
+    }
+    
+    /**
+     * Применяет эффект выдачи карт специалистов (сразу закрепленных за игроком)
+     * @param int $playerId ID игрока
+     * @param string $effectValue Значение эффекта (например, '+ 3')
+     * @param array $founderCard Данные карты основателя
+     * @return array Информация о применённом эффекте
+     */
+    private function applyCardEffect(int $playerId, string $effectValue, array $founderCard): array
+    {
+        // Парсим значение: '+ 3' -> 3
+        $cleanValue = str_replace(' ', '', $effectValue);
+        $amount = (int)$cleanValue;
+        
+        error_log("applyCardEffect - Player: $playerId, CleanValue: $cleanValue, Amount: $amount");
+        
+        if ($amount <= 0) {
+            return [
+                'type' => 'card',
+                'amount' => 0,
+                'message' => 'Эффект выдачи карт специалистов не применён (значение <= 0)',
+            ];
+        }
+        
+        // Получаем все карты специалистов
+        $allCards = SpecialistsData::getAllCards();
+        
+        // Получаем уже использованные карты (закрепленные + на руке + в отбое)
+        $usedCardIds = $this->getUsedSpecialistCardIds();
+        
+        // Также получаем карты на руке игрока, чтобы не выдавать дубликаты
+        $currentHandJson = $this->globals->get('specialist_hand_' . $playerId, '');
+        $currentHand = !empty($currentHandJson) ? json_decode($currentHandJson, true) : [];
+        if (!is_array($currentHand)) {
+            $currentHand = [];
+        }
+        
+        // Добавляем карты на руке к использованным (чтобы не выдавать дубликаты)
+        $usedCardIds = array_merge($usedCardIds, $currentHand);
+        $usedCardIds = array_unique($usedCardIds);
+        
+        // Фильтруем доступные карты
+        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
+            return !in_array($card['id'], $usedCardIds, true);
+        });
+        
+        if (empty($availableCards)) {
+            error_log("applyCardEffect - ERROR: No available specialist cards for player $playerId");
+            return [
+                'type' => 'card',
+                'amount' => 0,
+                'message' => 'Нет доступных карт специалистов для выдачи',
+            ];
+        }
+        
+        // Перемешиваем и берём нужное количество
+        $availableCardIds = array_keys($availableCards);
+        shuffle($availableCardIds);
+        
+        // Берём не больше доступных карт
+        $cardsToDeal = min($amount, count($availableCardIds));
+        $dealtCardIds = array_slice($availableCardIds, 0, $cardsToDeal);
+        
+        // ВАЖНО: Эффект 'card' сразу закрепляет карты за игроком (player_specialists_)
+        // Эти карты НЕ попадают в specialist_hand_ и НЕ участвуют в выборе из 7 карт
+        // Получаем текущие закреплённые карты
+        $currentSpecialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $currentSpecialistIds = !empty($currentSpecialistIdsJson) ? json_decode($currentSpecialistIdsJson, true) : [];
+        if (!is_array($currentSpecialistIds)) {
+            $currentSpecialistIds = [];
+        }
+        
+        // Добавляем новые карты к существующим закреплённым
+        $newSpecialistIds = array_merge($currentSpecialistIds, $dealtCardIds);
+        
+        // Сохраняем обновлённый список закреплённых карт
+        $this->globals->set('player_specialists_' . $playerId, json_encode($newSpecialistIds));
+        
+        error_log("applyCardEffect - Player $playerId: Added $cardsToDeal specialist cards to player_specialists_ (locked). Total locked: " . count($newSpecialistIds));
+        error_log("applyCardEffect - Dealt card IDs: " . json_encode($dealtCardIds));
+        
+        // Получаем данные выданных карт для сообщения
+        $dealtCards = [];
+        foreach ($dealtCardIds as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $dealtCards[] = $card['name'] ?? 'Карта #' . $cardId;
+            }
+        }
+        
+        return [
+            'type' => 'card',
+            'amount' => $cardsToDeal,
+            'cardIds' => $dealtCardIds,
+            'cardNames' => $dealtCards,
+            'message' => "Игрок получает {$cardsToDeal} карт специалистов благодаря эффекту карты «{$founderCard['name']}»",
             'founderName' => $founderCard['name'],
         ];
     }

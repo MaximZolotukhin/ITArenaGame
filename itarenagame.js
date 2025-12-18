@@ -39,7 +39,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         */
 
     setup: function (gamedatas) {
-      console.log('Starting game setup')
       console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-12-v15 🔴🔴🔴')
 
       // Example to add a div on the game area
@@ -434,6 +433,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                     <div id="player-tables" class="player-tables"></div>
                   </div>
                 </div>
+                <!-- Модальное окно для выбора специалистов -->
+                <div id="specialist-selection-modal" class="specialist-selection-modal">
+                  <div class="specialist-selection-modal__content">
+                    <div class="specialist-selection-modal__header">
+                      <div class="specialist-selection-modal__title" id="specialist-selection-modal-title">Выберите карты сотрудников</div>
+                      <div class="specialist-selection-modal__subtitle" id="specialist-selection-modal-subtitle">Выбрано: 0/3</div>
+                    </div>
+                    <div class="specialist-selection-modal__body" id="specialist-selection-modal-body"></div>
+                    <div class="specialist-selection-modal__footer">
+                      <button id="specialist-selection-modal-confirm-btn" class="specialist-selection-modal__confirm-btn" disabled>Применить</button>
+                    </div>
+                  </div>
+                </div>
             `
       )
       // Мой код для баннера раунда
@@ -533,6 +545,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
       
+      // Сохраняем данные карт специалистов для использования в уведомлениях
+      if (gamedatas.specialists) {
+        // Преобразуем объект в массив, если это объект
+        if (Array.isArray(gamedatas.specialists)) {
+          console.log('🎴 Setup - Loaded', gamedatas.specialists.length, 'specialist cards data (array)')
+        } else if (typeof gamedatas.specialists === 'object') {
+          // Если это объект, преобразуем в массив
+          gamedatas.specialists = Object.values(gamedatas.specialists)
+          console.log('🎴 Setup - Converted specialists object to array, count:', gamedatas.specialists.length)
+        } else {
+          console.warn('🎴 Setup - WARNING: gamedatas.specialists has unexpected type:', typeof gamedatas.specialists)
+        }
+      } else {
+        console.warn('🎴 Setup - WARNING: gamedatas.specialists is not loaded!')
+      }
+      
       // Рендерим сохранённые карты сотрудников (если есть)
       if (gamedatas.playerSpecialists && gamedatas.playerSpecialists.length > 0) {
         console.log('🎴 Setup - Found', gamedatas.playerSpecialists.length, 'saved specialist cards')
@@ -626,7 +654,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         console.log('🔄 setup: Calling _renderTaskTokens, players:', gamedatas.players)
         if (gamedatas.players) {
           try {
-            this._renderTaskTokens(gamedatas.players)
+        this._renderTaskTokens(gamedatas.players)
           } catch (error) {
             console.error('❌ Error in _renderTaskTokens:', error)
           }
@@ -665,7 +693,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     //                  You can use this method to perform some user interface changes at this moment.
     //
     onEnteringState: function (stateName, args) {
-      console.log('=== onEnteringState CALLED ===')
       console.log('Entering state: ' + stateName)
       console.log('Raw args:', args)
 
@@ -712,6 +739,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.gamedatas.founderOptions = null
           this.gamedatas.activeFounderOptions = null
           this.gamedatas.allPlayersFounderOptions = null
+
+          // ВАЖНО: Очищаем отделы от карт предыдущего игрока и отрисовываем карты активного игрока
+          // Карты всегда берутся из gamedatas.players[activeId]
+          this._clearDepartmentsForNewPlayer(activeId)
 
           this._renderPlayerMoney(this.gamedatas.players, activeId)
           this._renderFounderCard(this.gamedatas.players, activeId)
@@ -812,7 +843,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             const isTutorial = this.gamedatas.isTutorialMode
             const tutorialHasFounder = isTutorial && this.gamedatas?.players?.[targetPlayerId]?.founder
             const actualHasSelectedFounder = hasSelectedFounder || tutorialHasFounder
-            
+
             // Если карта еще не выбрана и есть опции, показываем карты для выбора
             if (!actualHasSelectedFounder && founderOptions.length > 0) {
               console.log('✅ Rendering selection cards in onEnteringState, count:', founderOptions.length, 'for player:', targetPlayerId)
@@ -828,8 +859,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                 this._renderUniversalFounderOnHand(founder, targetPlayerId)
                 setTimeout(() => {
                   this._setupHandInteractions()
-                }, 100)
-              } else {
+              }, 100)
+            } else {
                 this._renderFounderCard(this.gamedatas.players, targetPlayerId)
               }
             } else {
@@ -884,19 +915,31 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           if (specialistArgs.selectedCards) {
             this.gamedatas.selectedSpecialists = specialistArgs.selectedCards
           }
+          if (specialistArgs.cardsToKeep) {
+            this.gamedatas.cardsToKeep = specialistArgs.cardsToKeep
+          }
           
           // Если это мой ход, отображаем карты для выбора
           if (Number(specialistActivePlayerId) === Number(this.player_id)) {
-            const handCards = specialistArgs.handCards || this.gamedatas.specialistHand || []
-            const selectedCards = specialistArgs.selectedCards || this.gamedatas.selectedSpecialists || []
+            // ВАЖНО: Используем ТОЛЬКО карты из args, не из кэша
+            // specialistArgs.handCards должен содержать 7 карт от сервера
+            const handCards = specialistArgs.handCards || []
+            const selectedCards = specialistArgs.selectedCards || []
             const cardsToKeep = specialistArgs.cardsToKeep || 3
             
-            console.log('🎴 My turn! Rendering', handCards.length, 'cards')
+            console.log('🎴 My turn! Rendering', handCards.length, 'cards from args')
+            console.log('🎴 specialistArgs.handCards length:', specialistArgs.handCards?.length || 0)
+            
+            // ВАЖНО: Проверяем, что пришло 7 карт
+            if (handCards.length !== 7 && handCards.length > 0) {
+              console.error('🎴❌ ERROR: Expected 7 cards for selection, but got', handCards.length, 'from server!')
+            }
             
             if (handCards.length > 0) {
+              this._openSpecialistSelectionModal()
               this._renderSpecialistSelectionCards(handCards, selectedCards, cardsToKeep)
             } else {
-              console.error('🎴❌ No hand cards to render!')
+              console.error('🎴❌ No hand cards to render! specialistArgs.handCards:', specialistArgs.handCards)
             }
           } else {
             // Если не мой ход, показываем что другой игрок выбирает
@@ -911,6 +954,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Состояние события раунда - обновляем данные кубика и карты событий
           // Приоритет: сначала args (данные из getArgs()), потом gamedatas
           console.log('Entering RoundEvent state, args:', args)
+          
+          // ВАЖНО: Определяем активного игрока и отрисовываем его карты
+          const roundEventActiveId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+          
+          // ВАЖНО: Очищаем отделы от карт предыдущего игрока и отрисовываем карты активного игрока
+          // Карты всегда берутся из gamedatas.players[roundEventActiveId]
+          this._clearDepartmentsForNewPlayer(roundEventActiveId)
+          
+          // Отрисовываем карту основателя активного игрока
+          if (this.gamedatas.players && this.gamedatas.players[roundEventActiveId]?.founder) {
+            this._renderFounderCard(this.gamedatas.players, Number(roundEventActiveId))
+          }
           
           // ВАЖНО: Рендерим сохранённые карты сотрудников на руке
           this._renderPlayerSpecialists()
@@ -1162,36 +1217,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             
             // Обновляем UI карт если есть новые данные
             if (specialistActionArgs.handCards && specialistActionArgs.handCards.length > 0) {
-              console.log('🎴 Updating gamedatas and rendering cards from onUpdateActionButtons')
               this.gamedatas.specialistHand = specialistActionArgs.handCards
               this.gamedatas.selectedSpecialists = specialistActionArgs.selectedCards || []
+              this.gamedatas.cardsToKeep = specialistCardsToKeep
+              
+              // Открываем модальное окно и рендерим карты
+              this._openSpecialistSelectionModal()
               this._renderSpecialistSelectionCards(
                 specialistActionArgs.handCards,
                 specialistActionArgs.selectedCards || [],
                 specialistCardsToKeep
               )
-            } else {
-              console.warn('🎴 No handCards in onUpdateActionButtons args!')
             }
             
-            // Показываем кнопку "Применить" только если выбрано нужное количество карт
-            if (selectedSpecialistsCount === specialistCardsToKeep) {
-              this.statusBar.addActionButton(_('Применить'), () => this.bgaPerformAction('actConfirmSpecialists'), {
-                primary: true,
-                id: 'confirm-specialists-button',
-              })
-            } else {
-              // Показываем информационную кнопку о количестве выбранных карт
-              this.statusBar.addActionButton(
-                _('Выбрано: ') + selectedSpecialistsCount + '/' + specialistCardsToKeep,
-                () => {},
-                {
-                  primary: false,
-                  disabled: true,
-                  id: 'selected-count-button',
-                }
-              )
-            }
+            // Кнопка "Применить" теперь в модальном окне, не в статус-баре
             break
         }
       }
@@ -1259,8 +1298,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Уведомления для выбора сотрудников
       dojo.subscribe('specialistToggled', this, 'notif_specialistToggled')
       dojo.subscribe('specialistsConfirmed', this, 'notif_specialistsConfirmed')
+      dojo.subscribe('specialistsDealtToHand', this, 'notif_specialistsDealtToHand')
+      dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
+      dojo.subscribe('founderEffectsApplied', this, 'notif_founderEffectsApplied')
       
-      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed')
+      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -1330,6 +1372,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.gamedatas.gamestate.active_player = activeFromNotif // Идентификатор активного игрока
         }
         const activeId = activeFromNotif ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id // Идентификатор активного игрока
+        
+        // ВАЖНО: Очищаем отделы от карт предыдущего игрока и отрисовываем карты активного игрока
+        // Карты всегда берутся из gamedatas.players[activeId]
+        this._clearDepartmentsForNewPlayer(activeId)
+        
         this._renderPlayerMoney(this.gamedatas.players, activeId) // Обновляем деньги игрока
         this._renderFounderCard(this.gamedatas.players, activeId)
         this._toggleActivePlayerHand(activeId)
@@ -1499,9 +1546,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Если карта универсальная, показываем её на руке для текущего игрока
         if (isUniversal && Number(playerId) === Number(this.player_id)) {
           
-          // Очищаем контейнер полностью
+          // Очищаем контейнер, но сохраняем карты специалистов, если они есть
           if (handContainer) {
+            // Удаляем только карты выбора основателя, но сохраняем карты специалистов
+            const selectableCards = handContainer.querySelectorAll('.founder-card--selectable')
+            selectableCards.forEach(card => card.remove())
+            
+            // Если нет карт специалистов, очищаем контейнер полностью
+            const specialistCards = handContainer.querySelectorAll('.specialist-card')
+            if (specialistCards.length === 0) {
             handContainer.innerHTML = ''
+            }
           }
 
           // Рендерим одну карту на руке (универсальную) напрямую
@@ -1537,18 +1592,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // ВАЖНО: Рендерим карту в отделе ТОЛЬКО для текущего игрока
           // Для других игроков не рендерим - иначе setTimeout срабатывает после _clearDepartmentsForNewPlayer
           if (Number(playerId) === Number(this.player_id)) {
-            // Очищаем руку полностью
-            if (handContainer) {
-              handContainer.innerHTML = ''
-            }
+          // Очищаем руку полностью
+          if (handContainer) {
+            handContainer.innerHTML = ''
+          }
 
-            // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
-            setTimeout(() => {
-              this._renderFounderCardInDepartment(founder, playerId, department)
-            }, 100)
+          // Отрисовываем карту в отделе (с небольшой задержкой чтобы DOM обновился)
+          setTimeout(() => {
+            this._renderFounderCardInDepartment(founder, playerId, department)
+          }, 100)
           
-            // Добавляем кнопку "Завершить ход" (активную, т.к. карта уже размещена)
-            this._addFinishTurnButton(false)
+            // Добавляем кнопку "Завершить ход" (заблокированную, т.к. нужно применить эффекты)
+            // Кнопка разблокируется через уведомление founderEffectsApplied
+            this._addFinishTurnButton(true)
           } else {
             console.log('🎉 Skipping render for other player:', playerId)
             // Очищаем руку, т.к. другой игрок сделал выбор
@@ -1679,14 +1735,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const imageUrl = founder.img ? (founder.img.startsWith('http') ? founder.img : `${g_gamethemeurl}${founder.img}`) : ''
       const name = founder.name || ''
 
-      // Создаем карту с классом для клика (обработчик добавляется в _setupHandInteractions)
-      const cardMarkup = `
-        <div class="founder-card founder-card--universal-clickable" data-player-id="${playerId}" data-department="universal" style="cursor: pointer;" title="${_('Кликните, чтобы выбрать отдел для размещения')}">
-          ${imageUrl ? `<img src="${imageUrl}" alt="${name}" class="founder-card__image" />` : ''}
-        </div>
-      `
-      handContainer.innerHTML = cardMarkup
+      // Удаляем только старую карту основателя, если она есть, но сохраняем карты специалистов
+      const existingFounderCard = handContainer.querySelector('.founder-card--universal-clickable')
+      if (existingFounderCard) {
+        existingFounderCard.remove()
+      }
 
+      // Создаем карту с классом для клика (обработчик добавляется в _setupHandInteractions)
+      const cardDiv = document.createElement('div')
+      cardDiv.className = 'founder-card founder-card--universal-clickable'
+      cardDiv.setAttribute('data-player-id', playerId)
+      cardDiv.setAttribute('data-department', 'universal')
+      cardDiv.style.cursor = 'pointer'
+      cardDiv.title = _('Кликните, чтобы выбрать отдел для размещения')
+      
+      if (imageUrl) {
+        const img = document.createElement('img')
+        img.src = imageUrl
+        img.alt = name
+        img.className = 'founder-card__image'
+        cardDiv.appendChild(img)
+      }
+      
+      // Добавляем карту основателя в начало контейнера (перед картами специалистов)
+      handContainer.insertBefore(cardDiv, handContainer.firstChild)
     },
 
     notif_founderCardsDiscarded: function (notif) {
@@ -1736,26 +1808,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Применяем локальные изменения (как в notif_roundStart)
         this._applyLocalFounders()
 
-        // Если карта была размещена текущим игроком, разблокируем кнопку "Завершить ход"
-        if (Number(playerId) === Number(this.player_id)) {
-          // Обновляем кнопку "Завершить ход" - разблокируем её
-          const finishButton = document.getElementById('finish-turn-button')
-          if (finishButton) {
-            finishButton.disabled = false
-            finishButton.removeAttribute('title') // Убираем tooltip
-            console.log('✅ Finish turn button unlocked after placing founder')
-          } else {
-            // Если кнопки нет, добавляем её (активную)
-            this._addFinishTurnButton(false)
-          }
-        }
+        // ВАЖНО: Кнопка "Завершить ход" разблокируется только после применения всех эффектов
+        // Это происходит через уведомление founderEffectsApplied
 
         // Если карта была размещена из руки (была универсальной), удаляем её из руки
         // После размещения карта должна быть в отделе, а не на руке
         const handContainer = document.getElementById('active-player-hand-cards')
         if (handContainer && Number(playerId) === Number(this.player_id)) {
-          // Удаляем карту из руки после размещения (она теперь в отделе)
-          handContainer.innerHTML = ''
+          // Удаляем только карту основателя из руки, но сохраняем карты специалистов
+          // Ищем и удаляем только карту основателя (универсальную)
+          const founderCardElement = handContainer.querySelector('.founder-card--universal-clickable')
+          if (founderCardElement) {
+            founderCardElement.remove()
+          }
+          
+          // ВАЖНО: Карты специалистов от эффекта 'card' рендерятся через notif_specialistsDealtToHand
+          // Не нужно дублировать рендеринг здесь, чтобы избежать двойного отображения
+          
           // Сбрасываем выделение
           this._setDepartmentHighlight(false)
           this._setHandHighlight(false)
@@ -1784,12 +1853,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._renderFounderCard(this.gamedatas.players, playerId)
           this._updateHandHighlight(playerId)
 
-          // Обновляем состояние кнопки завершения хода: разблокируем, так как карта размещена
-          if (this.finishTurnButton && this.finishTurnButton instanceof HTMLElement) {
-            this.finishTurnButton.disabled = false
-            this.finishTurnButton.title = ''
-            this.finishTurnButton.classList.remove('disabled')
-          }
+          // ВАЖНО: Кнопка "Завершить ход" разблокируется только после применения всех эффектов
+          // Это происходит через уведомление founderEffectsApplied
         }
         // Если карта была размещена другим игроком, данные обновлены, но отображение не меняется
         // так как на экране показывается только карта активного игрока
@@ -1801,7 +1866,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     // ========================================
 
     notif_specialistToggled: async function (notif) {
-      console.log('notif_specialistToggled called:', notif)
       const args = notif.args || notif
       
       const cardId = Number(args.card_id || 0)
@@ -1825,6 +1889,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }
       
+      // Обновляем визуальное состояние карты в модальном окне
+      this._updateSpecialistCardSelection(cardId, action === 'selected')
+      
+      // Обновляем счётчик и кнопку в модальном окне
+      this._updateConfirmSpecialistsButton(selectedCount, cardsToKeep)
+      
       // Обновляем визуальное состояние карты
       this._updateSpecialistCardSelection(cardId, action === 'selected')
       
@@ -1833,88 +1903,274 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     notif_specialistsConfirmed: async function (notif) {
-      console.log('🎴 notif_specialistsConfirmed called:', notif)
       const args = notif.args || notif
       
       const playerId = Number(args.player_id || 0)
       const keptCount = Number(args.kept_count || 0)
       
+      // Закрываем модальное окно
+      this._closeSpecialistSelectionModal()
+      
       // Если это текущий игрок - сохраняем выбранные карты
       if (Number(playerId) === Number(this.player_id)) {
-        // Сохраняем выбранные карты как playerSpecialists
+        // ВАЖНО: Получаем существующие карты от эффекта (они уже в playerSpecialists)
+        const existingCards = this.gamedatas.playerSpecialists || []
+        const existingIds = new Set(existingCards.map(card => card.id))
+        
+        // Получаем выбранные карты из 7 карт для выбора
         const selectedIds = this.gamedatas.selectedSpecialists || []
         const handCards = this.gamedatas.specialistHand || []
         
-        // Фильтруем карты - оставляем только выбранные
+        // Фильтруем карты - оставляем только выбранные из 7 карт
         const keptCards = handCards.filter(card => selectedIds.includes(card.id))
-        this.gamedatas.playerSpecialists = keptCards
         
-        console.log('🎴 Saved', keptCards.length, 'specialist cards for current player')
+        // ВАЖНО: Добавляем выбранные карты к существующим (от эффекта), а не перезаписываем!
+        const newCards = keptCards.filter(card => !existingIds.has(card.id))
+        this.gamedatas.playerSpecialists = [...existingCards, ...newCards]
+        
+        console.log('🎴 notif_specialistsConfirmed - Existing cards from effect:', existingCards.length)
+        console.log('🎴 notif_specialistsConfirmed - Selected cards from 7:', keptCards.length)
+        console.log('🎴 notif_specialistsConfirmed - New cards (no duplicates):', newCards.length)
+        console.log('🎴 notif_specialistsConfirmed - Total cards now:', this.gamedatas.playerSpecialists.length)
         
         // Очищаем временные данные
         delete this.gamedatas.specialistHand
         delete this.gamedatas.selectedSpecialists
         
-        // Рендерим сохранённые карты на руке
+        // Рендерим все карты на руке (от эффекта + выбранные)
         this._renderPlayerSpecialists()
       }
+    },
+
+    notif_specialistsDealtToHand: async function (notif) {
+      console.log('🎴 notif_specialistsDealtToHand received:', notif)
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const cardIds = args.cardIds || []
       
-      console.log(`🎴 Player ${playerId} confirmed ${keptCount} specialist cards`)
+      console.log('🎴 Processing notification:', {
+        playerId,
+        currentPlayerId: this.player_id,
+        cardIds,
+        allSpecialistsType: typeof this.gamedatas?.specialists,
+        allSpecialistsIsArray: Array.isArray(this.gamedatas?.specialists)
+      })
+      
+      // Если это текущий игрок - обновляем данные и рендерим карты
+      if (Number(playerId) === Number(this.player_id)) {
+        // Получаем данные карт из SpecialistsData
+        let allSpecialists = this.gamedatas.specialists || []
+        
+        // Преобразуем объект в массив, если это объект
+        if (!Array.isArray(allSpecialists) && typeof allSpecialists === 'object') {
+          allSpecialists = Object.values(allSpecialists)
+          this.gamedatas.specialists = allSpecialists
+          console.log('🎴 Converted specialists object to array, count:', allSpecialists.length)
+        }
+        
+        if (!Array.isArray(allSpecialists) || allSpecialists.length === 0) {
+          console.error('🎴 ERROR: gamedatas.specialists is not an array or is empty!', {
+            type: typeof allSpecialists,
+            isArray: Array.isArray(allSpecialists),
+            length: allSpecialists?.length
+          })
+          return
+        }
+        
+        const dealtCards = cardIds.map(cardId => {
+          const card = allSpecialists.find(card => Number(card.id) === Number(cardId))
+          if (!card) {
+            console.warn('🎴 Card not found in specialists data:', cardId, 'Available IDs:', allSpecialists.slice(0, 10).map(c => c.id))
+          }
+          return card || null
+        }).filter(card => card !== null)
+        
+        console.log('🎴 Dealt cards found:', dealtCards.length, 'out of', cardIds.length)
+        
+        if (dealtCards.length === 0) {
+          console.error('🎴 ERROR: No cards found for IDs:', cardIds)
+          return
+        }
+        
+        // ВАЖНО: Эффект 'card' сразу закрепляет карты за игроком (player_specialists_)
+        // Эти карты НЕ попадают в specialist_hand_ и НЕ участвуют в выборе из 7 карт
+        // Они сразу добавляются в playerSpecialists для отображения на руке
+        
+        console.log('🎴 notif_specialistsDealtToHand - Cards from founder effect are LOCKED to player (player_specialists_)')
+        console.log('🎴 notif_specialistsDealtToHand - These cards do NOT participate in selection from 7 cards')
+        
+        // Добавляем карты в playerSpecialists (они уже закреплены на сервере)
+        const currentSpecialists = this.gamedatas.playerSpecialists || []
+        const existingIds = new Set(currentSpecialists.map(card => card.id))
+        const newCards = dealtCards.filter(card => !existingIds.has(card.id))
+        
+        // Добавляем только новые карты (без дубликатов)
+        this.gamedatas.playerSpecialists = [...currentSpecialists, ...newCards]
+        
+        console.log('🎴 notif_specialistsDealtToHand - Dealt cards:', dealtCards.length, 'New cards (no duplicates):', newCards.length)
+        console.log('🎴 notif_specialistsDealtToHand - Total player specialists now:', this.gamedatas.playerSpecialists.length)
+        
+        // Рендерим закреплённые карты на руке
+        this._renderPlayerSpecialists()
+        
+        // Показываем сообщение
+        const founderName = args.founder_name || 'Основатель'
+        const amount = args.amount || 0
+        this.showMessage(`${founderName}: +${amount} карт специалистов`, 'info')
+      } else {
+        console.log('🎴 Notification is for another player:', playerId, 'current:', this.player_id)
+      }
+    },
+
+    notif_founderEffectsApplied: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      
+      console.log('✅ notif_founderEffectsApplied received for player:', playerId)
+      
+      // Если это текущий игрок, разблокируем кнопку "Завершить ход"
+      if (Number(playerId) === Number(this.player_id)) {
+        const finishButton = document.getElementById('finish-turn-button')
+        if (finishButton) {
+          finishButton.disabled = false
+          finishButton.removeAttribute('title') // Убираем tooltip
+          console.log('✅ Finish turn button unlocked after all founder effects applied')
+        } else {
+          // Если кнопки нет, добавляем её (активную)
+          this._addFinishTurnButton(false)
+        }
+      }
+    },
+
+    notif_specialistsDealt: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const cardIds = args.cardIds || []
+      
+      // Если это текущий игрок - обновляем данные и рендерим карты
+      if (Number(playerId) === Number(this.player_id)) {
+        // Получаем данные карт из SpecialistsData
+        let allSpecialists = this.gamedatas.specialists || []
+        
+        // Преобразуем объект в массив, если это объект
+        if (!Array.isArray(allSpecialists) && typeof allSpecialists === 'object') {
+          allSpecialists = Object.values(allSpecialists)
+          this.gamedatas.specialists = allSpecialists
+        }
+        
+        if (!Array.isArray(allSpecialists)) {
+          console.error('🎴 ERROR: gamedatas.specialists is not an array in notif_specialistsDealt!')
+          return
+        }
+        
+        const dealtCards = cardIds.map(cardId => {
+          return allSpecialists.find(card => Number(card.id) === Number(cardId)) || null
+        }).filter(card => card !== null)
+        
+        // ВАЖНО: Эффект 'task' добавляет карты в player_specialists_ (закрепленные)
+        // Проверяем на дубликаты перед добавлением
+        const currentSpecialists = this.gamedatas.playerSpecialists || []
+        const existingIds = new Set(currentSpecialists.map(card => card.id))
+        const newCards = dealtCards.filter(card => !existingIds.has(card.id))
+        
+        // Добавляем только новые карты (без дубликатов)
+        this.gamedatas.playerSpecialists = [...currentSpecialists, ...newCards]
+        
+        console.log('🎴 notif_specialistsDealt - Dealt cards:', dealtCards.length, 'New cards (no duplicates):', newCards.length)
+        console.log('🎴 notif_specialistsDealt - Total player specialists now:', this.gamedatas.playerSpecialists.length)
+        
+        // Рендерим карты в блоке руки
+        this._renderPlayerSpecialists()
+        
+        // Показываем сообщение
+        const founderName = args.founder_name || 'Основатель'
+        const amount = args.amount || 0
+        this.showMessage(`${founderName}: +${amount} карт специалистов`, 'info')
+      }
     },
 
     // ========================================
     // Методы рендеринга карт сотрудников
     // ========================================
 
+    _openSpecialistSelectionModal: function () {
+      const modal = document.getElementById('specialist-selection-modal')
+      if (modal) {
+        modal.classList.add('active')
+        
+        // Закрытие при клике вне модального окна
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            // Не закрываем при клике вне - пользователь должен выбрать карты
+          }
+        })
+      }
+    },
+
+    _closeSpecialistSelectionModal: function () {
+      const modal = document.getElementById('specialist-selection-modal')
+      if (modal) {
+        modal.classList.remove('active')
+      }
+    },
+
     _renderSpecialistSelectionCards: function (handCards, selectedCards, cardsToKeep) {
-      console.log('_renderSpecialistSelectionCards called:', {
+      console.log('🎴 _renderSpecialistSelectionCards called:', {
         handCards: handCards?.length || 0,
         selectedCards: selectedCards?.length || 0,
         cardsToKeep,
+        handCardsArray: handCards,
       })
       
-      const handContainer = document.getElementById('active-player-hand-cards')
-      if (!handContainer) {
-        console.error('Hand container not found!')
+      // ВАЖНО: Логируем ID всех карт для отладки
+      if (handCards && handCards.length > 0) {
+        const cardIds = handCards.map(card => ({
+          id: card.id,
+          idType: typeof card.id,
+          name: card.name || 'Unknown'
+        }))
+        console.log('🎴 Card IDs from server:', cardIds)
+        console.log('🎴 Card IDs (numbers only):', handCards.map(c => Number(c.id)))
+      }
+      
+      // ВАЖНО: Проверяем, что пришло 7 карт, а не 3
+      if (handCards && handCards.length !== 7 && handCards.length > 0) {
+        console.warn('⚠️ WARNING: Expected 7 cards for selection, but got', handCards.length)
+      }
+      
+      const modalBody = document.getElementById('specialist-selection-modal-body')
+      const modalTitle = document.getElementById('specialist-selection-modal-title')
+      const modalSubtitle = document.getElementById('specialist-selection-modal-subtitle')
+      const confirmBtn = document.getElementById('specialist-selection-modal-confirm-btn')
+      
+      if (!modalBody || !modalTitle || !modalSubtitle || !confirmBtn) {
+        console.error('Modal elements not found!')
         return
       }
       
-      // Очищаем контейнер
-      handContainer.innerHTML = ''
-      handContainer.classList.add('active-player-hand__center--selecting')
-      handContainer.style.display = 'flex'
-      handContainer.style.visibility = 'visible'
-      handContainer.style.opacity = '1'
+      // Обновляем заголовок
+      modalTitle.textContent = _('Выберите') + ' ' + cardsToKeep + ' ' + _('карты сотрудников')
+      modalSubtitle.textContent = _('Выбрано') + ': ' + selectedCards.length + '/' + cardsToKeep
       
-      // Создаём заголовок
-      const headerDiv = document.createElement('div')
-      headerDiv.className = 'specialist-selection-header'
-      headerDiv.innerHTML = `
-        <div class="specialist-selection-title">${_('Выберите')} ${cardsToKeep} ${_('карты сотрудников')}</div>
-        <div class="specialist-selection-subtitle">${_('Выбрано')}: <span id="selected-specialists-count">${selectedCards.length}</span>/${cardsToKeep}</div>
-      `
-      handContainer.appendChild(headerDiv)
-      
-      // Контейнер для карт
-      const cardsWrapper = document.createElement('div')
-      cardsWrapper.className = 'specialist-cards-wrapper'
+      // Очищаем контейнер карт
+      modalBody.innerHTML = ''
       
       // Рендерим каждую карту
       handCards.forEach((card) => {
         const isSelected = selectedCards.includes(card.id)
         const cardDiv = this._createSpecialistCard(card, isSelected)
-        cardsWrapper.appendChild(cardDiv)
+        modalBody.appendChild(cardDiv)
       })
       
-      handContainer.appendChild(cardsWrapper)
-      
-      // Добавляем кнопку применить (изначально неактивна)
+      // Обновляем кнопку подтверждения
       this._updateConfirmSpecialistsButton(selectedCards.length, cardsToKeep)
     },
 
     _createSpecialistCard: function (card, isSelected) {
       const cardDiv = document.createElement('div')
       cardDiv.className = `specialist-card ${isSelected ? 'specialist-card--selected' : ''}`
+      
+      // Устанавливаем data-атрибут (dataset всегда возвращает строку, но это нормально)
       cardDiv.dataset.cardId = card.id
       cardDiv.dataset.department = card.department || 'unknown'
       
@@ -1928,11 +2184,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         </div>
       `
       
-      // Обработчик клика
+      // Обработчик клика - просто приводим тип при получении из dataset
       cardDiv.addEventListener('click', (e) => {
         e.stopPropagation()
+        // ВАЖНО: dataset всегда возвращает строку, поэтому приводим к числу
         const cardId = Number(cardDiv.dataset.cardId)
-        console.log('Specialist card clicked:', cardId)
         this._toggleSpecialistCard(cardId)
       })
       
@@ -1940,15 +2196,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     _toggleSpecialistCard: function (cardId) {
-      console.log('_toggleSpecialistCard called:', cardId)
+      // ВАЖНО: Убеждаемся, что cardId - это число
+      const numericCardId = Number(cardId)
+      
+      console.log('🎴 _toggleSpecialistCard called:', {
+        cardId: cardId,
+        numericCardId: numericCardId,
+        type: typeof numericCardId,
+        handCards: this.gamedatas.specialistHand?.map(c => ({ id: c.id, type: typeof c.id })) || []
+      })
       
       // Отправляем действие на сервер
-      this.bgaPerformAction('actToggleSpecialist', { cardId: cardId })
-        .then(() => {
-          console.log('Toggle specialist action sent successfully')
-        })
+      this.bgaPerformAction('actToggleSpecialist', { cardId: numericCardId })
         .catch((error) => {
-          console.error('Error toggling specialist:', error)
+          console.error('❌ Error toggling specialist:', error)
         })
     },
 
@@ -1962,38 +2223,36 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }
       
-      // Обновляем счётчик
-      const countSpan = document.getElementById('selected-specialists-count')
-      if (countSpan && this.gamedatas.selectedSpecialists) {
-        countSpan.textContent = this.gamedatas.selectedSpecialists.length
+      // Обновляем счётчик в модальном окне
+      const modalSubtitle = document.getElementById('specialist-selection-modal-subtitle')
+      if (modalSubtitle && this.gamedatas.selectedSpecialists !== undefined) {
+        const cardsToKeep = this.gamedatas.cardsToKeep || 3
+        modalSubtitle.textContent = _('Выбрано') + ': ' + this.gamedatas.selectedSpecialists.length + '/' + cardsToKeep
       }
     },
 
     _updateConfirmSpecialistsButton: function (selectedCount, cardsToKeep) {
-      // Обновляем кнопку в статус-баре
-      const existingButton = document.getElementById('confirm-specialists-button')
-      const countButton = document.getElementById('selected-count-button')
+      const confirmBtn = document.getElementById('specialist-selection-modal-confirm-btn')
+      if (!confirmBtn) return
       
       if (selectedCount === cardsToKeep) {
         // Можно подтвердить
-        if (countButton) {
-          countButton.remove()
-        }
-        if (!existingButton) {
-          this.statusBar?.addActionButton(_('Применить'), () => this.bgaPerformAction('actConfirmSpecialists'), {
-            primary: true,
-            id: 'confirm-specialists-button',
-          })
-        }
+        confirmBtn.disabled = false
+        confirmBtn.classList.remove('specialist-selection-modal__confirm-btn:disabled')
+        
+        // Удаляем старый обработчик и добавляем новый
+        const newBtn = confirmBtn.cloneNode(true)
+        confirmBtn.parentNode.replaceChild(newBtn, confirmBtn)
+        newBtn.addEventListener('click', () => {
+          this.bgaPerformAction('actConfirmSpecialists')
+            .catch((error) => {
+              console.error('Error confirming specialists:', error)
+            })
+        })
       } else {
         // Нельзя подтвердить
-        if (existingButton) {
-          existingButton.remove()
-        }
-        // Обновляем текст кнопки счётчика
-        if (countButton) {
-          countButton.textContent = _('Выбрано: ') + selectedCount + '/' + cardsToKeep
-        }
+        confirmBtn.disabled = true
+        confirmBtn.classList.add('specialist-selection-modal__confirm-btn:disabled')
       }
     },
 
@@ -2029,10 +2288,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       
       // Получаем сохранённые карты сотрудников текущего игрока
-      const playerSpecialists = this.gamedatas?.playerSpecialists || 
-                                this.gamedatas?.players?.[this.player_id]?.specialists || []
+      // ВАЖНО: Используем только gamedatas.playerSpecialists, не смешиваем с players[].specialists
+      const playerSpecialists = this.gamedatas?.playerSpecialists || []
       
       console.log('🎴 Player specialists:', playerSpecialists.length, 'cards')
+      console.log('🎴 Player specialists source: gamedatas.playerSpecialists')
       
       if (!playerSpecialists || playerSpecialists.length === 0) {
         console.log('🎴 No saved specialists to render')
@@ -2607,22 +2867,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // ВАЖНО: В состоянии SpecialistSelection НЕ трогаем контейнер руки вообще!
         // Карты специалистов должны оставаться на руке, карты основателей - в отделах
         if (!isSpecialistSelection) {
-          // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
-          const hasSelectableCards = handContainer.querySelector('.founder-card--selectable')
-          const isFounderSelection = currentState === 'FounderSelection'
-          const isMainMode = !this.isTutorialMode
-          const isCurrentPlayer = Number(playerId) === Number(this.player_id)
+        // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
+        const hasSelectableCards = handContainer.querySelector('.founder-card--selectable')
+        const isFounderSelection = currentState === 'FounderSelection'
+        const isMainMode = !this.isTutorialMode
+        const isCurrentPlayer = Number(playerId) === Number(this.player_id)
 
           // Если это состояние выбора основателя и текущий игрок, не очищаем контейнер
-          if (isFounderSelection && isMainMode && isCurrentPlayer && hasSelectableCards) {
-            // Не очищаем контейнер, если там есть карты для выбора
-          } else if (!hasSelectableCards) {
-            handContainer.innerHTML = ''
-          }
+        if (isFounderSelection && isMainMode && isCurrentPlayer && hasSelectableCards) {
+          // Не очищаем контейнер, если там есть карты для выбора
+        } else if (!hasSelectableCards) {
+          handContainer.innerHTML = ''
+        }
 
-          // Убираем выделение только если нет карт для выбора
-          if (!hasSelectableCards) {
-            handContainer.classList.remove('active-player-hand__center--selecting')
+        // Убираем выделение только если нет карт для выбора
+        if (!hasSelectableCards) {
+          handContainer.classList.remove('active-player-hand__center--selecting')
           }
         }
       }
@@ -3217,55 +3477,55 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
         // Создаем контейнер для жетонов, если его еще нет
         let tokensContainer = column.querySelector('.task-tokens-container')
-        if (!tokensContainer) {
-          tokensContainer = document.createElement('div')
-          tokensContainer.className = 'task-tokens-container'
+      if (!tokensContainer) {
+        tokensContainer = document.createElement('div')
+        tokensContainer.className = 'task-tokens-container'
           column.appendChild(tokensContainer)
-        }
+      }
 
-        // Очищаем контейнер
-        tokensContainer.innerHTML = ''
+      // Очищаем контейнер
+      tokensContainer.innerHTML = ''
 
-        // Отображаем жетоны задач
+      // Отображаем жетоны задач
         locationTokens.forEach((tokenData, index) => {
-          const token = document.createElement('div')
-          token.className = 'task-token'
-          token.dataset.playerId = currentPlayerId
-          token.dataset.tokenId = tokenData?.token_id || ''
-          token.dataset.color = tokenData?.color || ''
+        const token = document.createElement('div')
+        token.className = 'task-token'
+        token.dataset.playerId = currentPlayerId
+        token.dataset.tokenId = tokenData?.token_id || ''
+        token.dataset.color = tokenData?.color || ''
           token.dataset.location = tokenData?.location || location
 
-          // Добавляем класс для цвета жетона
-          if (tokenData?.color) {
-            token.classList.add(`task-token--${tokenData.color}`)
-          }
+        // Добавляем класс для цвета жетона
+        if (tokenData?.color) {
+          token.classList.add(`task-token--${tokenData.color}`)
+        }
 
-          // Создаем изображение жетона
-          const tokenImage = document.createElement('img')
-          const colorData = this._getTaskTokenColorData(tokenData?.color)
-          if (colorData && colorData.image_url) {
-            tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
-            tokenImage.alt = colorData.name || _('Жетон задачи')
-            tokenImage.className = 'task-token__image'
-          } else {
-            // Если нет изображения, используем цветной круг
-            token.style.backgroundColor = this._getTaskTokenColorCode(tokenData?.color)
-            token.style.borderRadius = '50%'
-          }
+        // Создаем изображение жетона
+        const tokenImage = document.createElement('img')
+        const colorData = this._getTaskTokenColorData(tokenData?.color)
+        if (colorData && colorData.image_url) {
+          tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
+          tokenImage.alt = colorData.name || _('Жетон задачи')
+          tokenImage.className = 'task-token__image'
+        } else {
+          // Если нет изображения, используем цветной круг
+          token.style.backgroundColor = this._getTaskTokenColorCode(tokenData?.color)
+          token.style.borderRadius = '50%'
+        }
 
-          if (tokenImage.src) {
-            token.appendChild(tokenImage)
-          }
+        if (tokenImage.src) {
+          token.appendChild(tokenImage)
+        }
 
-          // Позиционируем жетоны вертикально с небольшим отступом
-          token.style.position = 'absolute'
-          token.style.left = '50%'
-          token.style.transform = 'translateX(-50%)'
-          token.style.top = `${20 + index * 50}px`
+        // Позиционируем жетоны вертикально с небольшим отступом
+        token.style.position = 'absolute'
+        token.style.left = '50%'
+        token.style.transform = 'translateX(-50%)'
+        token.style.top = `${20 + index * 50}px`
 
-          tokensContainer.appendChild(token)
+        tokensContainer.appendChild(token)
           console.log('Task token created:', { location, index, color: tokenData?.color, token })
-        })
+      })
 
         console.log(`${location} tokens rendered:`, locationTokens.length)
       })
@@ -3551,8 +3811,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.bgaPerformAction('actPlaceFounder', {
               department: department,
           }).then(() => {
-            // Активируем кнопку "Завершить ход" (теперь карта размещена)
-            this._addFinishTurnButton(false)
+            // Кнопка "Завершить ход" разблокируется через уведомление founderEffectsApplied
+            // после применения всех эффектов карты основателя
           }).catch((error) => {
             console.error('❌ Error placing founder card:', error)
           })
