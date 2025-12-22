@@ -663,12 +663,38 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
       }, 200)
 
+      // Рендерим input'ы для выбора задач в parts-of-projects__body
+      // Вызываем сразу и с задержкой для надежности
+      console.log('🔄 setup: Calling _renderTaskInputs immediately...')
+      try {
+        this._renderTaskInputs()
+      } catch (error) {
+        console.error('❌ Error in _renderTaskInputs (immediate):', error)
+      }
+      
+      setTimeout(() => {
+        try {
+          console.log('🔄 setup: Calling _renderTaskInputs (delayed)...')
+          this._renderTaskInputs()
+        } catch (error) {
+          console.error('❌ Error in _renderTaskInputs (delayed):', error)
+        }
+      }, 500)
+
       // TODO: Set up your game interface here, according to "gamedatas"
       // (setupNotifications уже вызван в начале setup)
       
-      // Обновляем баннер с текущим этапом игры
-      console.log('🏷️ Calling _updateStageBanner from setup...')
-      this._updateStageBanner()
+          // Рендерим input'ы для выбора задач - вызываем сразу и с задержкой
+          console.log('🔄 setup: Calling _renderTaskInputs immediately...')
+          try {
+            this._renderTaskInputs()
+          } catch (error) {
+            console.error('❌ Error in _renderTaskInputs (immediate):', error)
+          }
+
+          // Обновляем баннер с текущим этапом игры
+          console.log('🏷️ Calling _updateStageBanner from setup...')
+          this._updateStageBanner()
       
       // Дополнительно: убеждаемся что баннер виден
       const stageBanner = document.getElementById('round-banner')
@@ -726,6 +752,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             }, 200)
           }
 
+          // Рендерим input'ы для выбора задач
+          setTimeout(() => {
+            this._renderTaskInputs()
+          }, 400)
+
           break
         case 'PlayerTurn':
           if (!this.gamedatas.gamestate) {
@@ -754,6 +785,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // Рендерим жетоны задач в панели спринта
           this._renderTaskTokens(this.gamedatas.players)
+          
+          // Рендерим input'ы для выбора задач
+          setTimeout(() => {
+            this._renderTaskInputs()
+          }, 300)
           
           // Обновляем баннер - теперь ЭТАП 2
           this._updateStageBanner()
@@ -878,6 +914,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           setTimeout(() => {
             this._renderTaskTokens(this.gamedatas.players)
           }, 200)
+          
+          // Рендерим input'ы для выбора задач
+          setTimeout(() => {
+            console.log('🔄 FounderSelection: Calling _renderTaskInputs...')
+            this._renderTaskInputs()
+          }, 300)
 
           this._toggleActivePlayerHand(activeIdFounderSelection)
           this._updateHandHighlight(activeIdFounderSelection)
@@ -3561,6 +3603,135 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _getTaskTokenColorCode: function (colorId) {
       const colorData = this._getTaskTokenColorData(colorId)
       return colorData?.color_code || '#CCCCCC'
+    },
+
+    _renderTaskInputs: function () {
+      // Рендерим 4 input'а с кнопками для выбора задач в parts-of-projects__body
+      console.log('🔄 _renderTaskInputs: Starting...')
+      
+      // Пробуем разные способы найти контейнер
+      let container = document.querySelector('.parts-of-projects__body')
+      if (!container) {
+        container = dojo.query('.parts-of-projects__body')[0]
+      }
+      if (!container) {
+        const partsOfProjects = document.querySelector('.parts-of-projects')
+        if (partsOfProjects) {
+          container = partsOfProjects.querySelector('.parts-of-projects__body')
+        }
+      }
+      
+      if (!container) {
+        console.warn('⚠️ parts-of-projects__body not found, trying again in 500ms...')
+        console.log('Available elements:', {
+          partsOfProjects: !!document.querySelector('.parts-of-projects'),
+          allPartsOfProjects: document.querySelectorAll('.parts-of-projects').length,
+          allBodies: document.querySelectorAll('[class*="body"]').length
+        })
+        setTimeout(() => {
+          const retryContainer = document.querySelector('.parts-of-projects__body') || 
+                                 dojo.query('.parts-of-projects__body')[0]
+          if (retryContainer) {
+            console.log('✅ parts-of-projects__body found on retry')
+            this._renderTaskInputs()
+          } else {
+            console.error('❌ parts-of-projects__body still not found after retry')
+          }
+        }, 500)
+        return
+      }
+
+      console.log('✅ parts-of-projects__body found, rendering inputs...', container)
+
+      // Очищаем контейнер
+      container.innerHTML = ''
+
+      // Массив цветов задач
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+
+      // Создаем контейнер для всех input'ов
+      const inputsContainer = document.createElement('div')
+      inputsContainer.className = 'task-inputs-container'
+
+      // Создаем input для каждого цвета
+      taskColors.forEach((color) => {
+        const colorData = this._getTaskTokenColorData(color)
+        if (!colorData) {
+          console.warn(`⚠️ Color data not found for: ${color}`)
+          return
+        }
+        console.log(`✅ Creating input for color: ${color}`, colorData)
+
+        // Контейнер для одного input'а
+        const inputWrapper = document.createElement('div')
+        inputWrapper.className = `task-input-wrapper task-input-wrapper--${color}`
+        inputWrapper.dataset.color = color
+
+        // Картинка над input'ом
+        const image = document.createElement('img')
+        image.src = `${g_gamethemeurl}${colorData.image_url}`
+        image.alt = colorData.name || _('Жетон задачи')
+        image.className = 'task-input__image'
+
+        // Контейнер для input и кнопок
+        const inputGroup = document.createElement('div')
+        inputGroup.className = 'task-input-group'
+
+        // Кнопка уменьшения
+        const decreaseBtn = document.createElement('button')
+        decreaseBtn.type = 'button'
+        decreaseBtn.className = 'task-input__button task-input__button--decrease'
+        decreaseBtn.textContent = '−'
+        decreaseBtn.setAttribute('aria-label', _('Уменьшить'))
+
+        // Input
+        const input = document.createElement('input')
+        input.type = 'number'
+        input.step = 1
+        input.max = 7
+        input.min = 0
+        input.value = 0
+        input.className = 'task-input__field'
+        input.dataset.color = color
+        input.id = `task-input-${color}`
+
+        // Кнопка увеличения
+        const increaseBtn = document.createElement('button')
+        increaseBtn.type = 'button'
+        increaseBtn.className = 'task-input__button task-input__button--increase'
+        increaseBtn.textContent = '+'
+        increaseBtn.setAttribute('aria-label', _('Увеличить'))
+
+        // Обработчики для кнопок
+        decreaseBtn.addEventListener('click', () => {
+          const currentValue = parseInt(input.value) || 0
+          if (currentValue > input.min) {
+            input.value = currentValue - 1
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        })
+
+        increaseBtn.addEventListener('click', () => {
+          const currentValue = parseInt(input.value) || 0
+          if (currentValue < input.max) {
+            input.value = currentValue + 1
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        })
+
+        // Собираем структуру
+        inputGroup.appendChild(decreaseBtn)
+        inputGroup.appendChild(input)
+        inputGroup.appendChild(increaseBtn)
+
+        inputWrapper.appendChild(image)
+        inputWrapper.appendChild(inputGroup)
+
+        inputsContainer.appendChild(inputWrapper)
+      })
+
+      container.appendChild(inputsContainer)
+      console.log('✅ _renderTaskInputs: Completed, added', taskColors.length, 'inputs')
     },
 
     _updatePlayerBoardImage: function (color) {

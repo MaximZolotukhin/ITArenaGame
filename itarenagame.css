@@ -3080,3 +3080,110 @@
     gap: 10px;
   }
 }
+
+/* ========================================
+   СТИЛИ ДЛЯ ВЫБОРА ЗАДАЧ (TASK INPUTS)
+   ======================================== */
+
+.task-inputs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px;
+}
+
+.task-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.task-input__image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.task-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.task-input__button {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.task-input__button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
+.task-input__button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.task-input__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.task-input__field {
+  width: 60px;
+  height: 36px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.task-input__field:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.task-input__field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.task-input__field::-webkit-inner-spin-button,
+.task-input__field::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.task-input__field[type=number] {
+  -moz-appearance: textfield;
+}
