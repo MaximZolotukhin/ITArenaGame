@@ -322,9 +322,14 @@ class FounderSelection extends GameState
                     error_log('FounderSelection - Player ' . $playerId . ' received ' . $effect['amount'] . ' specialist cards (card): ' . $cardNames);
                 }
                 // Эффект 3: TASK - выдача задач (task tokens)
-                // ВАЖНО: Эффект 'task' еще не реализован, пропускаем отправку уведомления
                 elseif ($effectType === 'task' && isset($effect['amount']) && $effect['amount'] > 0) {
-                    error_log('FounderSelection - Effect "task" (task tokens) is NOT IMPLEMENTED YET, skipping notification');
+                    // Отправляем уведомление о необходимости выбора задач
+                    $this->notify->player($playerId, 'taskSelectionRequired', '', [
+                        'player_id' => $playerId,
+                        'amount' => $effect['amount'],
+                        'founder_name' => $founderCard['name'] ?? '',
+                    ]);
+                    error_log('FounderSelection - Effect "task": Player ' . $playerId . ' must select ' . $effect['amount'] . ' tasks');
                 }
             }
             
@@ -356,6 +361,16 @@ class FounderSelection extends GameState
         if ($this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));
         }
+        
+        // Проверяем, есть ли ожидающий выбор задач
+        $pendingSelectionJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, null);
+        if ($pendingSelectionJson !== null) {
+            $pendingSelection = json_decode($pendingSelectionJson, true);
+            $amount = $pendingSelection['amount'] ?? 0;
+            throw new UserException(clienttranslate('Вы должны выбрать ${amount} задач перед завершением хода', [
+                'amount' => $amount
+            ]));
+        }
 
         $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
             'player_id' => $activePlayerId,
@@ -366,6 +381,75 @@ class FounderSelection extends GameState
 
         // Переходим к следующему игроку
         return NextPlayer::class;
+    }
+
+    /**
+     * Подтверждение выбора задач от эффекта карты основателя
+     * @param int $activePlayerId ID активного игрока
+     * @param string $selectedTasksJson JSON строка с массивом выбранных задач [{"color": "cyan", "quantity": 1}, ...]
+     */
+    #[PossibleAction]
+    public function actConfirmTaskSelection(int $activePlayerId, string $selectedTasksJson)
+    {
+        $this->game->checkAction('actConfirmTaskSelection');
+        
+        // Проверяем, что есть ожидающий выбор задач
+        $pendingSelectionJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, null);
+        if ($pendingSelectionJson === null) {
+            throw new UserException(clienttranslate('Нет ожидающего выбора задач'));
+        }
+        
+        $pendingSelection = json_decode($pendingSelectionJson, true);
+        if (!is_array($pendingSelection) || !isset($pendingSelection['amount'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающего выбора задач'));
+        }
+        
+        $requiredAmount = (int)$pendingSelection['amount'];
+        
+        // Декодируем JSON строку в массив
+        $selectedTasks = json_decode($selectedTasksJson, true);
+        if (!is_array($selectedTasks)) {
+            throw new UserException(clienttranslate('Неверный формат данных выбранных задач'));
+        }
+        
+        // Проверяем, что выбрано правильное количество задач
+        $totalSelected = 0;
+        foreach ($selectedTasks as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+            $quantity = (int)($task['quantity'] ?? 0);
+            if ($quantity < 0) {
+                throw new UserException(clienttranslate('Количество задач не может быть отрицательным'));
+            }
+            $totalSelected += $quantity;
+        }
+        
+        if ($totalSelected !== $requiredAmount) {
+            throw new UserException(clienttranslate('Вы должны выбрать ровно ${amount} задач', [
+                'amount' => $requiredAmount
+            ]));
+        }
+        
+        // Добавляем задачи в backlog
+        $addedTokens = $this->game->addTaskTokens($activePlayerId, $selectedTasks, 'backlog');
+        
+        // Удаляем информацию о ожидающем выборе
+        $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
+        
+        // Уведомляем всех игроков о выборе задач
+        $founderName = $pendingSelection['founder_name'] ?? '';
+        $this->notify->all('tasksSelected', clienttranslate('${player_name} выбрал ${amount} задач от эффекта ${founder_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'amount' => $totalSelected,
+            'founder_name' => $founderName,
+            'selected_tasks' => $selectedTasks,
+            'added_tokens' => $addedTokens,
+            'i18n' => ['founder_name'],
+        ]);
+        
+        error_log("actConfirmTaskSelection - Player $activePlayerId selected $totalSelected tasks: " . json_encode($selectedTasks));
     }
 
     /**

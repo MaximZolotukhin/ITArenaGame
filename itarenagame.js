@@ -18,7 +18,6 @@
 define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], function (dojo, declare, gamegui, counter) {
   return declare('bgagame.itarenagame', ebg.core.gamegui, {
     constructor: function () {
-      console.log('itarenagame constructor')
 
       // Here, you can init the global variables of your user interface
       // Example:
@@ -1343,8 +1342,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('specialistsDealtToHand', this, 'notif_specialistsDealtToHand')
       dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
       dojo.subscribe('founderEffectsApplied', this, 'notif_founderEffectsApplied')
+      dojo.subscribe('taskSelectionRequired', this, 'notif_taskSelectionRequired')
+      dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       
-      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied')
+      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -2071,15 +2072,85 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('✅ notif_founderEffectsApplied received for player:', playerId)
       
       // Если это текущий игрок, разблокируем кнопку "Завершить ход"
+      // НО только если нет ожидающего выбора задач
       if (Number(playerId) === Number(this.player_id)) {
+        // Проверяем, есть ли ожидающий выбор задач
+        const hasPendingTaskSelection = this.gamedatas?.pendingTaskSelection || false
+        if (!hasPendingTaskSelection) {
+          const finishButton = document.getElementById('finish-turn-button')
+          if (finishButton) {
+            finishButton.disabled = false
+            finishButton.removeAttribute('title') // Убираем tooltip
+            console.log('✅ Finish turn button unlocked after all founder effects applied')
+          } else {
+            // Если кнопки нет, добавляем её (активную)
+            this._addFinishTurnButton(false)
+          }
+        } else {
+          console.log('⏳ Finish turn button remains disabled - waiting for task selection')
+        }
+      }
+    },
+
+    notif_taskSelectionRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const amount = Number(args.amount || 0)
+      const founderName = args.founder_name || ''
+      
+      console.log('🎯 notif_taskSelectionRequired received for player:', playerId, 'amount:', amount)
+      
+      // Если это текущий игрок, активируем выбор задач
+      if (Number(playerId) === Number(this.player_id)) {
+        // Сохраняем информацию о ожидающем выборе
+        this.gamedatas.pendingTaskSelection = {
+          amount: amount,
+          founderName: founderName
+        }
+        
+        // Активируем input'ы для выбора задач
+        this._activateTaskSelectionForFounder(amount)
+      }
+    },
+
+    notif_tasksSelected: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const selectedTasks = args.selected_tasks || []
+      const addedTokens = args.added_tokens || []
+      
+      console.log('✅ notif_tasksSelected received for player:', playerId, 'tasks:', selectedTasks)
+      
+      // Обновляем данные игрока - добавляем задачи в backlog
+      if (this.gamedatas?.players?.[playerId]) {
+        if (!this.gamedatas.players[playerId].taskTokens) {
+          this.gamedatas.players[playerId].taskTokens = []
+        }
+        
+        // Добавляем новые задачи в backlog
+        addedTokens.forEach((token) => {
+          this.gamedatas.players[playerId].taskTokens.push({
+            token_id: token.token_id,
+            color: token.color,
+            location: 'backlog',
+            row_index: null
+          })
+        })
+        
+        // Перерисовываем жетоны задач
+        this._renderTaskTokens(this.gamedatas.players)
+      }
+      
+      // Если это текущий игрок, деактивируем выбор задач
+      if (Number(playerId) === Number(this.player_id)) {
+        this.gamedatas.pendingTaskSelection = null
+        this._deactivateTaskSelection()
+        
+        // Теперь можно разблокировать кнопку "Завершить ход"
         const finishButton = document.getElementById('finish-turn-button')
         if (finishButton) {
           finishButton.disabled = false
-          finishButton.removeAttribute('title') // Убираем tooltip
-          console.log('✅ Finish turn button unlocked after all founder effects applied')
-        } else {
-          // Если кнопки нет, добавляем её (активную)
-          this._addFinishTurnButton(false)
+          finishButton.removeAttribute('title')
         }
       }
     },
@@ -3732,6 +3803,297 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       container.appendChild(inputsContainer)
       console.log('✅ _renderTaskInputs: Completed, added', taskColors.length, 'inputs')
+    },
+
+    /**
+     * Получает выбранные задачи из input'ов
+     * @returns {Array} Массив задач в формате [{color: 'cyan', quantity: 2}, ...]
+     */
+    _getSelectedTasks: function () {
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      const selectedTasks = []
+      
+      taskColors.forEach((color) => {
+        const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+        if (input) {
+          const quantity = parseInt(input.value) || 0
+          if (quantity > 0) {
+            selectedTasks.push({
+              color: color,
+              quantity: quantity
+            })
+          }
+        }
+      })
+      
+      return selectedTasks
+    },
+
+    /**
+     * Отправляет задачи на сервер для добавления игроку
+     * @param {number} playerId ID игрока
+     * @param {Array} tasks Массив задач [{color: 'cyan', quantity: 2}, ...]
+     * @param {string} location Локация задач (по умолчанию 'backlog')
+     * @param {Function} callback Функция обратного вызова
+     */
+    _addTasksToPlayer: function (playerId, tasks, location = 'backlog', callback) {
+      if (!tasks || tasks.length === 0) {
+        if (callback) callback()
+        return
+      }
+
+      this.bgaPerformAction('actAddTaskTokens', {
+        player_id: playerId,
+        tasks: tasks,
+        location: location
+      }, (result) => {
+        if (result && result.success !== false) {
+          console.log('✅ Tasks added to player', playerId, ':', tasks)
+          if (callback) callback(result)
+        } else {
+          console.error('❌ Failed to add tasks:', result)
+          if (callback) callback(result)
+        }
+      })
+    },
+
+    /**
+     * Отправляет задачи на сервер для удаления у игрока
+     * @param {number} playerId ID игрока
+     * @param {Array} tasks Массив задач [{color: 'cyan', quantity: 2}, ...]
+     * @param {string|null} location Локация (если указана, удаляет только из этой локации)
+     * @param {Function} callback Функция обратного вызова
+     */
+    _removeTasksFromPlayer: function (playerId, tasks, location = null, callback) {
+      if (!tasks || tasks.length === 0) {
+        if (callback) callback()
+        return
+      }
+
+      this.bgaPerformAction('actRemoveTaskTokens', {
+        player_id: playerId,
+        tasks: tasks,
+        location: location
+      }, (result) => {
+        if (result && result.success !== false) {
+          console.log('✅ Tasks removed from player', playerId, ':', tasks)
+          if (callback) callback(result)
+        } else {
+          console.error('❌ Failed to remove tasks:', result)
+          if (callback) callback(result)
+        }
+      })
+    },
+
+    /**
+     * Обновляет локацию задачи
+     * @param {number} tokenId ID токена задачи
+     * @param {string} location Новая локация
+     * @param {number|null} rowIndex Новый индекс строки
+     * @param {Function} callback Функция обратного вызова
+     */
+    _updateTaskLocation: function (tokenId, location, rowIndex = null, callback) {
+      this.bgaPerformAction('actUpdateTaskTokenLocation', {
+        token_id: tokenId,
+        location: location,
+        row_index: rowIndex
+      }, (result) => {
+        if (result && result.success !== false) {
+          console.log('✅ Task location updated:', tokenId, '->', location)
+          if (callback) callback(result)
+        } else {
+          console.error('❌ Failed to update task location:', result)
+          if (callback) callback(result)
+        }
+      })
+    },
+
+    /**
+     * Активирует выбор задач для эффекта карты основателя
+     * @param {number} maxTasks Максимальное количество задач для выбора
+     */
+    _activateTaskSelectionForFounder: function (maxTasks) {
+      console.log('🎯 _activateTaskSelectionForFounder: maxTasks =', maxTasks)
+      
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      
+      // Активируем все input'ы и устанавливаем максимальное значение
+      taskColors.forEach((color) => {
+        const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+        if (input) {
+          input.disabled = false
+          input.max = maxTasks
+          input.value = 0
+          input.classList.remove('task-input__field--disabled')
+        }
+        
+        // Активируем кнопки
+        const decreaseBtn = input?.parentElement?.querySelector('.task-input__button--decrease')
+        const increaseBtn = input?.parentElement?.querySelector('.task-input__button--increase')
+        if (decreaseBtn) decreaseBtn.disabled = false
+        if (increaseBtn) increaseBtn.disabled = false
+      })
+      
+      // Добавляем кнопку "Готово"
+      this._addTaskSelectionConfirmButton(maxTasks)
+      
+      // Добавляем обработчик изменения input'ов для проверки суммы
+      this._setupTaskSelectionValidation(maxTasks)
+    },
+
+    /**
+     * Деактивирует выбор задач
+     */
+    _deactivateTaskSelection: function () {
+      console.log('🔒 _deactivateTaskSelection: deactivating task selection')
+      
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      
+      // Деактивируем все input'ы
+      taskColors.forEach((color) => {
+        const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+        if (input) {
+          input.disabled = true
+          input.max = 0
+          input.value = 0
+          input.classList.add('task-input__field--disabled')
+        }
+        
+        // Деактивируем кнопки
+        const decreaseBtn = input?.parentElement?.querySelector('.task-input__button--decrease')
+        const increaseBtn = input?.parentElement?.querySelector('.task-input__button--increase')
+        if (decreaseBtn) decreaseBtn.disabled = true
+        if (increaseBtn) increaseBtn.disabled = true
+      })
+      
+      // Удаляем кнопку "Готово"
+      const confirmButton = document.getElementById('task-selection-confirm-button')
+      if (confirmButton) {
+        confirmButton.remove()
+      }
+    },
+
+    /**
+     * Добавляет кнопку "Готово" для подтверждения выбора задач
+     * @param {number} maxTasks Максимальное количество задач
+     */
+    _addTaskSelectionConfirmButton: function (maxTasks) {
+      // Удаляем существующую кнопку, если есть
+      const existingButton = document.getElementById('task-selection-confirm-button')
+      if (existingButton) {
+        existingButton.remove()
+      }
+      
+      // Находим контейнер с input'ами
+      const container = document.querySelector('.task-inputs-container')
+      if (!container) {
+        console.error('❌ task-inputs-container not found')
+        return
+      }
+      
+      // Создаем кнопку
+      const button = document.createElement('button')
+      button.id = 'task-selection-confirm-button'
+      button.className = 'task-selection-confirm-button'
+      button.textContent = _('Готово')
+      button.disabled = true // По умолчанию отключена
+      
+      // Обработчик клика
+      button.addEventListener('click', () => {
+        this._confirmTaskSelection(maxTasks)
+      })
+      
+      // Добавляем кнопку в контейнер
+      container.appendChild(button)
+      
+      console.log('✅ Task selection confirm button added')
+    },
+
+    /**
+     * Настраивает валидацию выбора задач (проверка суммы)
+     * @param {number} maxTasks Максимальное количество задач
+     */
+    _setupTaskSelectionValidation: function (maxTasks) {
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      const confirmButton = document.getElementById('task-selection-confirm-button')
+      
+      const validateSelection = () => {
+        let total = 0
+        taskColors.forEach((color) => {
+          const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+          if (input && !input.disabled) {
+            total += parseInt(input.value) || 0
+          }
+        })
+        
+        // Обновляем состояние кнопки "Готово"
+        if (confirmButton) {
+          confirmButton.disabled = total !== maxTasks
+          if (total > maxTasks) {
+            confirmButton.title = _('Выбрано слишком много задач')
+          } else if (total < maxTasks) {
+            confirmButton.title = _('Выберите ровно ${amount} задач', { amount: maxTasks })
+          } else {
+            confirmButton.title = ''
+          }
+        }
+        
+        // Обновляем максимальное значение для каждого input'а
+        taskColors.forEach((color) => {
+          const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+          if (input && !input.disabled) {
+            const currentValue = parseInt(input.value) || 0
+            const otherTotal = total - currentValue
+            const remaining = maxTasks - otherTotal
+            input.max = Math.max(0, remaining)
+            
+            // Если текущее значение превышает доступное, уменьшаем его
+            if (currentValue > remaining) {
+              input.value = remaining
+            }
+          }
+        })
+      }
+      
+      // Добавляем обработчики на все input'ы
+      taskColors.forEach((color) => {
+        const input = document.querySelector(`.task-input__field[data-color="${color}"]`)
+        if (input) {
+          input.addEventListener('input', validateSelection)
+          input.addEventListener('change', validateSelection)
+        }
+      })
+      
+      // Первоначальная валидация
+      validateSelection()
+    },
+
+    /**
+     * Подтверждает выбор задач и отправляет на сервер
+     * @param {number} maxTasks Максимальное количество задач
+     */
+    _confirmTaskSelection: function (maxTasks) {
+      const selectedTasks = this._getSelectedTasks()
+      const total = selectedTasks.reduce((sum, task) => sum + task.quantity, 0)
+      
+      if (total !== maxTasks) {
+        this.showMessage(_('Вы должны выбрать ровно ${amount} задач', { amount: maxTasks }), 'error')
+        return
+      }
+      
+      console.log('✅ Confirming task selection:', selectedTasks)
+      
+      // Отправляем на сервер (преобразуем массив в JSON строку)
+      this.bgaPerformAction('actConfirmTaskSelection', {
+        selectedTasksJson: JSON.stringify(selectedTasks)
+      }, (result) => {
+        if (result && result.success !== false) {
+          console.log('✅ Task selection confirmed successfully')
+        } else {
+          console.error('❌ Failed to confirm task selection:', result)
+          this.showMessage(_('Ошибка при подтверждении выбора задач'), 'error')
+        }
+      })
     },
 
     _updatePlayerBoardImage: function (color) {

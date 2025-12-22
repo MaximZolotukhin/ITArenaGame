@@ -1127,10 +1127,8 @@ class Game extends \Bga\GameFramework\Table
                 return $this->applyCardEffect($playerId, $effectValue, $founderCard);
             
             case 'task':
-                // ВАЖНО: Эффект 'task' еще не реализован, пропускаем его применение
-                // Это другая механика, которую предстоит реализовать в будущем
-                error_log("processFounderEffectType - Effect 'task' is NOT IMPLEMENTED YET, skipping");
-                return null;
+                error_log("processFounderEffectType - Applying TASK effect: $effectValue");
+                return $this->applyTaskEffect($playerId, $effectValue, $founderCard);
             
             // Здесь можно добавить другие типы эффектов в будущем:
             // case 'track': return $this->applyTrackEffect($playerId, $effectValue, $founderCard);
@@ -1226,44 +1224,26 @@ class Game extends \Bga\GameFramework\Table
             return [
                 'type' => 'task',
                 'amount' => 0,
-                'message' => 'Эффект выдачи карт специалистов не применён (значение <= 0)',
+                'message' => 'Эффект выдачи задач не применён (значение <= 0)',
             ];
         }
         
-        // Получаем текущие карты специалистов игрока
-        $currentSpecialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
-        $currentSpecialistIds = !empty($currentSpecialistIdsJson) ? json_decode($currentSpecialistIdsJson, true) : [];
-        if (!is_array($currentSpecialistIds)) {
-            $currentSpecialistIds = [];
-        }
+        // Сохраняем информацию о необходимости выбора задач
+        // Игрок должен выбрать задачи через UI, а не получать их автоматически
+        $this->globals->set('pending_task_selection_' . $playerId, json_encode([
+            'amount' => $amount,
+            'founder_id' => $founderCard['id'] ?? 0,
+            'founder_name' => $founderCard['name'] ?? '',
+        ]));
         
-        // Получаем все карты специалистов
-        $allCards = SpecialistsData::getAllCards();
+        error_log("applyTaskEffect - Player $playerId: Pending task selection saved, amount: $amount");
         
-        // Получаем уже использованные карты
-        $usedCardIds = $this->getUsedSpecialistCardIds();
-        
-        // Добавляем текущие карты игрока к использованным (чтобы не выдавать дубликаты)
-        $usedCardIds = array_merge($usedCardIds, $currentSpecialistIds);
-        $usedCardIds = array_unique($usedCardIds);
-        
-        // Фильтруем доступные карты
-        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
-            return !in_array($card['id'], $usedCardIds, true);
-        });
-        
-        if (empty($availableCards)) {
-            error_log("applyTaskEffect - ERROR: No available specialist cards for player $playerId");
-            return [
-                'type' => 'task',
-                'amount' => 0,
-                'message' => 'Нет доступных карт специалистов для выдачи',
-            ];
-        }
-        
-        // Перемешиваем и берём нужное количество
-        $availableCardIds = array_keys($availableCards);
-        shuffle($availableCardIds);
+        return [
+            'type' => 'task',
+            'amount' => $amount,
+            'message' => "Игрок должен выбрать $amount задач",
+            'requires_selection' => true, // Флаг, что требуется выбор от игрока
+        ];
         
         // Берём не больше доступных карт
         $cardsToDeal = min($amount, count($availableCardIds));
@@ -2020,6 +2000,184 @@ class Game extends \Bga\GameFramework\Table
         }
         
         return $result;
+    }
+
+    /**
+     * Добавляет задачи игроку
+     * @param int $playerId ID игрока
+     * @param array $tasks Массив задач в формате [['color' => 'cyan', 'quantity' => 2], ...]
+     * @param string $location Локация задач (по умолчанию 'backlog')
+     * @param int|null $rowIndex Индекс строки (для колонки "Задачи")
+     * @return array Массив добавленных токенов
+     */
+    public function addTaskTokens(int $playerId, array $tasks, string $location = 'backlog', ?int $rowIndex = null): array
+    {
+        $validColors = ['cyan', 'pink', 'orange', 'purple'];
+        $validLocations = ['backlog', 'in-progress', 'testing', 'completed'];
+        
+        if (!in_array($location, $validLocations, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Invalid task location'));
+        }
+        
+        $addedTokens = [];
+        
+        foreach ($tasks as $task) {
+            $color = strtolower(trim($task['color'] ?? ''));
+            $quantity = (int)($task['quantity'] ?? 0);
+            
+            if (!in_array($color, $validColors, true)) {
+                error_log("addTaskTokens - Invalid color: $color");
+                continue;
+            }
+            
+            if ($quantity <= 0) {
+                continue;
+            }
+            
+            // Добавляем указанное количество задач
+            for ($i = 0; $i < $quantity; $i++) {
+                $this->DbQuery("
+                    INSERT INTO `player_task_token` (`player_id`, `color`, `location`, `row_index`)
+                    VALUES ($playerId, '$color', '$location', " . ($rowIndex !== null ? $rowIndex : 'NULL') . ")
+                ");
+                
+                $tokenId = (int)$this->DbGetLastId();
+                $addedTokens[] = [
+                    'token_id' => $tokenId,
+                    'player_id' => $playerId,
+                    'color' => $color,
+                    'location' => $location,
+                    'row_index' => $rowIndex,
+                ];
+            }
+        }
+        
+        error_log("addTaskTokens - Player $playerId: Added " . count($addedTokens) . " task tokens");
+        
+        return $addedTokens;
+    }
+    
+    /**
+     * Удаляет задачи у игрока
+     * @param int $playerId ID игрока
+     * @param array $tasks Массив задач в формате [['color' => 'cyan', 'quantity' => 2], ...]
+     * @param string|null $location Если указана, удаляет только из этой локации
+     * @return int Количество удаленных токенов
+     */
+    public function removeTaskTokens(int $playerId, array $tasks, ?string $location = null): int
+    {
+        $validColors = ['cyan', 'pink', 'orange', 'purple'];
+        $validLocations = ['backlog', 'in-progress', 'testing', 'completed'];
+        
+        $totalRemoved = 0;
+        
+        foreach ($tasks as $task) {
+            $color = strtolower(trim($task['color'] ?? ''));
+            $quantity = (int)($task['quantity'] ?? 0);
+            
+            if (!in_array($color, $validColors, true)) {
+                error_log("removeTaskTokens - Invalid color: $color");
+                continue;
+            }
+            
+            if ($quantity <= 0) {
+                continue;
+            }
+            
+            // Формируем условие WHERE
+            $whereConditions = ["`player_id` = $playerId", "`color` = '$color'"];
+            if ($location !== null && in_array($location, $validLocations, true)) {
+                $whereConditions[] = "`location` = '$location'";
+            }
+            
+            $whereClause = implode(' AND ', $whereConditions);
+            
+            // Получаем токены для удаления (ограничиваем количеством)
+            $tokensToDelete = $this->getCollectionFromDb("
+                SELECT `token_id`
+                FROM `player_task_token`
+                WHERE $whereClause
+                ORDER BY `token_id` ASC
+                LIMIT $quantity
+            ");
+            
+            if (empty($tokensToDelete)) {
+                continue;
+            }
+            
+            $tokenIds = array_map(static function ($token) {
+                return (int)$token['token_id'];
+            }, $tokensToDelete);
+            
+            $tokenIdsStr = implode(',', $tokenIds);
+            $this->DbQuery("DELETE FROM `player_task_token` WHERE `token_id` IN ($tokenIdsStr)");
+            
+            $removed = count($tokenIds);
+            $totalRemoved += $removed;
+            
+            error_log("removeTaskTokens - Player $playerId: Removed $removed $color tokens" . ($location ? " from $location" : ""));
+        }
+        
+        error_log("removeTaskTokens - Player $playerId: Total removed $totalRemoved task tokens");
+        
+        return $totalRemoved;
+    }
+    
+    /**
+     * Обновляет локацию задачи
+     * @param int $tokenId ID токена задачи
+     * @param string $location Новая локация
+     * @param int|null $rowIndex Новый индекс строки
+     * @return bool Успешность операции
+     */
+    public function updateTaskTokenLocation(int $tokenId, string $location, ?int $rowIndex = null): bool
+    {
+        $validLocations = ['backlog', 'in-progress', 'testing', 'completed'];
+        
+        if (!in_array($location, $validLocations, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Invalid task location'));
+        }
+        
+        $rowIndexValue = $rowIndex !== null ? $rowIndex : 'NULL';
+        
+        $this->DbQuery("
+            UPDATE `player_task_token`
+            SET `location` = '$location', `row_index` = $rowIndexValue
+            WHERE `token_id` = $tokenId
+        ");
+        
+        return true;
+    }
+    
+    /**
+     * Получает количество задач определенного цвета у игрока
+     * @param int $playerId ID игрока
+     * @param string|null $color Цвет задачи (если null, возвращает общее количество)
+     * @param string|null $location Локация (если указана, считает только из этой локации)
+     * @return int Количество задач
+     */
+    public function getTaskTokensCount(int $playerId, ?string $color = null, ?string $location = null): int
+    {
+        $whereConditions = ["`player_id` = $playerId"];
+        
+        if ($color !== null) {
+            $color = strtolower(trim($color));
+            $whereConditions[] = "`color` = '$color'";
+        }
+        
+        if ($location !== null) {
+            $whereConditions[] = "`location` = '$location'";
+        }
+        
+        $whereClause = implode(' AND ', $whereConditions);
+        
+        $result = $this->getUniqueValueFromDb("
+            SELECT COUNT(*)
+            FROM `player_task_token`
+            WHERE $whereClause
+        ");
+        
+        return (int)$result;
     }
 
     /**
