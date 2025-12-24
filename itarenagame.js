@@ -545,19 +545,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
       
       // Сохраняем данные карт специалистов для использования в уведомлениях
-      if (gamedatas.specialists) {
-        // Преобразуем объект в массив, если это объект
-        if (Array.isArray(gamedatas.specialists)) {
-          console.log('🎴 Setup - Loaded', gamedatas.specialists.length, 'specialist cards data (array)')
-        } else if (typeof gamedatas.specialists === 'object') {
-          // Если это объект, преобразуем в массив
-          gamedatas.specialists = Object.values(gamedatas.specialists)
-          console.log('🎴 Setup - Converted specialists object to array, count:', gamedatas.specialists.length)
-        } else {
-          console.warn('🎴 Setup - WARNING: gamedatas.specialists has unexpected type:', typeof gamedatas.specialists)
-        }
-      } else {
-        console.warn('🎴 Setup - WARNING: gamedatas.specialists is not loaded!')
+      if (gamedatas.specialists && !Array.isArray(gamedatas.specialists) && typeof gamedatas.specialists === 'object') {
+        // Преобразуем объект в массив
+        gamedatas.specialists = Object.values(gamedatas.specialists)
       }
       
       // Рендерим сохранённые карты сотрудников (если есть)
