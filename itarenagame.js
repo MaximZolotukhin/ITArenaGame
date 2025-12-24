@@ -4253,21 +4253,81 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           const columnElement = document.getElementById(col.id)
           if (columnElement) {
+            console.log(`✅ Found column element: ${col.id}`, { 
+              element: columnElement, 
+              id: columnElement.id,
+              classes: columnElement.className,
+              hasHandler: !!columnElement._taskMoveHandler
+            })
+            
             columnElement.classList.add('sprint-column--available')
             columnElement.dataset.targetLocation = col.location
             columnElement.dataset.targetTokenId = tokenId
             columnElement.dataset.targetColor = color
             columnElement.dataset.blocksNeeded = blocksNeeded // Сохраняем количество блоков
             columnElement.style.cursor = 'pointer'
+            columnElement.style.pointerEvents = 'auto' // Убеждаемся, что элемент кликабелен
             
             // Добавляем обработчик клика на колонку
-            const clickHandler = (e) => {
-              e.stopPropagation()
-              this._moveTaskTokenToColumn(tokenId, col.location, color)
-              this._clearColumnHighlight()
+            // ВАЖНО: Удаляем предыдущий обработчик, если есть
+            if (columnElement._taskMoveHandler) {
+              console.log(`⚠️ Removing old handler from column ${col.id}`)
+              columnElement.removeEventListener('click', columnElement._taskMoveHandler, true)
             }
-            columnElement.addEventListener('click', clickHandler, { once: true })
+            
+            const clickHandler = (e) => {
+              console.log('🎯🎯🎯 Column click handler FIRED!', { 
+                columnId: col.id, 
+                location: col.location, 
+                tokenId, 
+                color,
+                target: e.target,
+                currentTarget: e.currentTarget,
+                eventPhase: e.eventPhase,
+                bubbles: e.bubbles,
+                cancelable: e.cancelable
+              })
+              
+              // Останавливаем распространение события, чтобы обработчик отмены не сработал
+              e.stopPropagation()
+              e.stopImmediatePropagation()
+              e.preventDefault()
+              
+              console.log('🎯🎯🎯 Column clicked:', { columnId: col.id, location: col.location, tokenId, color })
+              
+              // Удаляем обработчик отмены, если он есть
+              if (this._columnClickCancelHandler) {
+                console.log('✅ Removing cancel handler')
+                document.removeEventListener('click', this._columnClickCancelHandler)
+                this._columnClickCancelHandler = null
+              }
+              
+              // Вызываем перемещение задачи
+              console.log('🚀 Calling _moveTaskTokenToColumn...')
+              this._moveTaskTokenToColumn(tokenId, col.location, color)
+              console.log('✅ _moveTaskTokenToColumn called')
+              
+              // НЕ очищаем подсветку сразу - пусть она останется для возможных дополнительных перемещений
+              // this._clearColumnHighlight()
+            }
+            
+            // НЕ используем { once: true }, чтобы можно было перемещать несколько задач
+            // Используем capture phase (true), чтобы обработчик сработал раньше других обработчиков
+            // Это гарантирует, что клик на колонку обработается до обработчика отмены на document
+            columnElement.addEventListener('click', clickHandler, true)
             columnElement._taskMoveHandler = clickHandler // Сохраняем для удаления
+            
+            console.log('✅✅✅ Added click handler to column:', { 
+              columnId: col.id, 
+              location: col.location, 
+              tokenId, 
+              color,
+              element: columnElement,
+              hasHandler: !!columnElement._taskMoveHandler,
+              handlerType: typeof columnElement._taskMoveHandler
+            })
+          } else {
+            console.error(`❌❌❌ Column element NOT FOUND: ${col.id}`)
           }
         }
       })
@@ -4280,15 +4340,103 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       // Добавляем обработчик клика вне области для отмены выбора
-      const cancelHandler = (e) => {
-        if (!e.target.closest('.sprint-column--available') && !e.target.closest('.task-token--clickable')) {
+      // ВАЖНО: Сохраняем ссылку на обработчик, чтобы можно было удалить его при клике на колонку
+      this._columnClickCancelHandler = (e) => {
+        console.log('🔍🔍🔍 Cancel handler FIRED!', { 
+          target: e.target, 
+          targetId: e.target.id,
+          targetClasses: e.target.className,
+          targetTag: e.target.tagName,
+          currentTarget: e.currentTarget
+        })
+        
+        // КРИТИЧЕСКИ ВАЖНО: Проверяем, был ли клик на подсвеченной колонке
+        // Проверяем по ID колонок напрямую - это самый надежный способ
+        const target = e.target
+        let isColumnClick = false
+        
+        // Проверяем все подсвеченные колонки по их ID
+        const columnIds = ['sprint-column-in-progress', 'sprint-column-testing', 'sprint-column-completed']
+        for (const colId of columnIds) {
+          const col = document.getElementById(colId)
+          if (col) {
+            const hasAvailableClass = col.classList.contains('sprint-column--available')
+            console.log(`🔍 Checking column ${colId}:`, { 
+              exists: !!col, 
+              hasAvailableClass: hasAvailableClass,
+              targetIsColumn: target === col,
+              columnContainsTarget: col.contains(target)
+            })
+            
+            if (hasAvailableClass) {
+              // Проверяем, является ли target самой колонкой или её дочерним элементом
+              if (target === col || col.contains(target)) {
+                isColumnClick = true
+                console.log('✅✅✅ Cancel handler detected column click!', { colId, target: target, targetId: target.id })
+                break
+              }
+            }
+          } else {
+            console.log(`⚠️ Column ${colId} not found in DOM`)
+          }
+        }
+        
+        // Также проверяем через closest для надежности
+        if (!isColumnClick) {
+          const clickedColumn = target.closest('.sprint-column--available')
+          if (clickedColumn && clickedColumn.classList.contains('sprint-column--available')) {
+            isColumnClick = true
+            console.log('✅✅✅ Cancel handler detected column click via closest!', { target: target, clickedColumn: clickedColumn })
+          }
+        }
+        
+        const clickedToken = target.closest('.task-token--clickable')
+        
+        if (!isColumnClick && !clickedToken) {
+          console.log('🔒 Click outside highlighted area, clearing highlight', { 
+            clickedToken: !!clickedToken,
+            isColumnClick: isColumnClick,
+            target: target,
+            targetId: target.id,
+            targetClasses: target.className,
+            targetTag: target.tagName
+          })
           this._clearColumnHighlight()
-          document.removeEventListener('click', cancelHandler)
+          document.removeEventListener('click', this._columnClickCancelHandler)
+          this._columnClickCancelHandler = null
+        } else {
+          console.log('✅ Click on highlighted area, keeping highlight (or column click detected)', { 
+            isColumnClick: isColumnClick, 
+            clickedToken: !!clickedToken,
+            target: target,
+            targetId: target.id
+          })
+          // Если это клик по колонке, НЕ очищаем подсветку - пусть обработчик на колонке обработает клик
+          // НО: если обработчик на колонке не сработал, нужно дать ему время
+          if (isColumnClick) {
+            // Даем обработчику на колонке время сработать
+            setTimeout(() => {
+              // Если обработчик на колонке не сработал, он должен был вызвать _moveTaskTokenToColumn
+              // Проверяем, не нужно ли очистить подсветку
+              if (this._columnClickCancelHandler) {
+                console.log('⚠️ Column click detected but column handler may not have fired, keeping highlight for now')
+              }
+            }, 100)
+          }
         }
       }
-      setTimeout(() => {
-        document.addEventListener('click', cancelHandler, { once: true })
-      }, 100)
+      
+      // Добавляем обработчик с задержкой и БЕЗ capture phase, чтобы он сработал ПОСЛЕ обработчика на колонке
+      // Используем requestAnimationFrame + setTimeout для гарантии, что обработчик сработает после обработчика на колонке
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (this._columnClickCancelHandler) {
+            // Используем capture: false, чтобы обработчик сработал ПОСЛЕ обработчика на колонке (который использует capture: true)
+            document.addEventListener('click', this._columnClickCancelHandler, { once: true, capture: false })
+            console.log('✅ Added cancel handler to document (will fire AFTER column click handler, delay: 300ms)')
+          }
+        }, 300) // Увеличиваем задержку еще больше
+      })
     },
 
     /**
@@ -4312,11 +4460,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // Удаляем обработчик клика, если есть
           if (column._taskMoveHandler) {
-            column.removeEventListener('click', column._taskMoveHandler)
+            column.removeEventListener('click', column._taskMoveHandler, true) // Удаляем с capture phase
             delete column._taskMoveHandler
           }
         }
       })
+      
+      // Также удаляем обработчик отмены, если есть
+      if (this._columnClickCancelHandler) {
+        document.removeEventListener('click', this._columnClickCancelHandler)
+        this._columnClickCancelHandler = null
+      }
 
       delete this._currentTaskSelection
     },
@@ -4347,25 +4501,125 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (pendingMoves) {
         console.log('✅✅✅ _moveTaskTokenToColumn - In effect mode, processing move')
         
+        // ВАЖНО: Проверяем, не было ли уже перемещение этой задачи
+        // Если было, отменяем предыдущее перемещение и пересчитываем usedMoves
+        let actualFromLocation = this._getTokenCurrentLocation(tokenId)
+        
+        // ВАЖНО: Преобразуем tokenId в число для корректного сравнения
+        const tokenIdNum = parseInt(tokenId, 10)
+        
+        console.log('🔍🔍🔍 Checking for existing moves:', {
+          tokenId: tokenId,
+          tokenIdNum: tokenIdNum,
+          tokenIdType: typeof tokenId,
+          currentLocation: actualFromLocation,
+          allMoves: pendingMoves.moves,
+          movesCount: pendingMoves.moves.length,
+          movesTokenIds: pendingMoves.moves.map(m => ({ 
+            tokenId: m.tokenId, 
+            type: typeof m.tokenId,
+            tokenIdNum: parseInt(m.tokenId, 10)
+          }))
+        })
+        
+        // Ищем существующее перемещение, сравнивая как числа и как строки
+        const existingMoveIndex = pendingMoves.moves.findIndex(m => {
+          const moveTokenId = parseInt(m.tokenId, 10)
+          const match = moveTokenId === tokenIdNum || m.tokenId == tokenId || m.tokenId === tokenId
+          if (match) {
+            console.log('✅ Found matching move:', { 
+              moveTokenId: m.tokenId, 
+              searchTokenId: tokenId,
+              move: m 
+            })
+          }
+          return match
+        })
+        
+        if (existingMoveIndex !== -1) {
+          const existingMove = pendingMoves.moves[existingMoveIndex]
+          console.log('⚠️⚠️⚠️ Found existing move for this token, canceling it:', {
+            existingMove: existingMove,
+            existingMoveIndex: existingMoveIndex,
+            oldUsedMoves: pendingMoves.usedMoves,
+            currentLocation: actualFromLocation,
+            existingMoveFromLocation: existingMove.fromLocation,
+            existingMoveToLocation: existingMove.toLocation
+          })
+          
+          // Отменяем предыдущее перемещение - вычитаем использованные блоки
+          const oldUsedMoves = pendingMoves.usedMoves
+          pendingMoves.usedMoves -= existingMove.blocks
+          
+          console.log('✅✅✅ Canceled move blocks:', {
+            oldUsedMoves: oldUsedMoves,
+            blocksToSubtract: existingMove.blocks,
+            newUsedMoves: pendingMoves.usedMoves
+          })
+          
+          // Удаляем предыдущее перемещение из списка
+          pendingMoves.moves.splice(existingMoveIndex, 1)
+          
+          // ВАЖНО: Используем исходную локацию из отмененного перемещения для нового расчета
+          actualFromLocation = existingMove.fromLocation
+          
+          // Возвращаем жетон в исходное положение
+          const currentPlayer = this.gamedatas.players[this.player_id]
+          if (currentPlayer && currentPlayer.taskTokens) {
+            const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+            if (token) {
+              const oldTokenLocation = token.location
+              token.location = existingMove.fromLocation
+              console.log('✅ Reverted token to original location:', { 
+                tokenId, 
+                oldLocation: oldTokenLocation,
+                newLocation: existingMove.fromLocation 
+              })
+            } else {
+              console.warn('⚠️ Token not found in gamedatas for reversion:', tokenId)
+            }
+          } else {
+            console.warn('⚠️ Current player or taskTokens not found for reversion')
+          }
+          
+          // Перерисовываем жетоны
+          this._renderTaskTokens(this.gamedatas.players)
+          
+          // Обновляем UI после отмены
+          this._updateTaskMoveModeUI()
+          
+          console.log('✅ After canceling previous move:', {
+            usedMoves: pendingMoves.usedMoves,
+            movesCount: pendingMoves.moves.length,
+            availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
+            actualFromLocation: actualFromLocation,
+            remainingMoves: pendingMoves.moves
+          })
+        } else {
+          console.log('✅ No existing move found for this token, proceeding with new move')
+        }
+        
         // Режим перемещения задач - добавляем в список перемещений
-        const fromLocation = this._getTokenCurrentLocation(tokenId)
-        const blocks = this._calculateBlocksBetween(fromLocation, newLocation)
+        // Используем actualFromLocation (может быть исходной, если было отменено предыдущее перемещение)
+        const blocks = this._calculateBlocksBetween(actualFromLocation, newLocation)
         
         console.log('🔍🔍🔍 _moveTaskTokenToColumn - Move calculation:', {
-          fromLocation: fromLocation,
+          fromLocation: actualFromLocation,
           toLocation: newLocation,
           blocks: blocks,
           usedMoves: pendingMoves.usedMoves,
           moveCount: pendingMoves.moveCount,
-          availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves
+          availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
+          existingMoves: pendingMoves.moves
         })
         
-        // Проверяем, достаточно ли ходов
+        // Проверяем, достаточно ли ходов для нового перемещения
         if (pendingMoves.usedMoves + blocks > pendingMoves.moveCount) {
           console.warn('❌ Not enough moves:', {
             used: pendingMoves.usedMoves,
             needed: blocks,
-            total: pendingMoves.moveCount
+            total: pendingMoves.moveCount,
+            available: pendingMoves.moveCount - pendingMoves.usedMoves
           })
           this.showMessage(_('Недостаточно ходов для перемещения'), 'error')
           return
@@ -4381,10 +4635,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           }
         }
         
-        // Добавляем перемещение в список
+        // Добавляем новое перемещение в список
         pendingMoves.moves.push({
           tokenId: tokenId,
-          fromLocation: fromLocation,
+          fromLocation: actualFromLocation, // Используем исходную локацию
           toLocation: newLocation,
           blocks: blocks,
           color: color
@@ -4393,12 +4647,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         
         console.log('✅✅✅ _moveTaskTokenToColumn - Move added:', {
           moves: pendingMoves.moves,
+          movesCount: pendingMoves.moves.length,
           usedMoves: pendingMoves.usedMoves,
-          moveCount: pendingMoves.moveCount
+          moveCount: pendingMoves.moveCount,
+          availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves
         })
         
-        // Обновляем UI
+        // Обновляем UI (обновит счетчик)
         this._updateTaskMoveModeUI()
+        console.log('✅ UI updated, counter should show:', `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`)
         
         // Временно перемещаем жетон визуально (обновляем данные)
         const currentPlayer = this.gamedatas.players[this.player_id]
@@ -4406,7 +4663,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
           if (token) {
             console.log('✅ Updating token location in gamedatas:', { tokenId, oldLocation: token.location, newLocation })
+            const oldLocation = token.location
             token.location = newLocation
+            
+            // Также обновляем в DOM сразу для мгновенной визуальной обратной связи
+            const tokenElement = document.querySelector(`[data-token-id="${tokenId}"]`)
+            if (tokenElement) {
+              tokenElement.dataset.location = newLocation
+              console.log('✅ Updated token location in DOM:', { tokenId, newLocation })
+            } else {
+              console.warn('⚠️ Token element not found in DOM:', tokenId)
+            }
           } else {
             console.warn('⚠️ Token not found in gamedatas:', tokenId)
           }
@@ -4414,8 +4681,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           console.warn('⚠️ Current player or taskTokens not found')
         }
         
-        // Перерисовываем жетоны
+        // Перерисовываем жетоны - это переместит жетон в правильную колонку
+        console.log('🔄 Rendering task tokens after move...')
         this._renderTaskTokens(this.gamedatas.players)
+        console.log('✅ Task tokens rendered')
         
         // Если все ходы использованы, показываем кнопку подтверждения
         if (pendingMoves.usedMoves >= pendingMoves.moveCount) {
@@ -4575,11 +4844,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
      */
     _updateTaskMoveModeUI: function () {
       const pendingMoves = this.gamedatas?.pendingTaskMoves
-      if (!pendingMoves) return
+      if (!pendingMoves) {
+        console.warn('⚠️ _updateTaskMoveModeUI: No pendingMoves found')
+        return
+      }
       
       const usedElement = document.getElementById('task-move-mode-used')
       if (usedElement) {
-        usedElement.textContent = `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`
+        const newText = `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`
+        usedElement.textContent = newText
+        console.log('✅✅✅ _updateTaskMoveModeUI - Counter updated:', {
+          usedMoves: pendingMoves.usedMoves,
+          moveCount: pendingMoves.moveCount,
+          newText: newText,
+          element: usedElement
+        })
+      } else {
+        console.warn('⚠️ _updateTaskMoveModeUI: Element task-move-mode-used not found')
       }
     },
 
@@ -4614,26 +4895,104 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _confirmTaskMoves: function () {
       const pendingMoves = this.gamedatas?.pendingTaskMoves
       if (!pendingMoves) {
+        console.error('❌ No pendingMoves found!')
+        this.showMessage(_('Нет перемещений для подтверждения'), 'error')
         return
       }
       
+      // Проверяем, что есть перемещения для отправки
+      if (!pendingMoves.moves || pendingMoves.moves.length === 0) {
+        console.error('❌ No moves to confirm!', { pendingMoves })
+        this.showMessage(_('Нет перемещений для подтверждения'), 'error')
+        return
+      }
+      
+      // ВАЖНО: Требуем использования всех ходов
       if (pendingMoves.usedMoves !== pendingMoves.moveCount) {
-        this.showMessage(_('Вы должны использовать все доступные ходы'), 'error')
+        console.warn('❌ Not all moves used:', {
+          usedMoves: pendingMoves.usedMoves,
+          moveCount: pendingMoves.moveCount,
+          remaining: pendingMoves.moveCount - pendingMoves.usedMoves
+        })
+        this.showMessage(_('Вы должны использовать все доступные ходы (${used}/${total})', {
+          used: pendingMoves.usedMoves,
+          total: pendingMoves.moveCount
+        }), 'error')
         return
       }
       
-      console.log('✅ Confirming task moves:', pendingMoves.moves)
+      console.log('✅ Confirming task moves:', {
+        moves: pendingMoves.moves,
+        movesCount: pendingMoves.moves.length,
+        usedMoves: pendingMoves.usedMoves,
+        moveCount: pendingMoves.moveCount,
+        movesJson: JSON.stringify(pendingMoves.moves)
+      })
       
       // Отправляем на сервер
+      // ВАЖНО: сервер ожидает параметр movesJson, а не moves
+      const movesJson = JSON.stringify(pendingMoves.moves)
+      if (!movesJson || movesJson === '[]') {
+        console.error('❌ Empty movesJson!')
+        this.showMessage(_('Нет перемещений для подтверждения'), 'error')
+        return
+      }
+      
+      // ВАЖНО: Блокируем кнопку, чтобы предотвратить повторные нажатия
+      const confirmButton = document.getElementById('task-moves-confirm-button')
+      if (confirmButton) {
+        confirmButton.disabled = true
+        confirmButton.textContent = _('Отправка...')
+      }
+      
       this.bgaPerformAction('actConfirmTaskMoves', {
-        moves: JSON.stringify(pendingMoves.moves)
+        movesJson: movesJson
       }, (result) => {
         if (result && result.success !== false) {
           console.log('✅ Task moves confirmed successfully')
+          
+          // ВАЖНО: Сразу очищаем состояние и скрываем UI после успешной отправки
+          // Не ждем уведомления, так как оно может прийти с задержкой
+          this.gamedatas.pendingTaskMoves = null
+          this._deactivateTaskMoveMode()
+          
+          // Скрываем кнопку подтверждения
+          if (confirmButton) {
+            confirmButton.remove()
+          }
+          
+          // Скрываем индикатор режима перемещения
+          this._hideTaskMoveModeIndicator()
+          
+          console.log('✅ Task move mode deactivated after confirmation')
         } else {
           console.error('❌ Failed to confirm task moves:', result)
-          this.showMessage(_('Ошибка при подтверждении перемещений'), 'error')
+          
+          // Разблокируем кнопку при ошибке
+          if (confirmButton) {
+            confirmButton.disabled = false
+            confirmButton.textContent = _('Подтвердить перемещения')
+          }
+          
+          // Показываем сообщение об ошибке только если это не стандартная ошибка валидации
+          if (result && result.error) {
+            this.showMessage(result.error, 'error')
+          } else {
+            this.showMessage(_('Ошибка при подтверждении перемещений'), 'error')
+          }
         }
+      }).catch((error) => {
+        console.error('❌ Exception during task moves confirmation:', error)
+        
+        // Разблокируем кнопку при ошибке
+        if (confirmButton) {
+          confirmButton.disabled = false
+          confirmButton.textContent = _('Подтвердить перемещения')
+        }
+        
+        // Показываем сообщение об ошибке
+        const errorMessage = error?.message || _('Ошибка при подтверждении перемещений')
+        this.showMessage(errorMessage, 'error')
       })
     },
 

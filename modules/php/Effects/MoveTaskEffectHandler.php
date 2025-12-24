@@ -71,13 +71,28 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
         
         // Сохраняем информацию о необходимости перемещения задач
         // Игрок должен переместить задачи через UI
-        $this->game->globals->set('pending_task_moves_' . $playerId, json_encode([
+        $globalsKey = 'pending_task_moves_' . $playerId;
+        $pendingMovesData = [
             'move_count' => $moveCount,
             'move_color' => $moveColor,
             'used_moves' => 0,
             'founder_id' => $cardData['id'] ?? 0,
             'founder_name' => $cardData['name'] ?? '',
-        ]));
+        ];
+        $pendingMovesJson = json_encode($pendingMovesData);
+        
+        error_log("🔍🔍🔍 MoveTaskEffectHandler::apply - Saving to globals key: $globalsKey");
+        error_log("🔍🔍🔍 MoveTaskEffectHandler::apply - Data: $pendingMovesJson");
+        
+        $this->game->globals->set($globalsKey, $pendingMovesJson);
+        
+        // Проверяем, что данные действительно сохранились
+        $savedData = $this->game->globals->get($globalsKey, null);
+        if ($savedData === null) {
+            error_log("❌❌❌ MoveTaskEffectHandler::apply - ERROR: Data was NOT saved to globals!");
+        } else {
+            error_log("✅✅✅ MoveTaskEffectHandler::apply - Data confirmed saved: $savedData");
+        }
         
         error_log("MoveTaskEffectHandler::apply - Player $playerId: Pending task moves saved, move_count: $moveCount, move_color: $moveColor");
         

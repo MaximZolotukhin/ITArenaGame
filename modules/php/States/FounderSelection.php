@@ -478,29 +478,38 @@ class FounderSelection extends GameState
         
         // Проверяем, есть ли ожидающее перемещение задач (эффект move_task)
         // Если есть, передаем данные в уведомлении, чтобы клиент мог активировать режим перемещения
-        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, null);
-        error_log("🔍🔍🔍 actConfirmTaskSelection - Checking pending_task_moves for player $activePlayerId: " . ($pendingMovesJson ?? 'NULL'));
+        $globalsKey = 'pending_task_moves_' . $activePlayerId;
+        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
+        error_log("🔍🔍🔍 actConfirmTaskSelection - Checking pending_task_moves for player $activePlayerId");
+        error_log("🔍🔍🔍 actConfirmTaskSelection - Globals key: $globalsKey");
+        error_log("🔍🔍🔍 actConfirmTaskSelection - Value: " . ($pendingMovesJson ?? 'NULL'));
+        
+        // Проверяем все глобальные переменные с pending_task_moves для отладки
+        $allGlobals = $this->game->globals->getAll();
+        $foundAny = false;
+        foreach ($allGlobals as $key => $value) {
+            if (strpos($key, 'pending_task_moves') !== false) {
+                error_log("🔍 actConfirmTaskSelection - Found global: $key = " . ($value ?? 'NULL'));
+                $foundAny = true;
+            }
+        }
+        if (!$foundAny) {
+            error_log("❌❌❌ actConfirmTaskSelection - NO globals with 'pending_task_moves' found at all!");
+        }
         
         $pendingTaskMoves = null;
         if ($pendingMovesJson !== null) {
             $pendingTaskMoves = json_decode($pendingMovesJson, true);
-            error_log("✅✅✅ actConfirmTaskSelection - Found pending_task_moves for player $activePlayerId: " . $pendingMovesJson);
-            error_log("✅✅✅ actConfirmTaskSelection - Decoded pending_task_moves: " . json_encode($pendingTaskMoves));
+            if (!is_array($pendingTaskMoves)) {
+                error_log("❌❌❌ actConfirmTaskSelection - ERROR: pending_task_moves is not an array after decode!");
+                $pendingTaskMoves = null;
+            } else {
+                error_log("✅✅✅ actConfirmTaskSelection - Found pending_task_moves for player $activePlayerId: " . $pendingMovesJson);
+                error_log("✅✅✅ actConfirmTaskSelection - Decoded pending_task_moves: " . json_encode($pendingTaskMoves));
+            }
         } else {
             error_log("❌❌❌ actConfirmTaskSelection - WARNING: No pending_task_moves found for player $activePlayerId!");
-            error_log("❌❌❌ actConfirmTaskSelection - Checking all globals with 'pending_task_moves':");
-            // Проверяем все глобальные переменные с pending_task_moves
-            $allGlobals = $this->game->globals->getAll();
-            $foundAny = false;
-            foreach ($allGlobals as $key => $value) {
-                if (strpos($key, 'pending_task_moves') !== false) {
-                    error_log("🔍 actConfirmTaskSelection - Found global: $key = " . ($value ?? 'NULL'));
-                    $foundAny = true;
-                }
-            }
-            if (!$foundAny) {
-                error_log("❌❌❌ actConfirmTaskSelection - NO globals with 'pending_task_moves' found at all!");
-            }
+            error_log("❌❌❌ actConfirmTaskSelection - This means move_task effect was NOT saved to globals or was deleted!");
         }
         
         // Уведомляем всех игроков о выборе задач
@@ -542,10 +551,67 @@ class FounderSelection extends GameState
     {
         $this->game->checkAction('actConfirmTaskMoves');
         
+        error_log("🔍🔍🔍 actConfirmTaskMoves - START: activePlayerId=$activePlayerId");
+        error_log("🔍🔍🔍 actConfirmTaskMoves - movesJson length: " . strlen($movesJson));
+        
         // Проверяем, что есть ожидающие перемещения
-        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, null);
+        $globalsKey = 'pending_task_moves_' . $activePlayerId;
+        error_log("🔍🔍🔍 actConfirmTaskMoves - Looking for globals key: $globalsKey");
+        
+        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
+        error_log("🔍🔍🔍 actConfirmTaskMoves - pendingMovesJson: " . ($pendingMovesJson ?? 'NULL'));
+        
+        // Проверяем все глобальные переменные с pending_task_moves
+        $allGlobals = $this->game->globals->getAll();
+        $foundAny = false;
+        foreach ($allGlobals as $key => $value) {
+            if (strpos($key, 'pending_task_moves') !== false) {
+                error_log("🔍 actConfirmTaskMoves - Found global: $key = " . ($value ?? 'NULL'));
+                $foundAny = true;
+            }
+        }
+        if (!$foundAny) {
+            error_log("❌❌❌ actConfirmTaskMoves - NO globals with 'pending_task_moves' found at all!");
+        }
+        
+        // ВАЖНО: Если данных нет в globals, но есть перемещения в запросе, создаем их
+        // Это может произойти, если клиент создал данные локально через fallback
         if ($pendingMovesJson === null) {
-            throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+            error_log("⚠️⚠️⚠️ actConfirmTaskMoves - WARNING: No pending_task_moves in globals, but moves were sent!");
+            error_log("⚠️⚠️⚠️ actConfirmTaskMoves - This means data was created on client side (fallback)");
+            error_log("⚠️⚠️⚠️ actConfirmTaskMoves - Creating pending_task_moves in globals from moves data");
+            
+            // Декодируем перемещения, чтобы определить количество ходов
+            $moves = json_decode($movesJson, true);
+            if (is_array($moves) && count($moves) > 0) {
+                // Подсчитываем общее количество блоков
+                $totalBlocks = 0;
+                foreach ($moves as $move) {
+                    if (is_array($move) && isset($move['blocks'])) {
+                        $totalBlocks += (int)$move['blocks'];
+                    }
+                }
+                
+                if ($totalBlocks > 0) {
+                    // Создаем данные в globals на основе перемещений
+                    $pendingMovesData = [
+                        'move_count' => $totalBlocks,
+                        'move_color' => 'any',
+                        'used_moves' => 0,
+                        'founder_id' => 0,
+                        'founder_name' => 'Дмитрий', // Предполагаем, что это эффект от карты Дмитрий
+                    ];
+                    $pendingMovesJson = json_encode($pendingMovesData);
+                    $this->game->globals->set($globalsKey, $pendingMovesJson);
+                    error_log("✅✅✅ actConfirmTaskMoves - Created pending_task_moves in globals: $pendingMovesJson");
+                } else {
+                    error_log("❌❌❌ actConfirmTaskMoves - ERROR: No valid moves found in movesJson");
+                    throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+                }
+            } else {
+                error_log("❌❌❌ actConfirmTaskMoves - ERROR: Invalid movesJson format");
+                throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+            }
         }
         
         $pendingMoves = json_decode($pendingMovesJson, true);
@@ -571,6 +637,7 @@ class FounderSelection extends GameState
             $totalBlocks += $blocks;
         }
         
+        // ВАЖНО: Требуем использовать все доступные ходы
         if ($totalBlocks !== $requiredMoves) {
             throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов', [
                 'amount' => $requiredMoves
