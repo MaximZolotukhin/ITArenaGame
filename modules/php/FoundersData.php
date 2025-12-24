@@ -48,7 +48,7 @@ class FoundersData
             'name' => 'Дмитрий', // Имя основателя
             'color' => '#FFFF00', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => ['badger' => '+ 4', 'card' => '+ 3', 'task' => '+ 3'], // Эффект 'task' => '+ 3', 
+            'effect' => ['badger' => '+ 4', 'card' => '+ 3', 'task' => '+ 3', "move_task" => ['move_count' => 3, 'move_color' => 'any']], // Эффект 'task' => '+ 3', 
             'department' => 'universal', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Четкий старт. Возьмите 4Б, 3 карты, 3 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта

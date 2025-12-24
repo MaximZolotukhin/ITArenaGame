@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Bga\Games\itarenagame\Effects;
+
+use Bga\Games\itarenagame\Game;
+use Bga\Games\itarenagame\SpecialistsData;
+
+/**
+ * Обработчик эффекта выдачи карт специалистов
+ * Карты сразу закрепляются за игроком (player_specialists_) и не попадают в выбор из 7 карт
+ */
+class CardEffectHandler implements EffectHandlerInterface
+{
+    public function __construct(
+        private Game $game
+    ) {}
+
+    public function apply(int $playerId, mixed $effectValue, array $cardData): array
+    {
+        // Парсим значение: '+ 3' -> 3
+        $effectValueStr = (string)$effectValue;
+        $cleanValue = str_replace(' ', '', $effectValueStr);
+        $amount = (int)$cleanValue;
+        
+        error_log("CardEffectHandler::apply - Player: $playerId, CleanValue: $cleanValue, Amount: $amount");
+        
+        if ($amount <= 0) {
+            return [
+                'type' => 'card',
+                'amount' => 0,
+                'message' => 'Эффект выдачи карт специалистов не применён (значение <= 0)',
+            ];
+        }
+        
+        // Получаем все карты специалистов
+        $allCards = SpecialistsData::getAllCards();
+        
+        // Получаем уже использованные карты (закрепленные + на руке + в отбое)
+        $usedCardIds = $this->game->getUsedSpecialistCardIds();
+        
+        // Также получаем карты на руке игрока, чтобы не выдавать дубликаты
+        $currentHandJson = $this->game->globals->get('specialist_hand_' . $playerId, '');
+        $currentHand = !empty($currentHandJson) ? json_decode($currentHandJson, true) : [];
+        if (!is_array($currentHand)) {
+            $currentHand = [];
+        }
+        
+        // Добавляем карты на руке к использованным (чтобы не выдавать дубликаты)
+        $usedCardIds = array_merge($usedCardIds, $currentHand);
+        $usedCardIds = array_unique($usedCardIds);
+        
+        // Фильтруем доступные карты
+        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
+            return !in_array($card['id'], $usedCardIds, true);
+        });
+        
+        if (empty($availableCards)) {
+            error_log("CardEffectHandler::apply - ERROR: No available specialist cards for player $playerId");
+            return [
+                'type' => 'card',
+                'amount' => 0,
+                'message' => 'Нет доступных карт специалистов для выдачи',
+            ];
+        }
+        
+        // Перемешиваем и берём нужное количество
+        $availableCardIds = array_keys($availableCards);
+        shuffle($availableCardIds);
+        
+        // Берём не больше доступных карт
+        $cardsToDeal = min($amount, count($availableCardIds));
+        $dealtCardIds = array_slice($availableCardIds, 0, $cardsToDeal);
+        
+        // ВАЖНО: Эффект 'card' сразу закрепляет карты за игроком (player_specialists_)
+        // Эти карты НЕ попадают в specialist_hand_ и НЕ участвуют в выборе из 7 карт
+        // Получаем текущие закреплённые карты
+        $currentSpecialistIdsJson = $this->game->globals->get('player_specialists_' . $playerId, '');
+        $currentSpecialistIds = !empty($currentSpecialistIdsJson) ? json_decode($currentSpecialistIdsJson, true) : [];
+        if (!is_array($currentSpecialistIds)) {
+            $currentSpecialistIds = [];
+        }
+        
+        // Добавляем новые карты к существующим закреплённым
+        $newSpecialistIds = array_merge($currentSpecialistIds, $dealtCardIds);
+        
+        // Сохраняем обновлённый список закреплённых карт
+        $this->game->globals->set('player_specialists_' . $playerId, json_encode($newSpecialistIds));
+        
+        error_log("CardEffectHandler::apply - Player $playerId: Added $cardsToDeal specialist cards to player_specialists_ (locked). Total locked: " . count($newSpecialistIds));
+        error_log("CardEffectHandler::apply - Dealt card IDs: " . json_encode($dealtCardIds));
+        
+        // Получаем данные выданных карт для сообщения
+        $dealtCards = [];
+        foreach ($dealtCardIds as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $dealtCards[] = $card['name'] ?? 'Карта #' . $cardId;
+            }
+        }
+        
+        return [
+            'type' => 'card',
+            'amount' => $cardsToDeal,
+            'cardIds' => $dealtCardIds,
+            'cardNames' => $dealtCards,
+            'message' => "Игрок получает {$cardsToDeal} карт специалистов благодаря эффекту карты «{$cardData['name']}»",
+            'founderName' => $cardData['name'],
+        ];
+    }
+}
+

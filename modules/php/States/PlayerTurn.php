@@ -142,6 +142,50 @@ class PlayerTurn extends GameState
     }
 
     /**
+     * Обновляет локацию жетона задачи
+     * @param int $activePlayerId ID активного игрока
+     * @param int $tokenId ID жетона задачи
+     * @param string $location Новая локация (backlog, in-progress, testing, completed)
+     * @param int|null $rowIndex Индекс строки (опционально)
+     */
+    #[PossibleAction]
+    public function actUpdateTaskTokenLocation(int $activePlayerId, int $tokenId, string $location, ?int $rowIndex = null)
+    {
+        $this->game->checkAction('actUpdateTaskTokenLocation');
+        
+        // Проверяем, что жетон принадлежит активному игроку
+        $token = $this->game->getCollectionFromDb("
+            SELECT * FROM `player_task_token`
+            WHERE `token_id` = $tokenId
+            AND `player_id` = $activePlayerId
+        ");
+        
+        if (empty($token)) {
+            throw new UserException(clienttranslate('Жетон задачи не найден или не принадлежит вам'));
+        }
+        
+        // Обновляем локацию жетона
+        $success = $this->game->updateTaskTokenLocation($tokenId, $location, $rowIndex);
+        
+        if (!$success) {
+            throw new UserException(clienttranslate('Ошибка при обновлении локации жетона задачи'));
+        }
+        
+        // Уведомляем всех игроков об обновлении
+        $tokenData = reset($token);
+        $this->notify->all('taskTokenLocationUpdated', clienttranslate('${player_name} переместил задачу'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'token_id' => $tokenId,
+            'color' => $tokenData['color'],
+            'old_location' => $tokenData['location'],
+            'new_location' => $location,
+            'row_index' => $rowIndex,
+            'i18n' => ['player_name'],
+        ]);
+    }
+
+    /**
      * This method is called each time it is the turn of a player who has quit the game (= "zombie" player).
      * You can do whatever you want in order to make sure the turn of this player ends appropriately
      * (ex: play a random card).

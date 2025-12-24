@@ -176,6 +176,8 @@ class FounderSelection extends GameState
     #[PossibleAction]
     public function actPlaceFounder(string $department, int $activePlayerId)
     {
+        $this->game->checkAction('actPlaceFounder');
+        
         // Проверяем, что у игрока есть неразмещенная универсальная карта
         if (!$this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('У вас нет универсальной карты основателя для размещения'));
@@ -251,12 +253,14 @@ class FounderSelection extends GameState
         if (empty($effect) || !is_array($effect)) {
             error_log("applyFounderEffectsAfterPlacement - ERROR: Effect is empty or not an array!");
         } else {
-            $expectedEffects = ['badger', 'card', 'task'];
+            error_log("🔍🔍🔍 applyFounderEffectsAfterPlacement - Effect keys: " . implode(', ', array_keys($effect)));
+            error_log("🔍🔍🔍 applyFounderEffectsAfterPlacement - Full effect: " . json_encode($effect));
+            $expectedEffects = ['badger', 'card', 'task', 'move_task'];
             foreach ($expectedEffects as $expectedType) {
                 if (!isset($effect[$expectedType])) {
                     error_log("applyFounderEffectsAfterPlacement - WARNING: Effect '$expectedType' is missing from card data!");
                 } else {
-                    error_log("applyFounderEffectsAfterPlacement - Found effect '$expectedType': " . $effect[$expectedType]);
+                    error_log("applyFounderEffectsAfterPlacement - Found effect '$expectedType': " . json_encode($effect[$expectedType]));
                 }
             }
         }
@@ -269,16 +273,24 @@ class FounderSelection extends GameState
         // ВАЖНО: Обрабатываем эффекты в строгом порядке: badger -> card -> task
         if (!empty($appliedEffects)) {
             // Сортируем эффекты по порядку обработки для четкой последовательности
-            $effectOrder = ['badger' => 1, 'card' => 2, 'task' => 3];
+            $effectOrder = ['badger' => 1, 'card' => 2, 'task' => 3, 'move_task' => 4];
             usort($appliedEffects, function($a, $b) use ($effectOrder) {
                 $orderA = $effectOrder[$a['type']] ?? 999;
                 $orderB = $effectOrder[$b['type']] ?? 999;
                 return $orderA <=> $orderB;
             });
             
+            error_log("FounderSelection - Total effects to process: " . count($appliedEffects));
+            error_log("FounderSelection - Effects array: " . json_encode($appliedEffects));
+            
+            $hasMoveTask = false;
             foreach ($appliedEffects as $effect) {
                 $effectType = $effect['type'] ?? 'unknown';
-                error_log("FounderSelection - Processing notification for effect type: $effectType");
+                if ($effectType === 'move_task') {
+                    $hasMoveTask = true;
+                    error_log('✅✅✅ FounderSelection - Found move_task effect in appliedEffects!');
+                }
+                error_log("FounderSelection - Processing notification for effect type: $effectType, effect data: " . json_encode($effect));
                 
                 // Эффект 1: BADGER - изменение баджерсов
                 if ($effectType === 'badger' && isset($effect['amount']) && $effect['amount'] !== 0) {
@@ -331,6 +343,33 @@ class FounderSelection extends GameState
                     ]);
                     error_log('FounderSelection - Effect "task": Player ' . $playerId . ' must select ' . $effect['amount'] . ' tasks');
                 }
+                // Эффект 4: MOVE_TASK - перемещение жетонов задач
+                elseif ($effectType === 'move_task') {
+                    error_log('🎯🎯🎯 FounderSelection - Processing move_task effect: ' . json_encode($effect));
+                    error_log('🎯🎯🎯 FounderSelection - move_task effect keys: ' . implode(', ', array_keys($effect)));
+                    $moveCount = $effect['move_count'] ?? 0;
+                    $moveColor = $effect['move_color'] ?? 'any';
+                    
+                    error_log('🎯🎯🎯 FounderSelection - move_task parsed: moveCount=' . $moveCount . ', moveColor=' . $moveColor);
+                    
+                    if ($moveCount > 0) {
+                        // Отправляем уведомление о необходимости перемещения задач
+                        error_log('🎯🎯🎯 FounderSelection - Sending taskMovesRequired notification to player ' . $playerId);
+                        $this->notify->player($playerId, 'taskMovesRequired', '', [
+                            'player_id' => $playerId,
+                            'move_count' => $moveCount,
+                            'move_color' => $moveColor,
+                            'founder_name' => $founderCard['name'] ?? '',
+                        ]);
+                        error_log('✅✅✅ FounderSelection - Effect "move_task": Player ' . $playerId . ' must move tasks ' . $moveCount . ' times (color: ' . $moveColor . ') - NOTIFICATION SENT');
+                    } else {
+                        error_log('❌❌❌ FounderSelection - Effect "move_task": move_count is 0 or not set, skipping. moveCount=' . $moveCount);
+                    }
+                }
+            }
+            
+            if (!$hasMoveTask) {
+                error_log('❌❌❌ FounderSelection - WARNING: No move_task effect found in appliedEffects!');
             }
             
             // После применения всех эффектов отправляем уведомление о готовности к завершению хода
@@ -437,9 +476,36 @@ class FounderSelection extends GameState
         // Удаляем информацию о ожидающем выборе
         $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
         
+        // Проверяем, есть ли ожидающее перемещение задач (эффект move_task)
+        // Если есть, передаем данные в уведомлении, чтобы клиент мог активировать режим перемещения
+        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, null);
+        error_log("🔍🔍🔍 actConfirmTaskSelection - Checking pending_task_moves for player $activePlayerId: " . ($pendingMovesJson ?? 'NULL'));
+        
+        $pendingTaskMoves = null;
+        if ($pendingMovesJson !== null) {
+            $pendingTaskMoves = json_decode($pendingMovesJson, true);
+            error_log("✅✅✅ actConfirmTaskSelection - Found pending_task_moves for player $activePlayerId: " . $pendingMovesJson);
+            error_log("✅✅✅ actConfirmTaskSelection - Decoded pending_task_moves: " . json_encode($pendingTaskMoves));
+        } else {
+            error_log("❌❌❌ actConfirmTaskSelection - WARNING: No pending_task_moves found for player $activePlayerId!");
+            error_log("❌❌❌ actConfirmTaskSelection - Checking all globals with 'pending_task_moves':");
+            // Проверяем все глобальные переменные с pending_task_moves
+            $allGlobals = $this->game->globals->getAll();
+            $foundAny = false;
+            foreach ($allGlobals as $key => $value) {
+                if (strpos($key, 'pending_task_moves') !== false) {
+                    error_log("🔍 actConfirmTaskSelection - Found global: $key = " . ($value ?? 'NULL'));
+                    $foundAny = true;
+                }
+            }
+            if (!$foundAny) {
+                error_log("❌❌❌ actConfirmTaskSelection - NO globals with 'pending_task_moves' found at all!");
+            }
+        }
+        
         // Уведомляем всех игроков о выборе задач
         $founderName = $pendingSelection['founder_name'] ?? '';
-        $this->notify->all('tasksSelected', clienttranslate('${player_name} выбрал ${amount} задач от эффекта ${founder_name}'), [
+        $notifArgs = [
             'player_id' => $activePlayerId,
             'player_name' => $this->game->getPlayerNameById($activePlayerId),
             'amount' => $totalSelected,
@@ -447,9 +513,99 @@ class FounderSelection extends GameState
             'selected_tasks' => $selectedTasks,
             'added_tokens' => $addedTokens,
             'i18n' => ['founder_name'],
-        ]);
+        ];
+        
+        // Если есть ожидающее перемещение, добавляем данные в уведомление
+        if ($pendingTaskMoves !== null && is_array($pendingTaskMoves)) {
+            $notifArgs['pending_task_moves'] = $pendingTaskMoves;
+            error_log("actConfirmTaskSelection - Added pending_task_moves to notification: " . json_encode($pendingTaskMoves));
+            error_log("actConfirmTaskSelection - Full notifArgs keys: " . implode(', ', array_keys($notifArgs)));
+        } else {
+            error_log("actConfirmTaskSelection - WARNING: pending_task_moves is NULL or not an array, NOT adding to notification!");
+            error_log("actConfirmTaskSelection - pendingTaskMoves value: " . var_export($pendingTaskMoves, true));
+            error_log("actConfirmTaskSelection - pendingMovesJson value: " . var_export($pendingMovesJson, true));
+        }
+        
+        error_log("actConfirmTaskSelection - Sending tasksSelected notification with args: " . json_encode($notifArgs));
+        $this->notify->all('tasksSelected', clienttranslate('${player_name} выбрал ${amount} задач от эффекта ${founder_name}'), $notifArgs);
         
         error_log("actConfirmTaskSelection - Player $activePlayerId selected $totalSelected tasks: " . json_encode($selectedTasks));
+    }
+
+    /**
+     * Подтверждение перемещений задач от эффекта карты основателя
+     * @param int $activePlayerId ID активного игрока
+     * @param string $movesJson JSON строка с массивом перемещений [{"tokenId": 1, "fromLocation": "backlog", "toLocation": "in-progress", "blocks": 1}, ...]
+     */
+    #[PossibleAction]
+    public function actConfirmTaskMoves(int $activePlayerId, string $movesJson)
+    {
+        $this->game->checkAction('actConfirmTaskMoves');
+        
+        // Проверяем, что есть ожидающие перемещения
+        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, null);
+        if ($pendingMovesJson === null) {
+            throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+        }
+        
+        $pendingMoves = json_decode($pendingMovesJson, true);
+        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающих перемещений'));
+        }
+        
+        $requiredMoves = (int)$pendingMoves['move_count'];
+        
+        // Декодируем JSON строку перемещений
+        $moves = json_decode($movesJson, true);
+        if (!is_array($moves)) {
+            throw new UserException(clienttranslate('Неверный формат данных перемещений'));
+        }
+        
+        // Проверяем, что использовано правильное количество ходов
+        $totalBlocks = 0;
+        foreach ($moves as $move) {
+            if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
+                continue;
+            }
+            $blocks = (int)($move['blocks'] ?? 0);
+            $totalBlocks += $blocks;
+        }
+        
+        if ($totalBlocks !== $requiredMoves) {
+            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов', [
+                'amount' => $requiredMoves
+            ]));
+        }
+        
+        // Выполняем перемещения
+        $movedTokens = [];
+        foreach ($moves as $move) {
+            $tokenId = (int)($move['tokenId'] ?? 0);
+            $toLocation = $move['toLocation'] ?? '';
+            
+            if ($tokenId > 0 && !empty($toLocation)) {
+                $success = $this->game->updateTaskTokenLocation($tokenId, $toLocation, null);
+                if ($success) {
+                    $movedTokens[] = $tokenId;
+                }
+            }
+        }
+        
+        // Удаляем информацию о ожидающих перемещениях
+        $this->game->globals->set('pending_task_moves_' . $activePlayerId, null);
+        
+        // Уведомляем всех игроков о перемещениях
+        $founderName = $pendingMoves['founder_name'] ?? '';
+        $this->notify->all('taskMovesCompleted', clienttranslate('${player_name} переместил задачи от эффекта ${founder_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'founder_name' => $founderName,
+            'moves' => $moves,
+            'moved_tokens' => $movedTokens,
+            'i18n' => ['founder_name'],
+        ]);
+        
+        error_log("actConfirmTaskMoves - Player $activePlayerId moved " . count($movedTokens) . " task tokens: " . json_encode($moves));
     }
 
     /**

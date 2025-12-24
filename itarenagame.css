@@ -995,6 +995,28 @@
 /* Учитываем padding-top колонки для контейнера жетонов в бэклоге */
 .sprint-column-backlog .task-tokens-container {
   top: 35px;
+  pointer-events: none;
+}
+
+.sprint-column-backlog .task-tokens-container .task-token--clickable {
+  pointer-events: auto;
+}
+
+/* Подсветка доступных колонок для перемещения задач */
+.sprint-column--available {
+  background: rgba(0, 255, 0, 0.15) !important;
+  border-color: rgba(0, 255, 0, 0.6) !important;
+  box-shadow: inset 0 0 20px rgba(0, 255, 0, 0.2), 0 0 15px rgba(0, 255, 0, 0.3) !important;
+  animation: pulse-highlight 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% {
+    box-shadow: inset 0 0 20px rgba(0, 255, 0, 0.2), 0 0 15px rgba(0, 255, 0, 0.3);
+  }
+  50% {
+    box-shadow: inset 0 0 30px rgba(0, 255, 0, 0.3), 0 0 25px rgba(0, 255, 0, 0.5);
+  }
 }
 
 .task-token {
@@ -1009,6 +1031,19 @@
   border: 2px solid rgba(255, 255, 255, 0.5);
   z-index: 10;
   pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.task-token--clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.task-token--clickable:hover {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+  z-index: 15;
 }
 
 .task-token__image {
@@ -3223,4 +3258,176 @@
   opacity: 0.5;
   cursor: not-allowed;
   background: rgba(128, 128, 128, 0.5);
+}
+
+/* Индикатор режима перемещения задач */
+.task-move-mode-indicator {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid rgba(0, 255, 0, 0.6);
+  border-radius: 12px;
+  padding: 16px 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 300px;
+}
+
+.task-move-mode-indicator__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-move-mode-indicator__text {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.task-move-mode-indicator__used {
+  color: rgba(0, 255, 0, 0.9);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.task-moves-confirm-button {
+  width: 100%;
+  height: 40px;
+  padding: 0 20px;
+  border: 2px solid rgba(0, 255, 0, 0.6);
+  background: rgba(0, 255, 0, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.task-moves-confirm-button:hover {
+  background: rgba(0, 255, 0, 0.4);
+  border-color: rgba(0, 255, 0, 0.8);
+  transform: scale(1.05);
+}
+
+.task-token--move-mode {
+  border-color: rgba(0, 255, 0, 0.8) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5) !important;
+  animation: pulse-move-mode 2s ease-in-out infinite;
+}
+
+@keyframes pulse-move-mode {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 255, 0, 0.8);
+  }
+}
+
+/* Подсказка о последовательности действий для эффекта карты основателя */
+.founder-effect-sequence-hint {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10002;
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid rgba(255, 215, 0, 0.8);
+  border-radius: 16px;
+  padding: 20px 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 215, 0, 0.4);
+  min-width: 400px;
+  max-width: 600px;
+}
+
+.founder-effect-sequence-hint__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.founder-effect-sequence-hint__title {
+  color: rgba(255, 215, 0, 0.95);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.founder-effect-sequence-hint__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.founder-effect-sequence-hint__step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.founder-effect-sequence-hint__step--active {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.5);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+  animation: pulse-step-active 2s ease-in-out infinite;
+}
+
+.founder-effect-sequence-hint__step--completed {
+  background: rgba(0, 255, 0, 0.1);
+  border-color: rgba(0, 255, 0, 0.3);
+  opacity: 0.7;
+}
+
+.founder-effect-sequence-hint__step--completed .founder-effect-sequence-hint__step-number {
+  background: rgba(0, 255, 0, 0.3);
+  color: rgba(0, 255, 0, 0.9);
+}
+
+.founder-effect-sequence-hint__step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 215, 0, 0.3);
+  color: rgba(255, 215, 0, 0.95);
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.founder-effect-sequence-hint__step--active .founder-effect-sequence-hint__step-number {
+  background: rgba(255, 215, 0, 0.5);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+}
+
+.founder-effect-sequence-hint__step-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+@keyframes pulse-step-active {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+  }
 }

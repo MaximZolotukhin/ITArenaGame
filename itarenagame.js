@@ -1344,8 +1344,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('founderEffectsApplied', this, 'notif_founderEffectsApplied')
       dojo.subscribe('taskSelectionRequired', this, 'notif_taskSelectionRequired')
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
+      dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
+      dojo.subscribe('taskMovesCompleted', this, 'notif_taskMovesCompleted')
       
-      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected')
+      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -2072,11 +2074,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('✅ notif_founderEffectsApplied received for player:', playerId)
       
       // Если это текущий игрок, разблокируем кнопку "Завершить ход"
-      // НО только если нет ожидающего выбора задач
+      // НО только если нет ожидающего выбора задач или перемещений
       if (Number(playerId) === Number(this.player_id)) {
-        // Проверяем, есть ли ожидающий выбор задач
+        // Проверяем, есть ли ожидающий выбор задач или перемещений
         const hasPendingTaskSelection = this.gamedatas?.pendingTaskSelection || false
-        if (!hasPendingTaskSelection) {
+        const hasPendingTaskMoves = this.gamedatas?.pendingTaskMoves || false
+        const hasPendingTaskMovesJson = this.gamedatas?.pendingTaskMovesJson || false
+        
+        if (!hasPendingTaskSelection && !hasPendingTaskMoves && !hasPendingTaskMovesJson) {
           const finishButton = document.getElementById('finish-turn-button')
           if (finishButton) {
             finishButton.disabled = false
@@ -2087,7 +2092,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             this._addFinishTurnButton(false)
           }
         } else {
-          console.log('⏳ Finish turn button remains disabled - waiting for task selection')
+          console.log('⏳ Finish turn button remains disabled - waiting for task selection/moves')
         }
       }
     },
@@ -2108,8 +2113,95 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           founderName: founderName
         }
         
+        // Проверяем, есть ли также эффект move_task (для карты Дмитрий)
+        const pendingMovesJson = this.gamedatas?.pendingTaskMovesJson
+        if (pendingMovesJson) {
+          // Показываем подсказку о последовательности действий
+          this._showFounderEffectSequenceHint(founderName, amount, JSON.parse(pendingMovesJson))
+        }
+        
         // Активируем input'ы для выбора задач
         this._activateTaskSelectionForFounder(amount)
+      }
+    },
+
+    notif_taskMovesRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const moveCount = Number(args.move_count || 0)
+      const moveColor = args.move_color || 'any'
+      const founderName = args.founder_name || ''
+      
+      console.log('🎯🎯🎯 notif_taskMovesRequired received for player:', playerId, 'moveCount:', moveCount, 'moveColor:', moveColor, 'currentPlayer:', this.player_id)
+      
+      // Если это текущий игрок, активируем режим перемещения задач
+      if (Number(playerId) === Number(this.player_id)) {
+        console.log('✅ This is current player, activating task move mode')
+        
+        // Сохраняем информацию о ожидающем перемещении
+        this.gamedatas.pendingTaskMoves = {
+          moveCount: moveCount,
+          moveColor: moveColor,
+          usedMoves: 0,
+          moves: [], // Массив перемещений [{tokenId, fromLocation, toLocation, blocks}]
+          fromEffect: true, // Флаг, что это эффект карты (не учитывать техотдел)
+          moveSource: 'founder_effect' // Источник перемещения: 'founder_effect' или 'sprint_phase'
+        }
+        
+        // Сохраняем JSON для проверки в taskSelectionRequired
+        this.gamedatas.pendingTaskMovesJson = JSON.stringify({
+          moveCount: moveCount,
+          moveColor: moveColor,
+          founderName: founderName
+        })
+        
+        console.log('✅ pendingTaskMoves set:', this.gamedatas.pendingTaskMoves)
+        console.log('✅ pendingTaskMovesJson set:', this.gamedatas.pendingTaskMovesJson)
+        
+        // Проверяем, завершен ли выбор задач
+        if (!this.gamedatas.pendingTaskSelection) {
+          console.log('✅ No pending task selection, activating move mode immediately')
+          // Если выбор задач уже завершен, сразу активируем режим перемещения
+          this._activateTaskMoveMode(moveCount, moveColor)
+        } else {
+          console.log('⏳ Task selection still pending, showing hint')
+          // Если выбор задач еще не завершен, показываем подсказку
+          this._showFounderEffectSequenceHint(founderName, this.gamedatas.pendingTaskSelection.amount, {
+            moveCount: moveCount,
+            moveColor: moveColor
+          })
+        }
+      } else {
+        console.log('⏭️ This is not current player, skipping')
+      }
+    },
+
+    notif_taskMovesCompleted: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      
+      console.log('✅ notif_taskMovesCompleted received for player:', playerId)
+      
+      // Обновляем данные игрока
+      if (this.gamedatas?.players?.[playerId]) {
+        // Перезагружаем данные игры для обновления задач
+        this._renderTaskTokens(this.gamedatas.players)
+      }
+      
+      // Если это текущий игрок, деактивируем режим перемещения
+      if (Number(playerId) === Number(this.player_id)) {
+        this.gamedatas.pendingTaskMoves = null
+        this._deactivateTaskMoveMode()
+        
+        // Убираем подсказку о последовательности действий
+        this._hideFounderEffectSequenceHint()
+        
+        // Теперь можно разблокировать кнопку "Завершить ход"
+        const finishButton = document.getElementById('finish-turn-button')
+        if (finishButton) {
+          finishButton.disabled = false
+          finishButton.removeAttribute('title')
+        }
       }
     },
 
@@ -2120,6 +2212,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const addedTokens = args.added_tokens || []
       
       console.log('✅ notif_tasksSelected received for player:', playerId, 'tasks:', selectedTasks)
+      console.log('🔍🔍🔍 notif_tasksSelected - BEFORE processing:')
+      console.log('  → this.gamedatas.pendingTaskMoves:', this.gamedatas.pendingTaskMoves)
+      console.log('  → this.gamedatas.pendingTaskMovesJson:', this.gamedatas.pendingTaskMovesJson)
+      console.log('  → args.pending_task_moves:', args.pending_task_moves)
+      console.log('  → Was notif_taskMovesRequired called? Check logs above for "🎯🎯🎯 notif_taskMovesRequired"')
       
       // Обновляем данные игрока - добавляем задачи в backlog
       if (this.gamedatas?.players?.[playerId]) {
@@ -2146,11 +2243,134 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this.gamedatas.pendingTaskSelection = null
         this._deactivateTaskSelection()
         
-        // Теперь можно разблокировать кнопку "Завершить ход"
-        const finishButton = document.getElementById('finish-turn-button')
-        if (finishButton) {
-          finishButton.disabled = false
-          finishButton.removeAttribute('title')
+        // Убираем подсказку о выборе задач
+        const hint = document.getElementById('founder-effect-sequence-hint')
+        if (hint) {
+          const step1 = hint.querySelector('.founder-effect-sequence-hint__step:first-child')
+          if (step1) {
+            step1.classList.remove('founder-effect-sequence-hint__step--active')
+            step1.classList.add('founder-effect-sequence-hint__step--completed')
+          }
+        }
+        
+        // Проверяем, есть ли ожидающее перемещение задач (эффект move_task)
+        // Проверяем два источника: pendingTaskMovesJson (из уведомления) и данные из args
+        console.log('🔍 notif_tasksSelected - Checking for pendingTaskMovesJson:', this.gamedatas.pendingTaskMovesJson)
+        console.log('🔍 notif_tasksSelected - Checking args for pendingTaskMoves:', args.pending_task_moves)
+        console.log('🔍 notif_tasksSelected - Full args keys:', Object.keys(args))
+        console.log('🔍 notif_tasksSelected - Full args:', JSON.stringify(args, null, 2))
+        
+        let movesData = null
+        
+        // ВАЖНО: Проверяем args.pending_task_moves ПЕРВЫМ, так как это данные напрямую с сервера
+        // Это более надежный источник, чем pendingTaskMovesJson (который может потеряться)
+        if (args.pending_task_moves) {
+          try {
+            movesData = typeof args.pending_task_moves === 'string' 
+              ? JSON.parse(args.pending_task_moves) 
+              : args.pending_task_moves
+            console.log('✅✅✅ notif_tasksSelected - Found pending_task_moves in args (PRIORITY), activating move mode:', movesData)
+            
+            // Преобразуем данные в формат, который ожидает клиент
+            if (movesData && (movesData.move_count || movesData.moveCount)) {
+              // Сохраняем в pendingTaskMoves для использования в _handleTaskTokenClick
+              this.gamedatas.pendingTaskMoves = {
+                moveCount: movesData.move_count || movesData.moveCount,
+                moveColor: movesData.move_color || movesData.moveColor || 'any',
+                usedMoves: movesData.used_moves || movesData.usedMoves || 0,
+                moves: [],
+                fromEffect: true, // ВАЖНО: это эффект карты
+                moveSource: 'founder_effect', // ВАЖНО: источник - эффект карты
+                founderName: movesData.founder_name || movesData.founderName || ''
+              }
+              console.log('✅✅✅ notif_tasksSelected - pendingTaskMoves set from args (PRIORITY):', this.gamedatas.pendingTaskMoves)
+              
+              // Также сохраняем в movesData для дальнейшей обработки
+              movesData.moveCount = this.gamedatas.pendingTaskMoves.moveCount
+              movesData.moveColor = this.gamedatas.pendingTaskMoves.moveColor
+            }
+          } catch (e) {
+            console.error('❌ Error parsing pending_task_moves from args:', e)
+          }
+        }
+        // Если в args нет, проверяем pendingTaskMovesJson (из уведомления taskMovesRequired)
+        else if (this.gamedatas.pendingTaskMovesJson) {
+          movesData = JSON.parse(this.gamedatas.pendingTaskMovesJson)
+          console.log('✅ Found pendingTaskMovesJson (fallback), activating move mode:', movesData)
+          delete this.gamedatas.pendingTaskMovesJson
+        }
+        // РЕЗЕРВНАЯ ЛОГИКА: Если карта "Дмитрий" (ID=1), но данных нет, создаем их на основе известного эффекта
+        else if (args.founder_name === 'Дмитрий' || args.founder_name === 'Dmitry') {
+          console.warn('⚠️⚠️⚠️ notif_tasksSelected - Founder is Дмитрий but no pending_task_moves found! Creating from known effect.')
+          // Карта "Дмитрий" имеет эффект move_task: {move_count: 3, move_color: 'any'}
+          movesData = {
+            move_count: 3,
+            moveColor: 'any',
+            moveCount: 3,
+            move_color: 'any',
+            founder_name: args.founder_name || 'Дмитрий'
+          }
+          console.log('✅✅✅ notif_tasksSelected - Created movesData from known Дмитрий effect:', movesData)
+        }
+        
+        // Если movesData найдено и pendingTaskMoves еще не установлен, устанавливаем его
+        if (movesData && (movesData.move_count > 0 || movesData.moveCount > 0)) {
+          console.log('🔍 notif_tasksSelected - movesData found:', movesData)
+          console.log('🔍 notif_tasksSelected - current pendingTaskMoves:', this.gamedatas.pendingTaskMoves)
+          
+          if (!this.gamedatas.pendingTaskMoves) {
+            console.log('⚠️ notif_tasksSelected - pendingTaskMoves is NOT set, setting it now from movesData')
+            // Активируем режим перемещения задач после выбора задач
+            this.gamedatas.pendingTaskMoves = {
+              moveCount: movesData.move_count || movesData.moveCount,
+              moveColor: movesData.move_color || movesData.moveColor || 'any',
+              usedMoves: 0,
+              moves: [],
+              fromEffect: true, // Флаг, что это эффект карты
+              moveSource: 'founder_effect', // Источник перемещения: 'founder_effect' или 'sprint_phase'
+              founderName: movesData.founder_name || movesData.founderName || ''
+            }
+            console.log('✅ pendingTaskMoves set from movesData:', this.gamedatas.pendingTaskMoves)
+          } else {
+            console.log('⚠️ notif_tasksSelected - pendingTaskMoves already exists, ensuring fromEffect and moveSource are set')
+            // ВАЖНО: Гарантируем, что fromEffect и moveSource установлены правильно
+            if (this.gamedatas.pendingTaskMoves.fromEffect !== true) {
+              console.log('⚠️⚠️⚠️ fromEffect is not true, setting it to true')
+              this.gamedatas.pendingTaskMoves.fromEffect = true
+            }
+            if (this.gamedatas.pendingTaskMoves.moveSource !== 'founder_effect') {
+              console.log('⚠️⚠️⚠️ moveSource is not founder_effect, setting it to founder_effect')
+              this.gamedatas.pendingTaskMoves.moveSource = 'founder_effect'
+            }
+            console.log('✅ pendingTaskMoves after ensuring flags:', this.gamedatas.pendingTaskMoves)
+          }
+          
+          if (this.gamedatas.pendingTaskMoves) {
+            const moveCount = this.gamedatas.pendingTaskMoves.moveCount
+            const moveColor = this.gamedatas.pendingTaskMoves.moveColor
+            console.log('🎯 notif_tasksSelected - Activating task move mode:', { moveCount, moveColor, pendingTaskMoves: this.gamedatas.pendingTaskMoves })
+            this._activateTaskMoveMode(moveCount, moveColor)
+          } else {
+            console.error('❌❌❌ notif_tasksSelected - pendingTaskMoves is NOT set after processing movesData!')
+          }
+          
+          // Обновляем подсказку - активируем шаг 2
+          if (hint) {
+            const step2 = hint.querySelector('.founder-effect-sequence-hint__step:last-child')
+            if (step2) {
+              step2.classList.add('founder-effect-sequence-hint__step--active')
+            }
+          }
+        } else {
+          // Убираем подсказку, если нет перемещений
+          this._hideFounderEffectSequenceHint()
+          
+          // Теперь можно разблокировать кнопку "Завершить ход"
+          const finishButton = document.getElementById('finish-turn-button')
+          if (finishButton) {
+            finishButton.disabled = false
+            finishButton.removeAttribute('title')
+          }
         }
       }
     },
@@ -3323,8 +3543,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // ВАЖНО: Добавляем кнопку "Завершить ход" после выбора карты
           this._addFinishTurnButton(isUniversal)
           }
+        this._selectingFounder = false
       }).catch((error) => {
         console.error('❌ Error selecting founder card:', error)
+        this._selectingFounder = false
       })
     },
     
@@ -3636,6 +3858,37 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         token.style.transform = 'translateX(-50%)'
         token.style.top = `${20 + index * 50}px`
 
+        // Делаем жетоны кликабельными в backlog или в режиме move_task
+        const pendingMoves = this.gamedatas?.pendingTaskMoves
+        const isMoveMode = pendingMoves !== null && pendingMoves !== undefined
+        
+        if (location === 'backlog' || isMoveMode) {
+          token.style.cursor = 'pointer'
+          token.style.pointerEvents = 'auto'
+          token.classList.add('task-token--clickable')
+          
+          // Удаляем предыдущий обработчик, если есть
+          if (token._clickHandler) {
+            token.removeEventListener('click', token._clickHandler)
+          }
+          
+          // Добавляем новый обработчик
+          const clickHandler = (e) => {
+            e.stopPropagation()
+            this._handleTaskTokenClick(token, tokenData)
+          }
+          token.addEventListener('click', clickHandler)
+          token._clickHandler = clickHandler // Сохраняем для удаления
+          
+          // В режиме move_task добавляем специальный класс
+          if (isMoveMode) {
+            const tokenColor = tokenData?.color
+            if (pendingMoves.moveColor === 'any' || tokenColor === pendingMoves.moveColor) {
+              token.classList.add('task-token--move-mode')
+            }
+          }
+        }
+
         tokensContainer.appendChild(token)
           console.log('Task token created:', { location, index, color: tokenData?.color, token })
       })
@@ -3674,6 +3927,802 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _getTaskTokenColorCode: function (colorId) {
       const colorData = this._getTaskTokenColorData(colorId)
       return colorData?.color_code || '#CCCCCC'
+    },
+
+    /**
+     * Получает позицию жетона в техотделе для указанного цвета
+     * @param {string} color Цвет задачи (pink, orange, cyan, purple)
+     * @returns {number} Позиция жетона (количество блоков для перемещения)
+     */
+    _getTechDepartmentPosition: function (color) {
+      // Маппинг цветов на колонки техотдела
+      const colorToColumn = {
+        'pink': 1,
+        'orange': 2,
+        'cyan': 3, // blue в HTML
+        'purple': 4
+      }
+
+      const columnNum = colorToColumn[color]
+      if (!columnNum) {
+        console.warn('Unknown color for tech department:', color)
+        return 0
+      }
+
+      // Ищем жетон в колонке техотдела
+      const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+      if (!column) {
+        console.warn('Tech department column not found:', columnNum)
+        return 0
+      }
+
+      // Ищем жетон (токен) в колонке
+      const token = column.querySelector('.player-department-technical-development__token')
+      if (!token) {
+        console.warn('Tech department token not found in column:', columnNum)
+        return 0
+      }
+
+      // Получаем родительскую строку жетона
+      const row = token.closest('.player-department-technical-development__row')
+      if (!row) {
+        console.warn('Tech department row not found for token')
+        return 0
+      }
+
+      // Получаем индекс строки из data-row-index
+      const rowIndex = parseInt(row.dataset.rowIndex || '0', 10)
+      
+      // Для колонок 1 и 3: позиция = rowIndex (1-5), где 1 = нижняя позиция
+      // Для колонок 2 и 4: позиция = rowIndex (0-5), где 0 = нижняя позиция
+      // Возвращаем количество блоков для перемещения (позиция жетона)
+      if (columnNum === 1 || columnNum === 3) {
+        // Для колонок 1 и 3: rowIndex от 1 до 5, где 1 = нижняя позиция (0 блоков), 5 = верхняя (4 блока)
+        return rowIndex // Позиция = количество блоков
+      } else {
+        // Для колонок 2 и 4: rowIndex от 0 до 5, где 0 = нижняя позиция (0 блоков), 5 = верхняя (5 блоков)
+        return rowIndex // Позиция = количество блоков
+      }
+    },
+
+    /**
+     * Обрабатывает клик на жетон задачи в backlog
+     * @param {HTMLElement} tokenElement Элемент жетона
+     * @param {Object} tokenData Данные жетона
+     */
+    _handleTaskTokenClick: function (tokenElement, tokenData) {
+      const color = tokenData?.color
+      const tokenId = tokenData?.token_id
+      const location = tokenData?.location || 'backlog'
+
+      if (!color || !tokenId) {
+        console.error('Invalid token data:', tokenData)
+        return
+      }
+
+      // Проверяем, находимся ли мы в режиме перемещения задач (эффект move_task)
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      
+      console.log('🔍🔍🔍 _handleTaskTokenClick - Checking mode:', {
+        hasPendingMoves: !!pendingMoves,
+        pendingMoves: pendingMoves,
+        fromEffect: pendingMoves?.fromEffect,
+        fromEffectType: typeof pendingMoves?.fromEffect,
+        fromEffectStrict: pendingMoves?.fromEffect === true,
+        moveSource: pendingMoves?.moveSource,
+        moveSourceValue: pendingMoves?.moveSource === 'founder_effect',
+        moveCount: pendingMoves?.moveCount,
+        usedMoves: pendingMoves?.usedMoves,
+        availableMoves: pendingMoves ? (pendingMoves.moveCount - pendingMoves.usedMoves) : null,
+        color,
+        tokenId,
+        location,
+        gamedatasKeys: Object.keys(this.gamedatas || {}),
+        pendingTaskMovesJson: this.gamedatas?.pendingTaskMovesJson,
+        fullGamedatasPendingTaskMoves: JSON.stringify(this.gamedatas?.pendingTaskMoves, null, 2)
+      })
+      
+      console.log('🔍🔍🔍 _handleTaskTokenClick - STEP 1: Checking if pendingMoves exists')
+      console.log('  → pendingMoves:', pendingMoves)
+      console.log('  → !!pendingMoves:', !!pendingMoves)
+      
+      if (pendingMoves) {
+        console.log('✅✅✅ _handleTaskTokenClick - STEP 2: pendingMoves EXISTS, entering effect mode branch')
+        // Режим перемещения задач от эффекта карты
+        // Проверяем цвет, если указан
+        if (pendingMoves.moveColor !== 'any' && color !== pendingMoves.moveColor) {
+          this.showMessage(_('Можно перемещать только задачи указанного цвета'), 'error')
+          return
+        }
+
+        // Если это эффект карты (fromEffect = true), НЕ учитываем позицию в техотделе
+        // Используем только move_count из эффекта
+        const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+
+        if (availableMoves === 0) {
+          this.showMessage(_('Нет доступных ходов для перемещения'), 'error')
+          return
+        }
+
+        // В режиме эффекта карты можно переместить на любое количество блоков до availableMoves
+        // НЕ учитываем позицию в техотделе - используем только availableMoves
+        // Проверяем и fromEffect, и moveSource для надежности
+        console.log('🔍🔍🔍 _handleTaskTokenClick - STEP 3: Checking isEffectMode condition')
+        console.log('  → pendingMoves.fromEffect:', pendingMoves.fromEffect, '(type:', typeof pendingMoves.fromEffect, ')')
+        console.log('  → pendingMoves.fromEffect === true:', pendingMoves.fromEffect === true)
+        console.log('  → pendingMoves.moveSource:', pendingMoves.moveSource)
+        console.log('  → pendingMoves.moveSource === "founder_effect":', pendingMoves.moveSource === 'founder_effect')
+        
+        const check1 = pendingMoves.fromEffect === true
+        const check2 = pendingMoves.moveSource === 'founder_effect'
+        const isEffectMode = check1 || check2
+        
+        console.log('  → check1 (fromEffect === true):', check1)
+        console.log('  → check2 (moveSource === "founder_effect"):', check2)
+        console.log('  → isEffectMode (check1 || check2):', isEffectMode)
+        
+        const techDeptPos = this._getTechDepartmentPosition(color)
+        const maxBlocks = isEffectMode ? availableMoves : Math.min(techDeptPos, availableMoves)
+        
+        console.log('🔍🔍🔍 _handleTaskTokenClick - STEP 4: Calculating maxBlocks')
+        console.log('  → availableMoves:', availableMoves)
+        console.log('  → techDeptPosition:', techDeptPos)
+        console.log('  → isEffectMode:', isEffectMode)
+        console.log('  → maxBlocks calculation:', isEffectMode ? `availableMoves (${availableMoves})` : `Math.min(techDeptPos (${techDeptPos}), availableMoves (${availableMoves}))`)
+        console.log('  → FINAL maxBlocks:', maxBlocks)
+        
+        console.log('🔍🔍🔍 _handleTaskTokenClick - Mode check SUMMARY:', {
+          fromEffect: pendingMoves.fromEffect,
+          fromEffectType: typeof pendingMoves.fromEffect,
+          fromEffectStrict: pendingMoves.fromEffect === true,
+          moveSource: pendingMoves.moveSource,
+          moveSourceStrict: pendingMoves.moveSource === 'founder_effect',
+          check1: check1,
+          check2: check2,
+          isEffectMode: isEffectMode,
+          availableMoves: availableMoves,
+          techDeptPosition: techDeptPos,
+          maxBlocks: maxBlocks
+        })
+
+        if (maxBlocks === 0) {
+          this.showMessage(_('Нет доступных ходов для перемещения'), 'error')
+          return
+        }
+
+        console.log('✅ Task token clicked (move mode from effect):', { 
+          color, 
+          tokenId, 
+          maxBlocks, 
+          availableMoves, 
+          fromEffect: pendingMoves.fromEffect,
+          location,
+          moveCount: pendingMoves.moveCount,
+          usedMoves: pendingMoves.usedMoves,
+          pendingMoves: pendingMoves
+        })
+
+        // Подсвечиваем доступные колонки с учетом доступных ходов (без ограничения техотделом)
+        // В режиме эффекта карты maxBlocks = availableMoves, поэтому подсветятся все колонки в пределах доступных ходов
+        // ВАЖНО: Передаем pendingMoves, чтобы функция знала, что это режим эффекта карты
+        this._highlightAvailableColumns(maxBlocks, color, tokenId, location, pendingMoves)
+      } else {
+        console.log('❌❌❌ _handleTaskTokenClick - STEP 2: pendingMoves DOES NOT EXIST, entering normal mode branch')
+        console.log('  → This means: NO effect mode, using tech department logic')
+        
+        // Обычный режим (фаза Спринт) - используем стандартную логику
+        // Получаем максимальное количество блоков для перемещения из техотдела
+        const maxBlocks = this._getTechDepartmentPosition(color)
+        
+        console.log('🔍🔍🔍 _handleTaskTokenClick - Normal mode calculation:')
+        console.log('  → techDeptPosition:', maxBlocks)
+        
+        if (maxBlocks === 0) {
+          this.showMessage(_('Невозможно переместить задачу: позиция в техотделе не найдена'), 'error')
+          return
+        }
+
+        console.log('Task token clicked (normal mode - Sprint phase):', { color, tokenId, maxBlocks, location })
+
+        // В обычном режиме создаем pendingMoves с moveSource = 'sprint_phase'
+        // чтобы функция _highlightAvailableColumns знала, что это обычный режим
+        const sprintPhaseMoves = {
+          moveCount: maxBlocks,
+          moveColor: 'any',
+          usedMoves: 0,
+          moves: [],
+          fromEffect: false, // НЕ эффект карты
+          moveSource: 'sprint_phase' // Источник: фаза Спринт
+        }
+
+        // Подсвечиваем доступные колонки с информацией о режиме
+        this._highlightAvailableColumns(maxBlocks, color, tokenId, location, sprintPhaseMoves)
+      }
+    },
+
+    /**
+     * Подсвечивает доступные колонки для перемещения жетона
+     * @param {number} maxBlocks Максимальное количество блоков для перемещения
+     * @param {string} color Цвет задачи
+     * @param {number} tokenId ID жетона
+     * @param {string} fromLocation Текущая локация жетона
+     * @param {Object} pendingMoves Данные о ожидающих перемещениях (для режима эффекта карты)
+     */
+    _highlightAvailableColumns: function (maxBlocks, color, tokenId, fromLocation = 'backlog', pendingMoves = null) {
+      // Убираем предыдущую подсветку
+      this._clearColumnHighlight()
+
+      // Колонки в порядке: backlog -> in-progress -> testing -> completed
+      const locationOrder = ['backlog', 'in-progress', 'testing', 'completed']
+      const fromIndex = locationOrder.indexOf(fromLocation)
+      
+      if (fromIndex === -1) {
+        console.error('Invalid fromLocation:', fromLocation)
+        return
+      }
+      
+      const columns = [
+        { id: 'sprint-column-in-progress', location: 'in-progress' },
+        { id: 'sprint-column-testing', location: 'testing' },
+        { id: 'sprint-column-completed', location: 'completed' }
+      ]
+
+      // Проверяем, находимся ли мы в режиме перемещения от эффекта карты
+      // Если pendingMoves не передан, берем из gamedatas
+      if (!pendingMoves) {
+        pendingMoves = this.gamedatas?.pendingTaskMoves
+      }
+      
+      // Определяем режим: эффект карты (fromEffect=true) или фаза Спринт (moveSource='sprint_phase')
+      console.log('🔍🔍🔍 _highlightAvailableColumns - STEP 1: Determining mode')
+      console.log('  → pendingMoves:', pendingMoves)
+      console.log('  → pendingMoves?.fromEffect:', pendingMoves?.fromEffect, '(type:', typeof pendingMoves?.fromEffect, ')')
+      console.log('  → pendingMoves?.fromEffect === true:', pendingMoves?.fromEffect === true)
+      console.log('  → pendingMoves?.moveSource:', pendingMoves?.moveSource)
+      console.log('  → pendingMoves?.moveSource === "founder_effect":', pendingMoves?.moveSource === 'founder_effect')
+      
+      let check1 = pendingMoves && pendingMoves.fromEffect === true
+      let check2 = pendingMoves && pendingMoves.moveSource === 'founder_effect'
+      let isEffectMode = check1 || check2
+      const isSprintPhase = pendingMoves && pendingMoves.moveSource === 'sprint_phase'
+      
+      console.log('  → check1 (fromEffect === true):', check1)
+      console.log('  → check2 (moveSource === "founder_effect"):', check2)
+      console.log('  → isEffectMode (check1 || check2):', isEffectMode)
+      console.log('  → isSprintPhase:', isSprintPhase)
+      
+      // Если pendingMoves существует, но fromEffect и moveSource не установлены, 
+      // но есть moveCount > 0, то это скорее всего эффект карты
+      if (pendingMoves && !isEffectMode && !isSprintPhase && pendingMoves.moveCount > 0) {
+        console.warn('⚠️⚠️⚠️ _highlightAvailableColumns - pendingMoves exists but fromEffect/moveSource not set! Assuming founder_effect mode.')
+        console.warn('  → BEFORE fix: fromEffect=', pendingMoves.fromEffect, ', moveSource=', pendingMoves.moveSource)
+        pendingMoves.fromEffect = true
+        pendingMoves.moveSource = 'founder_effect'
+        // Обновляем в gamedatas тоже
+        if (this.gamedatas.pendingTaskMoves) {
+          this.gamedatas.pendingTaskMoves.fromEffect = true
+          this.gamedatas.pendingTaskMoves.moveSource = 'founder_effect'
+        }
+        // Пересчитываем isEffectMode после обновления
+        isEffectMode = true
+        console.warn('  → AFTER fix: fromEffect=', pendingMoves.fromEffect, ', moveSource=', pendingMoves.moveSource, ', isEffectMode=', isEffectMode)
+      }
+      
+      console.log('🎯🎯🎯 _highlightAvailableColumns:', {
+        maxBlocks,
+        fromLocation,
+        isEffectMode,
+        isSprintPhase,
+        pendingMoves: pendingMoves,
+        fromEffect: pendingMoves?.fromEffect,
+        moveSource: pendingMoves?.moveSource,
+        availableMoves: isEffectMode ? (pendingMoves.moveCount - pendingMoves.usedMoves) : null,
+        moveCount: pendingMoves?.moveCount,
+        usedMoves: pendingMoves?.usedMoves,
+        techDeptPosition: isEffectMode ? 'IGNORED (founder effect)' : (this._getTechDepartmentPosition ? this._getTechDepartmentPosition(color || '') : 'N/A')
+      })
+
+      // Подсвечиваем доступные колонки (только те, что дальше текущей позиции)
+      columns.forEach((col) => {
+        const toIndex = locationOrder.indexOf(col.location)
+        if (toIndex === -1) return
+        
+        const blocksNeeded = toIndex - fromIndex
+        
+        // В режиме эффекта карты показываем все колонки в пределах доступных ходов
+        // В обычном режиме показываем только те, что в пределах maxBlocks
+        if (blocksNeeded > 0 && blocksNeeded <= maxBlocks) {
+          // Дополнительная проверка для режима эффекта карты
+          if (isEffectMode) {
+            // В режиме эффекта карты проверяем, что у нас достаточно доступных ходов
+            // ИГНОРИРУЕМ техотдел - используем только moveCount из эффекта
+            const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+            console.log(`🔍 Column ${col.location}: blocksNeeded=${blocksNeeded}, availableMoves=${availableMoves}, maxBlocks=${maxBlocks}`)
+            if (blocksNeeded > availableMoves) {
+              console.log(`⏭️ Skipping column ${col.location}: blocksNeeded (${blocksNeeded}) > availableMoves (${availableMoves})`)
+              return // Пропускаем, если не хватает ходов
+            }
+            console.log(`✅ Will highlight column ${col.location} (founder effect mode, ignoring tech dept)`)
+          } else if (isSprintPhase) {
+            // В режиме фазы Спринт используем ограничение из техотдела (maxBlocks уже установлен)
+            console.log(`✅ Will highlight column ${col.location} (sprint phase mode, maxBlocks=${maxBlocks} from tech dept)`)
+          } else {
+            // Обычный режим (без pendingMoves) - используем maxBlocks
+            console.log(`✅ Will highlight column ${col.location} (normal mode, maxBlocks=${maxBlocks})`)
+          }
+          
+          const columnElement = document.getElementById(col.id)
+          if (columnElement) {
+            columnElement.classList.add('sprint-column--available')
+            columnElement.dataset.targetLocation = col.location
+            columnElement.dataset.targetTokenId = tokenId
+            columnElement.dataset.targetColor = color
+            columnElement.dataset.blocksNeeded = blocksNeeded // Сохраняем количество блоков
+            columnElement.style.cursor = 'pointer'
+            
+            // Добавляем обработчик клика на колонку
+            const clickHandler = (e) => {
+              e.stopPropagation()
+              this._moveTaskTokenToColumn(tokenId, col.location, color)
+              this._clearColumnHighlight()
+            }
+            columnElement.addEventListener('click', clickHandler, { once: true })
+            columnElement._taskMoveHandler = clickHandler // Сохраняем для удаления
+          }
+        }
+      })
+
+      // Сохраняем информацию о текущем выборе
+      this._currentTaskSelection = {
+        tokenId: tokenId,
+        color: color,
+        maxBlocks: maxBlocks
+      }
+
+      // Добавляем обработчик клика вне области для отмены выбора
+      const cancelHandler = (e) => {
+        if (!e.target.closest('.sprint-column--available') && !e.target.closest('.task-token--clickable')) {
+          this._clearColumnHighlight()
+          document.removeEventListener('click', cancelHandler)
+        }
+      }
+      setTimeout(() => {
+        document.addEventListener('click', cancelHandler, { once: true })
+      }, 100)
+    },
+
+    /**
+     * Убирает подсветку с колонок
+     */
+    _clearColumnHighlight: function () {
+      const columns = [
+        'sprint-column-in-progress',
+        'sprint-column-testing',
+        'sprint-column-completed'
+      ]
+
+      columns.forEach((colId) => {
+        const column = document.getElementById(colId)
+        if (column) {
+          column.classList.remove('sprint-column--available')
+          column.style.cursor = ''
+          delete column.dataset.targetLocation
+          delete column.dataset.targetTokenId
+          delete column.dataset.targetColor
+          
+          // Удаляем обработчик клика, если есть
+          if (column._taskMoveHandler) {
+            column.removeEventListener('click', column._taskMoveHandler)
+            delete column._taskMoveHandler
+          }
+        }
+      })
+
+      delete this._currentTaskSelection
+    },
+
+    /**
+     * Перемещает жетон задачи в указанную колонку
+     * @param {number} tokenId ID жетона
+     * @param {string} newLocation Новая локация (in-progress, testing, completed)
+     * @param {string} color Цвет задачи
+     */
+    _moveTaskTokenToColumn: function (tokenId, newLocation, color) {
+      console.log('🎯🎯🎯 _moveTaskTokenToColumn called:', { tokenId, newLocation, color })
+
+      // Проверяем, находимся ли мы в режиме перемещения задач (эффект move_task)
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      
+      console.log('🔍🔍🔍 _moveTaskTokenToColumn - Checking mode:', {
+        hasPendingMoves: !!pendingMoves,
+        pendingMoves: pendingMoves,
+        color,
+        tokenId,
+        newLocation: newLocation,
+        fromEffect: pendingMoves?.fromEffect,
+        moveSource: pendingMoves?.moveSource,
+        gamedatasPendingTaskMoves: this.gamedatas?.pendingTaskMoves
+      })
+      
+      if (pendingMoves) {
+        console.log('✅✅✅ _moveTaskTokenToColumn - In effect mode, processing move')
+        
+        // Режим перемещения задач - добавляем в список перемещений
+        const fromLocation = this._getTokenCurrentLocation(tokenId)
+        const blocks = this._calculateBlocksBetween(fromLocation, newLocation)
+        
+        console.log('🔍🔍🔍 _moveTaskTokenToColumn - Move calculation:', {
+          fromLocation: fromLocation,
+          toLocation: newLocation,
+          blocks: blocks,
+          usedMoves: pendingMoves.usedMoves,
+          moveCount: pendingMoves.moveCount,
+          availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves
+        })
+        
+        // Проверяем, достаточно ли ходов
+        if (pendingMoves.usedMoves + blocks > pendingMoves.moveCount) {
+          console.warn('❌ Not enough moves:', {
+            used: pendingMoves.usedMoves,
+            needed: blocks,
+            total: pendingMoves.moveCount
+          })
+          this.showMessage(_('Недостаточно ходов для перемещения'), 'error')
+          return
+        }
+        
+        // Проверяем цвет, если указан
+        if (pendingMoves.moveColor !== 'any') {
+          const tokenColor = this._getTokenColor(tokenId)
+          if (tokenColor !== pendingMoves.moveColor) {
+            console.warn('❌ Color mismatch:', { tokenColor, requiredColor: pendingMoves.moveColor })
+            this.showMessage(_('Можно перемещать только задачи указанного цвета'), 'error')
+            return
+          }
+        }
+        
+        // Добавляем перемещение в список
+        pendingMoves.moves.push({
+          tokenId: tokenId,
+          fromLocation: fromLocation,
+          toLocation: newLocation,
+          blocks: blocks,
+          color: color
+        })
+        pendingMoves.usedMoves += blocks
+        
+        console.log('✅✅✅ _moveTaskTokenToColumn - Move added:', {
+          moves: pendingMoves.moves,
+          usedMoves: pendingMoves.usedMoves,
+          moveCount: pendingMoves.moveCount
+        })
+        
+        // Обновляем UI
+        this._updateTaskMoveModeUI()
+        
+        // Временно перемещаем жетон визуально (обновляем данные)
+        const currentPlayer = this.gamedatas.players[this.player_id]
+        if (currentPlayer && currentPlayer.taskTokens) {
+          const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+          if (token) {
+            console.log('✅ Updating token location in gamedatas:', { tokenId, oldLocation: token.location, newLocation })
+            token.location = newLocation
+          } else {
+            console.warn('⚠️ Token not found in gamedatas:', tokenId)
+          }
+        } else {
+          console.warn('⚠️ Current player or taskTokens not found')
+        }
+        
+        // Перерисовываем жетоны
+        this._renderTaskTokens(this.gamedatas.players)
+        
+        // Если все ходы использованы, показываем кнопку подтверждения
+        if (pendingMoves.usedMoves >= pendingMoves.moveCount) {
+          console.log('✅ All moves used, showing confirm button')
+          this._showTaskMovesConfirmButton()
+        } else {
+          console.log('✅ Moves remaining:', pendingMoves.moveCount - pendingMoves.usedMoves)
+        }
+      } else {
+        // Обычный режим - сразу отправляем на сервер
+        this._updateTaskLocation(tokenId, newLocation, null, (result) => {
+          if (result && result.success !== false) {
+            console.log('✅ Task token moved successfully')
+            // Обновляем отображение
+            this._renderTaskTokens(this.gamedatas.players)
+          } else {
+            console.error('❌ Failed to move task token:', result)
+            this.showMessage(_('Ошибка при перемещении задачи'), 'error')
+          }
+        })
+      }
+    },
+
+    /**
+     * Активирует режим перемещения задач (эффект move_task)
+     * @param {number} moveCount Количество доступных ходов
+     * @param {string} moveColor Цвет задач ('any' для любого цвета)
+     */
+    _activateTaskMoveMode: function (moveCount, moveColor) {
+      console.log('🎯🎯🎯 _activateTaskMoveMode called:', { moveCount, moveColor, pendingTaskMoves: this.gamedatas?.pendingTaskMoves })
+      
+      // Убеждаемся, что pendingTaskMoves установлен правильно
+      if (!this.gamedatas.pendingTaskMoves) {
+        console.warn('⚠️⚠️⚠️ pendingTaskMoves is not set, creating it now')
+        this.gamedatas.pendingTaskMoves = {
+          moveCount: moveCount,
+          moveColor: moveColor,
+          usedMoves: 0,
+          moves: [],
+          fromEffect: true, // Флаг, что это эффект карты
+          moveSource: 'founder_effect'
+        }
+        console.log('✅✅✅ Created pendingTaskMoves:', this.gamedatas.pendingTaskMoves)
+      } else {
+        // Обновляем флаг fromEffect, если он не установлен
+        console.log('🔍 pendingTaskMoves exists, checking fromEffect:', this.gamedatas.pendingTaskMoves.fromEffect)
+        if (!this.gamedatas.pendingTaskMoves.fromEffect) {
+          console.log('⚠️⚠️⚠️ fromEffect is false, setting it to true')
+          this.gamedatas.pendingTaskMoves.fromEffect = true
+          this.gamedatas.pendingTaskMoves.moveSource = 'founder_effect'
+        } else {
+          console.log('✅✅✅ fromEffect is already true, moveSource:', this.gamedatas.pendingTaskMoves.moveSource)
+        }
+      }
+      
+      console.log('✅ pendingTaskMoves after activation:', this.gamedatas.pendingTaskMoves)
+      
+      // Делаем все жетоны во всех колонках кликабельными (кроме completed)
+      const columns = [
+        'sprint-column-backlog',
+        'sprint-column-in-progress',
+        'sprint-column-testing'
+      ]
+      
+      columns.forEach((columnId) => {
+        const column = document.getElementById(columnId)
+        if (column) {
+          const tokens = column.querySelectorAll('.task-token')
+          tokens.forEach((token) => {
+            const tokenColor = token.dataset.color
+            
+            // Проверяем цвет, если указан
+            if (moveColor !== 'any' && tokenColor !== moveColor) {
+              return // Пропускаем жетоны другого цвета
+            }
+            
+            token.classList.add('task-token--move-mode')
+            token.style.cursor = 'pointer'
+            token.style.pointerEvents = 'auto'
+          })
+        }
+      })
+      
+      // Показываем индикатор режима перемещения
+      this._showTaskMoveModeIndicator(moveCount, moveColor)
+      
+      // Перерисовываем жетоны, чтобы применить изменения
+      setTimeout(() => {
+        this._renderTaskTokens(this.gamedatas.players)
+      }, 100)
+    },
+
+    /**
+     * Деактивирует режим перемещения задач
+     */
+    _deactivateTaskMoveMode: function () {
+      console.log('🔒 Deactivating task move mode')
+      
+      // Убираем классы с жетонов
+      const tokens = document.querySelectorAll('.task-token--move-mode')
+      tokens.forEach((token) => {
+        token.classList.remove('task-token--move-mode')
+        if (token.dataset.location === 'backlog') {
+          token.style.cursor = 'pointer'
+          token.style.pointerEvents = 'auto'
+        } else {
+          token.style.cursor = ''
+          token.style.pointerEvents = 'none'
+        }
+      })
+      
+      // Убираем индикатор
+      this._hideTaskMoveModeIndicator()
+      
+      // Убираем кнопку подтверждения
+      const confirmButton = document.getElementById('task-moves-confirm-button')
+      if (confirmButton) {
+        confirmButton.remove()
+      }
+    },
+
+    /**
+     * Показывает индикатор режима перемещения задач
+     */
+    _showTaskMoveModeIndicator: function (moveCount, moveColor) {
+      // Убираем предыдущий индикатор, если есть
+      this._hideTaskMoveModeIndicator()
+      
+      const indicator = document.createElement('div')
+      indicator.id = 'task-move-mode-indicator'
+      indicator.className = 'task-move-mode-indicator'
+      indicator.innerHTML = `
+        <div class="task-move-mode-indicator__content">
+          <span class="task-move-mode-indicator__text">
+            ${_('Режим перемещения задач')}: ${moveCount} ${_('ходов')}
+            ${moveColor !== 'any' ? `(${_('только')} ${this._getTaskTokenColorData(moveColor)?.name || moveColor})` : ''}
+          </span>
+          <span class="task-move-mode-indicator__used" id="task-move-mode-used">0 / ${moveCount}</span>
+        </div>
+      `
+      
+      document.body.appendChild(indicator)
+    },
+
+    /**
+     * Скрывает индикатор режима перемещения задач
+     */
+    _hideTaskMoveModeIndicator: function () {
+      const indicator = document.getElementById('task-move-mode-indicator')
+      if (indicator) {
+        indicator.remove()
+      }
+    },
+
+    /**
+     * Обновляет UI режима перемещения задач
+     */
+    _updateTaskMoveModeUI: function () {
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      if (!pendingMoves) return
+      
+      const usedElement = document.getElementById('task-move-mode-used')
+      if (usedElement) {
+        usedElement.textContent = `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`
+      }
+    },
+
+    /**
+     * Показывает кнопку подтверждения перемещений
+     */
+    _showTaskMovesConfirmButton: function () {
+      // Убираем предыдущую кнопку, если есть
+      const existingButton = document.getElementById('task-moves-confirm-button')
+      if (existingButton) {
+        existingButton.remove()
+      }
+      
+      const indicator = document.getElementById('task-move-mode-indicator')
+      if (!indicator) return
+      
+      const button = document.createElement('button')
+      button.id = 'task-moves-confirm-button'
+      button.className = 'task-moves-confirm-button'
+      button.textContent = _('Подтвердить перемещения')
+      
+      button.addEventListener('click', () => {
+        this._confirmTaskMoves()
+      })
+      
+      indicator.appendChild(button)
+    },
+
+    /**
+     * Подтверждает перемещения задач и отправляет на сервер
+     */
+    _confirmTaskMoves: function () {
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      if (!pendingMoves) {
+        return
+      }
+      
+      if (pendingMoves.usedMoves !== pendingMoves.moveCount) {
+        this.showMessage(_('Вы должны использовать все доступные ходы'), 'error')
+        return
+      }
+      
+      console.log('✅ Confirming task moves:', pendingMoves.moves)
+      
+      // Отправляем на сервер
+      this.bgaPerformAction('actConfirmTaskMoves', {
+        moves: JSON.stringify(pendingMoves.moves)
+      }, (result) => {
+        if (result && result.success !== false) {
+          console.log('✅ Task moves confirmed successfully')
+        } else {
+          console.error('❌ Failed to confirm task moves:', result)
+          this.showMessage(_('Ошибка при подтверждении перемещений'), 'error')
+        }
+      })
+    },
+
+    /**
+     * Получает текущую локацию жетона
+     */
+    _getTokenCurrentLocation: function (tokenId) {
+      // Сначала проверяем в gamedatas (более надежный источник)
+      const currentPlayer = this.gamedatas.players[this.player_id]
+      if (currentPlayer && currentPlayer.taskTokens) {
+        const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+        if (token && token.location) {
+          console.log('🔍 _getTokenCurrentLocation from gamedatas:', { tokenId, location: token.location })
+          return token.location
+        }
+      }
+      
+      // Если не нашли в gamedatas, проверяем DOM
+      const token = document.querySelector(`[data-token-id="${tokenId}"]`)
+      const location = token?.dataset.location || 'backlog'
+      console.log('🔍 _getTokenCurrentLocation from DOM:', { tokenId, location })
+      return location
+    },
+
+    /**
+     * Получает цвет жетона
+     */
+    _getTokenColor: function (tokenId) {
+      const token = document.querySelector(`[data-token-id="${tokenId}"]`)
+      return token?.dataset.color || ''
+    },
+
+    /**
+     * Вычисляет количество блоков между двумя локациями
+     */
+    _calculateBlocksBetween: function (fromLocation, toLocation) {
+      const locationOrder = ['backlog', 'in-progress', 'testing', 'completed']
+      const fromIndex = locationOrder.indexOf(fromLocation)
+      const toIndex = locationOrder.indexOf(toLocation)
+      
+      if (fromIndex === -1 || toIndex === -1) {
+        return 0
+      }
+      
+      return Math.max(0, toIndex - fromIndex)
+    },
+
+    /**
+     * Показывает подсказку о последовательности действий для эффекта карты основателя
+     * @param {string} founderName Имя основателя
+     * @param {number} taskAmount Количество задач для выбора
+     * @param {Object} movesData Данные о перемещении {moveCount, moveColor}
+     */
+    _showFounderEffectSequenceHint: function (founderName, taskAmount, movesData) {
+      // Убираем предыдущую подсказку, если есть
+      this._hideFounderEffectSequenceHint()
+      
+      const hint = document.createElement('div')
+      hint.id = 'founder-effect-sequence-hint'
+      hint.className = 'founder-effect-sequence-hint'
+      hint.innerHTML = `
+        <div class="founder-effect-sequence-hint__content">
+          <div class="founder-effect-sequence-hint__title">
+            ${_('Эффект карты')} "${founderName}"
+          </div>
+          <div class="founder-effect-sequence-hint__steps">
+            <div class="founder-effect-sequence-hint__step ${this.gamedatas.pendingTaskSelection ? 'founder-effect-sequence-hint__step--active' : 'founder-effect-sequence-hint__step--completed'}">
+              <span class="founder-effect-sequence-hint__step-number">1</span>
+              <span class="founder-effect-sequence-hint__step-text">${_('Выберите')} ${taskAmount} ${_('задач')}</span>
+            </div>
+            <div class="founder-effect-sequence-hint__step ${this.gamedatas.pendingTaskMoves ? 'founder-effect-sequence-hint__step--active' : ''}">
+              <span class="founder-effect-sequence-hint__step-number">2</span>
+              <span class="founder-effect-sequence-hint__step-text">${_('Передвиньте задачи на')} ${movesData.moveCount} ${_('блока')}</span>
+            </div>
+          </div>
+        </div>
+      `
+      
+      document.body.appendChild(hint)
+    },
+
+    /**
+     * Скрывает подсказку о последовательности действий
+     */
+    _hideFounderEffectSequenceHint: function () {
+      const hint = document.getElementById('founder-effect-sequence-hint')
+      if (hint) {
+        hint.remove()
+      }
     },
 
     _renderTaskInputs: function () {
@@ -4340,14 +5389,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             this._renderFounderCardInDepartment(founder, this.player_id, department)
           }
 
+          // Проверяем, не выполняется ли уже действие
+          if (this._placingFounder) {
+            console.warn('⚠️ actPlaceFounder already in progress, ignoring duplicate call')
+            return
+          }
+          
+          // Устанавливаем флаг, что действие выполняется
+          this._placingFounder = true
+          
           // Вызываем серверное действие для размещения карты
           this.bgaPerformAction('actPlaceFounder', {
               department: department,
           }).then(() => {
             // Кнопка "Завершить ход" разблокируется через уведомление founderEffectsApplied
             // после применения всех эффектов карты основателя
+            this._placingFounder = false
           }).catch((error) => {
             console.error('❌ Error placing founder card:', error)
+            this._placingFounder = false
           })
         }
 

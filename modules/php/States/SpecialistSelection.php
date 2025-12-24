@@ -126,8 +126,8 @@ class SpecialistSelection extends GameState
                 error_log('SpecialistSelection::getArgs - First card structure: ' . json_encode(array_keys($firstCard)));
                 error_log('SpecialistSelection::getArgs - First card ID: ' . ($firstCard['id'] ?? 'NOT SET') . ' (type: ' . gettype($firstCard['id'] ?? null) . ')');
                 
-                // Сохраняем ТОЛЬКО ID карт (чтобы не превысить лимит bga_globals)
-                $handCardIds = array_column($dealtCards, 'id');
+            // Сохраняем ТОЛЬКО ID карт (чтобы не превысить лимит bga_globals)
+            $handCardIds = array_column($dealtCards, 'id');
                 
                 // ВАЖНО: Проверяем, что array_column вернул ID
                 if (empty($handCardIds)) {
@@ -154,13 +154,13 @@ class SpecialistSelection extends GameState
             
             // Сохраняем в globals ТОЛЬКО если есть карты
             if (!empty($handCardIds)) {
-                $this->game->globals->set('specialist_hand_' . $activePlayerId, json_encode($handCardIds));
-                
-                // ВАЖНО: Проверяем, что сохранилось правильно
-                $savedJson = $this->game->globals->get('specialist_hand_' . $activePlayerId, '');
-                $savedIds = !empty($savedJson) ? json_decode($savedJson, true) : [];
-                error_log('SpecialistSelection::getArgs - Saved card IDs: ' . json_encode($savedIds));
-                error_log('SpecialistSelection::getArgs - Saved IDs count: ' . count($savedIds));
+            $this->game->globals->set('specialist_hand_' . $activePlayerId, json_encode($handCardIds));
+            
+            // ВАЖНО: Проверяем, что сохранилось правильно
+            $savedJson = $this->game->globals->get('specialist_hand_' . $activePlayerId, '');
+            $savedIds = !empty($savedJson) ? json_decode($savedJson, true) : [];
+            error_log('SpecialistSelection::getArgs - Saved card IDs: ' . json_encode($savedIds));
+            error_log('SpecialistSelection::getArgs - Saved IDs count: ' . count($savedIds));
                 error_log('SpecialistSelection::getArgs - Saved IDs types: ' . json_encode(array_map('gettype', $savedIds)));
             } else {
                 error_log('SpecialistSelection::getArgs - ERROR: No card IDs to save!');
@@ -306,7 +306,7 @@ class SpecialistSelection extends GameState
                     throw new UserException(clienttranslate('Эта карта не находится на вашей руке'));
                 }
             } else {
-                throw new UserException(clienttranslate('Эта карта не находится на вашей руке'));
+            throw new UserException(clienttranslate('Эта карта не находится на вашей руке'));
             }
         }
         
