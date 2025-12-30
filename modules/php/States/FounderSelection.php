@@ -208,7 +208,7 @@ class FounderSelection extends GameState
         if ($cardId !== null) {
             $this->applyFounderEffectsAfterPlacement($activePlayerId, $cardId);
         }
-
+        
         $this->game->giveExtraTime($activePlayerId);
 
         // После размещения карты НЕ переходим автоматически к следующему игроку
@@ -235,6 +235,19 @@ class FounderSelection extends GameState
         error_log("applyFounderEffectsAfterPlacement - ActivationStage: " . ($activationStage ?? 'null'));
         error_log("applyFounderEffectsAfterPlacement - Effect: " . json_encode($effect));
         
+        // Специальная проверка для updateTrack ДО обработки
+        if (isset($effect['updateTrack'])) {
+            error_log("🔧🔧🔧 applyFounderEffectsAfterPlacement - updateTrack found in effect! Count: " . count($effect['updateTrack']));
+            error_log("🔧 applyFounderEffectsAfterPlacement - updateTrack full: " . json_encode($effect['updateTrack']));
+            if (is_array($effect['updateTrack'])) {
+                foreach ($effect['updateTrack'] as $idx => $track) {
+                    error_log("🔧 applyFounderEffectsAfterPlacement - Track #$idx from FoundersData: " . json_encode($track));
+                }
+            }
+        } else {
+            error_log("🔴 applyFounderEffectsAfterPlacement - updateTrack NOT FOUND in effect!");
+        }
+        
         // Применяем эффекты только если activationStage == 'GameSetup'
         if ($activationStage !== 'GameSetup') {
             // Если activationStage != 'GameSetup', эффекты не применяются, но кнопка все равно разблокируется
@@ -255,13 +268,19 @@ class FounderSelection extends GameState
         } else {
             error_log("🔍🔍🔍 applyFounderEffectsAfterPlacement - Effect keys: " . implode(', ', array_keys($effect)));
             error_log("🔍🔍🔍 applyFounderEffectsAfterPlacement - Full effect: " . json_encode($effect));
-            $expectedEffects = ['badger', 'card', 'task', 'move_task'];
+            $expectedEffects = ['badger', 'card', 'task', 'move_task', 'updateTrack', 'incomeTrack'];
             foreach ($expectedEffects as $expectedType) {
                 if (!isset($effect[$expectedType])) {
-                    error_log("applyFounderEffectsAfterPlacement - WARNING: Effect '$expectedType' is missing from card data!");
+                    error_log("applyFounderEffectsAfterPlacement - Effect '$expectedType' is missing from card data (this is OK if card doesn't have this effect)");
                 } else {
-                    error_log("applyFounderEffectsAfterPlacement - Found effect '$expectedType': " . json_encode($effect[$expectedType]));
+                    error_log("✅✅✅ applyFounderEffectsAfterPlacement - Found effect '$expectedType': " . json_encode($effect[$expectedType]));
                 }
+            }
+            
+            // Специальная проверка для updateTrack
+            if (isset($effect['updateTrack'])) {
+                error_log("🔵🔵🔵 applyFounderEffectsAfterPlacement - updateTrack effect FOUND in card data!");
+                error_log("🔵 updateTrack value: " . json_encode($effect['updateTrack']));
             }
         }
         
@@ -269,26 +288,73 @@ class FounderSelection extends GameState
         error_log("applyFounderEffectsAfterPlacement - Applied effects count: " . count($appliedEffects));
         error_log("applyFounderEffectsAfterPlacement - Applied effects: " . json_encode($appliedEffects));
         
+        // ВРЕМЕННОЕ УВЕДОМЛЕНИЕ ДЛЯ ОТЛАДКИ
+        $updateTrackValue = $effect['updateTrack'] ?? null;
+        $updateTrackCount = is_array($updateTrackValue) ? count($updateTrackValue) : 0;
+        
+        // Проверяем, есть ли updateTrack в примененных эффектах
+        $updateTrackInApplied = null;
+        foreach ($appliedEffects as $appliedEffect) {
+            if (($appliedEffect['type'] ?? '') === 'updateTrack') {
+                $updateTrackInApplied = $appliedEffect;
+                break;
+            }
+        }
+        
+        $tracksInApplied = $updateTrackInApplied['tracks'] ?? [];
+        $tracksInAppliedCount = is_array($tracksInApplied) ? count($tracksInApplied) : 0;
+        
+        $this->notify->player($playerId, 'debugUpdateTrack', '', [
+            'player_id' => $playerId,
+            'card_id' => $cardId,
+            'card_name' => $founderCard['name'] ?? 'unknown',
+            'has_updateTrack' => isset($effect['updateTrack']) ? 'YES' : 'NO',
+            'updateTrack_value' => $updateTrackValue,
+            'updateTrack_count' => $updateTrackCount,
+            'applied_effects_count' => count($appliedEffects),
+            'applied_effects' => $appliedEffects,
+            'updateTrack_in_applied' => $updateTrackInApplied,
+            'tracks_in_applied_count' => $tracksInAppliedCount,
+            'tracks_in_applied' => $tracksInApplied,
+        ]);
+        
         // Если были применены эффекты, отправляем уведомления
         // ВАЖНО: Обрабатываем эффекты в строгом порядке: badger -> card -> task
         if (!empty($appliedEffects)) {
             // Сортируем эффекты по порядку обработки для четкой последовательности
-            $effectOrder = ['badger' => 1, 'card' => 2, 'task' => 3, 'move_task' => 4];
+            $effectOrder = ['badger' => 1, 'card' => 2, 'task' => 3, 'move_task' => 4, 'incomeTrack' => 5, 'updateTrack' => 6];
             usort($appliedEffects, function($a, $b) use ($effectOrder) {
                 $orderA = $effectOrder[$a['type']] ?? 999;
                 $orderB = $effectOrder[$b['type']] ?? 999;
                 return $orderA <=> $orderB;
             });
             
+            error_log("🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷");
             error_log("FounderSelection - Total effects to process: " . count($appliedEffects));
             error_log("FounderSelection - Effects array: " . json_encode($appliedEffects));
             
-            $hasMoveTask = false;
+            // Проверяем, есть ли updateTrack в эффектах
+            $hasUpdateTrack = false;
             foreach ($appliedEffects as $effect) {
+                if (($effect['type'] ?? '') === 'updateTrack') {
+                    $hasUpdateTrack = true;
+                    error_log('🔵🔵🔵 FOUND updateTrack in appliedEffects BEFORE loop!');
+                    break;
+                }
+            }
+            
+            $hasMoveTask = false;
+            foreach ($appliedEffects as $index => $effect) {
                 $effectType = $effect['type'] ?? 'unknown';
+                error_log("🔷🔷🔷 FounderSelection - Effect #$index: type=$effectType");
                 if ($effectType === 'move_task') {
                     $hasMoveTask = true;
                     error_log('✅✅✅ FounderSelection - Found move_task effect in appliedEffects!');
+                }
+                if ($effectType === 'updateTrack') {
+                    error_log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
+                    error_log('🔵🔵🔵 FounderSelection - Found updateTrack effect in appliedEffects!');
+                    error_log('🔵 Effect full data: ' . json_encode($effect));
                 }
                 error_log("FounderSelection - Processing notification for effect type: $effectType, effect data: " . json_encode($effect));
                 
@@ -333,7 +399,155 @@ class FounderSelection extends GameState
                     
                     error_log('FounderSelection - Player ' . $playerId . ' received ' . $effect['amount'] . ' specialist cards (card): ' . $cardNames);
                 }
-                // Эффект 3: TASK - выдача задач (task tokens)
+                // Эффект 3: INCOME_TRACK - изменение трека дохода
+                elseif ($effectType === 'incomeTrack' && isset($effect['amount']) && $effect['amount'] !== 0) {
+                    error_log('FounderSelection - Sending incomeTrackChanged notification');
+                    
+                    // Отправляем уведомление об изменении трека дохода
+                    $this->notify->all('incomeTrackChanged', clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'), [
+                        'player_id' => $playerId,
+                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'action_text' => $effect['amount'] > 0 ? clienttranslate('увеличивает') : clienttranslate('уменьшает'),
+                        'amount' => abs($effect['amount']),
+                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                        'oldValue' => $effect['oldValue'],
+                        'newValue' => $effect['newValue'],
+                        'i18n' => ['action_text'],
+                    ]);
+                    
+                    error_log('FounderSelection - Player ' . $playerId . ' income track changed from ' . $effect['oldValue'] . ' to ' . $effect['newValue']);
+                }
+                // Эффект 4: UPDATE_TRACK - обновление нескольких треков
+                elseif ($effectType === 'updateTrack') {
+                    error_log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
+                    error_log('🔵🔵🔵 FounderSelection - Processing updateTrack effect');
+                    error_log('🔵 FounderSelection - Player: ' . $playerId);
+                    error_log('🔵 FounderSelection - Effect type: ' . $effectType);
+                    error_log('🔵 FounderSelection - Effect data: ' . json_encode($effect));
+                    error_log('🔵 FounderSelection - Effect keys: ' . implode(', ', array_keys($effect)));
+                    error_log('🔵 FounderSelection - isset(effect[tracks]): ' . (isset($effect['tracks']) ? 'YES' : 'NO'));
+                    if (isset($effect['tracks'])) {
+                        error_log('🔵 FounderSelection - effect[tracks] type: ' . gettype($effect['tracks']));
+                        error_log('🔵 FounderSelection - effect[tracks] is_array: ' . (is_array($effect['tracks']) ? 'YES' : 'NO'));
+                    }
+                    
+                    // Проверяем наличие массива tracks
+                    if (isset($effect['tracks']) && is_array($effect['tracks'])) {
+                        error_log('🔵 FounderSelection - tracks array found with ' . count($effect['tracks']) . ' items');
+                        error_log('FounderSelection - Found ' . count($effect['tracks']) . ' tracks to update');
+                        error_log('🔵🔵🔵 FounderSelection - Full tracks array: ' . json_encode($effect['tracks']));
+                        
+                        // Обрабатываем каждый обновленный трек
+                        foreach ($effect['tracks'] as $index => $trackUpdate) {
+                            error_log("🔵 FounderSelection - Track #$index: " . json_encode($trackUpdate));
+                            error_log("🔵 FounderSelection - Track #$index keys: " . implode(', ', array_keys($trackUpdate)));
+                            $trackId = $trackUpdate['trackId'] ?? '';
+                            $trackName = $trackUpdate['trackName'] ?? $trackId;
+                            $column = $trackUpdate['column'] ?? null;
+                            
+                            error_log('🔵 FounderSelection - Processing track: ' . $trackId . ', amount: ' . ($trackUpdate['amount'] ?? 'N/A') . ', column: ' . ($column ?? 'NULL'));
+                            error_log('🔵 FounderSelection - trackId === "income-track": ' . ($trackId === 'income-track' ? 'YES' : 'NO'));
+                            error_log('🔵 FounderSelection - trackId === "player-department-technical-development": ' . ($trackId === 'player-department-technical-development' ? 'YES' : 'NO'));
+                            error_log('🔵 FounderSelection - column === "any": ' . ($column === 'any' ? 'YES' : 'NO'));
+                            
+                            // Для income-track отправляем специальное уведомление
+                            if ($trackId === 'income-track') {
+                                error_log('🔵🔵🔵 FounderSelection - MATCH! income-track found, sending notification');
+                                error_log('FounderSelection - Sending incomeTrackChanged notification for income-track');
+                                error_log('FounderSelection - trackUpdate data: ' . json_encode($trackUpdate));
+                                
+                                $amount = is_numeric($trackUpdate['amount']) ? (int)$trackUpdate['amount'] : 0;
+                                $oldValue = is_numeric($trackUpdate['oldValue']) ? (int)$trackUpdate['oldValue'] : 0;
+                                $newValue = is_numeric($trackUpdate['newValue']) ? (int)$trackUpdate['newValue'] : 0;
+                                
+                                error_log('FounderSelection - Parsed values: amount=' . $amount . ', oldValue=' . $oldValue . ', newValue=' . $newValue);
+                                
+                                // ВАЖНО: Проверяем, что значения правильные
+                                if ($oldValue === 0 && $newValue === 0) {
+                                    error_log('🔴🔴🔴 FounderSelection - ERROR: oldValue and newValue are both 0! This should not happen!');
+                                    error_log('🔴 trackUpdate: ' . json_encode($trackUpdate));
+                                }
+                                
+                                $notificationData = [
+                                    'player_id' => $playerId,
+                                    'player_name' => $this->game->getPlayerNameById($playerId),
+                                    'action_text' => $amount > 0 ? clienttranslate('увеличивает') : clienttranslate('уменьшает'),
+                                    'amount' => abs($amount),
+                                    'founder_name' => $effect['founderName'] ?? 'Основатель',
+                                    'oldValue' => $oldValue,
+                                    'newValue' => $newValue,
+                                    'i18n' => ['action_text'],
+                                ];
+                                
+                                error_log('FounderSelection - Sending notification with data: ' . json_encode($notificationData));
+                                
+                                $this->notify->all('incomeTrackChanged', clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'), $notificationData);
+                                
+                                error_log('✅✅✅ FounderSelection - incomeTrackChanged notification SENT for player ' . $playerId . ' from ' . $oldValue . ' to ' . $newValue);
+                            }
+                            // Для визуальных треков отделов отправляем уведомление для обновления на клиенте
+                            elseif (str_starts_with($trackId, 'player-department-')) {
+                                error_log('🔵 FounderSelection - Processing visual track: ' . $trackId);
+                                error_log('🔵 FounderSelection - trackUpdate keys: ' . implode(', ', array_keys($trackUpdate)));
+                                error_log('🔵 FounderSelection - trackUpdate full: ' . json_encode($trackUpdate));
+                                
+                                $amount = is_numeric($trackUpdate['amount']) ? (int)$trackUpdate['amount'] : 0;
+                                $column = $trackUpdate['column'] ?? null;
+                                
+                                error_log('🔵 FounderSelection - Extracted: amount=' . $amount . ', column=' . ($column ?? 'NULL'));
+                                error_log('🔵 FounderSelection - trackId check: ' . ($trackId === 'player-department-technical-development' ? 'MATCH' : 'NO MATCH'));
+                                error_log('🔵 FounderSelection - column check: ' . ($column === 'any' ? 'MATCH' : 'NO MATCH (' . ($column ?? 'NULL') . ')'));
+                                
+                                // Проверяем, требуется ли выбор колонки (для техотдела)
+                                if ($trackId === 'player-department-technical-development' && $column === 'any') {
+                                    error_log('🔧🔧🔧 FounderSelection - Technical development requires column selection!');
+                                    
+                                    // Сохраняем данные о перемещениях в globals
+                                    $globalsKey = 'pending_technical_development_moves_' . $playerId;
+                                    $pendingMovesData = [
+                                        'move_count' => $amount, // Количество очков для распределения (2)
+                                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                                        'founder_id' => $effect['founderId'] ?? null,
+                                    ];
+                                    $this->game->globals->set($globalsKey, json_encode($pendingMovesData));
+                                    error_log('✅ FounderSelection - Saved pending_technical_development_moves to globals: ' . json_encode($pendingMovesData));
+                                    
+                                    // Отправляем уведомление для активации режима выбора колонок
+                                    $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
+                                        'player_id' => $playerId,
+                                        'move_count' => $amount, // Количество очков для распределения (2)
+                                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                                    ]);
+                                    
+                                    error_log('✅✅✅ FounderSelection - technicalDevelopmentMovesRequired notification SENT for player ' . $playerId . ' with ' . $amount . ' points to distribute');
+                                } else {
+                                    // Обычный визуальный трек без выбора
+                                    $this->notify->all('visualTrackChanged', clienttranslate('${player_name} обновляет ${track_name} на ${amount} благодаря эффекту карты «${founder_name}»'), [
+                                        'player_id' => $playerId,
+                                        'player_name' => $this->game->getPlayerNameById($playerId),
+                                        'track_id' => $trackId,
+                                        'track_name' => $trackName,
+                                        'amount' => $amount,
+                                        'founder_name' => $effect['founderName'] ?? 'Основатель',
+                                        'oldValue' => $trackUpdate['oldValue'] ?? 0,
+                                        'newValue' => $trackUpdate['newValue'] ?? $amount,
+                                    ]);
+                                    
+                                    error_log('✅ FounderSelection - visualTrackChanged notification SENT for track: ' . $trackId . ', amount: ' . $amount);
+                                }
+                            }
+                        }
+                    } else {
+                        error_log('🔴🔴🔴 FounderSelection - WARNING: updateTrack effect does not have tracks array!');
+                        error_log('🔴 Effect structure: ' . json_encode($effect));
+                        error_log('🔴 Effect keys: ' . implode(', ', array_keys($effect)));
+                        error_log('🔴 isset(tracks): ' . (isset($effect['tracks']) ? 'yes' : 'no'));
+                        if (isset($effect['tracks'])) {
+                            error_log('🔴 tracks type: ' . gettype($effect['tracks']));
+                        }
+                    }
+                }
+                // Эффект 5: TASK - выдача задач (task tokens)
                 elseif ($effectType === 'task' && isset($effect['amount']) && $effect['amount'] > 0) {
                     // Отправляем уведомление о необходимости выбора задач
                     $this->notify->player($playerId, 'taskSelectionRequired', '', [
@@ -343,7 +557,7 @@ class FounderSelection extends GameState
                     ]);
                     error_log('FounderSelection - Effect "task": Player ' . $playerId . ' must select ' . $effect['amount'] . ' tasks');
                 }
-                // Эффект 4: MOVE_TASK - перемещение жетонов задач
+                // Эффект 6: MOVE_TASK - перемещение жетонов задач
                 elseif ($effectType === 'move_task') {
                     error_log('🎯🎯🎯 FounderSelection - Processing move_task effect: ' . json_encode($effect));
                     error_log('🎯🎯🎯 FounderSelection - move_task effect keys: ' . implode(', ', array_keys($effect)));
@@ -673,6 +887,81 @@ class FounderSelection extends GameState
         ]);
         
         error_log("actConfirmTaskMoves - Player $activePlayerId moved " . count($movedTokens) . " task tokens: " . json_encode($moves));
+    }
+
+    /**
+     * Подтверждение перемещений жетонов техотдела
+     * @param int $activePlayerId ID активного игрока
+     * @param string $movesJson JSON строка с массивом перемещений [{"column": 1, "fromRowIndex": 1, "toRowIndex": 3, "amount": 2}, ...]
+     */
+    #[PossibleAction]
+    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson)
+    {
+        $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
+        
+        error_log("🔧🔧🔧 actConfirmTechnicalDevelopmentMoves - START: activePlayerId=$activePlayerId");
+        error_log("🔧 actConfirmTechnicalDevelopmentMoves - movesJson: $movesJson");
+        
+        // Проверяем, что есть ожидающие перемещения
+        $globalsKey = 'pending_technical_development_moves_' . $activePlayerId;
+        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
+        
+        if ($pendingMovesJson === null) {
+            throw new UserException(clienttranslate('Нет ожидающих перемещений техотдела'));
+        }
+        
+        $pendingMoves = json_decode($pendingMovesJson, true);
+        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающих перемещений'));
+        }
+        
+        $requiredMoves = (int)$pendingMoves['move_count'];
+        
+        // Декодируем JSON строку перемещений
+        $moves = json_decode($movesJson, true);
+        if (!is_array($moves)) {
+            throw new UserException(clienttranslate('Неверный формат данных перемещений'));
+        }
+        
+        // Проверяем, что использовано правильное количество очков
+        $totalAmount = 0;
+        foreach ($moves as $move) {
+            if (!is_array($move) || !isset($move['column']) || !isset($move['amount'])) {
+                throw new UserException(clienttranslate('Неверный формат перемещения'));
+            }
+            $totalAmount += (int)$move['amount'];
+        }
+        
+        if ($totalAmount !== $requiredMoves) {
+            throw new UserException(clienttranslate('Использовано неверное количество очков: ${used} из ${required}', [
+                'used' => $totalAmount,
+                'required' => $requiredMoves
+            ]));
+        }
+        
+        // Проверяем, что колонки валидны (1-4)
+        foreach ($moves as $move) {
+            $column = (int)$move['column'];
+            if ($column < 1 || $column > 4) {
+                throw new UserException(clienttranslate('Неверный номер колонки: ${column}', [
+                    'column' => $column
+                ]));
+            }
+        }
+        
+        // Сохраняем перемещения в globals для последующего использования
+        $this->game->globals->set($globalsKey, null); // Очищаем ожидающие перемещения
+        
+        // Отправляем уведомление о завершении перемещений
+        $this->notify->all('technicalDevelopmentMovesCompleted', clienttranslate('${player_name} улучшил техотдел благодаря эффекту карты «${founder_name}»'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'founder_name' => $pendingMoves['founder_name'] ?? 'Основатель',
+            'moves' => $moves,
+            'i18n' => ['founder_name'],
+        ]);
+        
+        error_log("🔧 actConfirmTechnicalDevelopmentMoves - Player $activePlayerId moved technical development tokens: " . json_encode($moves));
     }
 
     /**

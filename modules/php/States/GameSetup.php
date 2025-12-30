@@ -38,7 +38,7 @@ class GameSetup extends GameState
         
         // ЭТАП ПОДГОТОВКИ:
         // 1. Распределяем начальные баджерсы (деньги) - по 5 баджерсов каждому игроку
-        error_log('GameSetup::onEnteringState - Step 1: Distributing initial badgers');
+        error_log('GameSetup::onEnteringState - Step 2: Distributing initial badgers');
         $this->game->distributeInitialBadgers($playerIds, 5);
         
         // Проверяем, что все игроки получили по 5 баджерсов

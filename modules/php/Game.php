@@ -32,6 +32,8 @@ use Bga\Games\itarenagame\Effects\BadgerEffectHandler;
 use Bga\Games\itarenagame\Effects\CardEffectHandler;
 use Bga\Games\itarenagame\Effects\TaskEffectHandler;
 use Bga\Games\itarenagame\Effects\MoveTaskEffectHandler;
+use Bga\Games\itarenagame\Effects\TrackEffectHandler;
+use Bga\Games\itarenagame\Effects\UpdateTrackEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -478,7 +480,7 @@ class Game extends \Bga\GameFramework\Table
     protected function setupNewGame($players, $options = [])
     {
         $playerIds = array_keys($players); // Идентификаторы игроков
-        $this->playerEnergy->initDb($playerIds, initialValue: 2);
+        $this->playerEnergy->initDb($playerIds, initialValue: 1); // Начальное значение трека доходов = 1
         $this->playerBadgers->initDb($playerIds, initialValue: 0);
 
         // Set the colors of the players with HTML color code. The default below is red/green/blue/orange/brown. The
@@ -1080,6 +1082,18 @@ class Game extends \Bga\GameFramework\Table
         error_log("applyFounderEffect - Card name: " . ($founderCard['name'] ?? 'unknown'));
         error_log("applyFounderEffect - Effect from FoundersData: " . json_encode($effect));
         
+        // Специальная проверка для updateTrack
+        if (isset($effect['updateTrack'])) {
+            error_log("🔧🔧🔧 applyFounderEffect - updateTrack found! Count: " . count($effect['updateTrack']));
+            error_log("🔧 applyFounderEffect - updateTrack full: " . json_encode($effect['updateTrack']));
+            error_log("🔧 applyFounderEffect - updateTrack is_array: " . (is_array($effect['updateTrack']) ? 'YES' : 'NO'));
+            if (is_array($effect['updateTrack'])) {
+                foreach ($effect['updateTrack'] as $idx => $track) {
+                    error_log("🔧 applyFounderEffect - Track #$idx: " . json_encode($track));
+                }
+            }
+        }
+        
         // Если этап активации не совпадает с текущим, не применяем эффект
         if ($activationStage === null || $activationStage !== $currentStage) {
             error_log("applyFounderEffect - Stage mismatch, skipping effect");
@@ -1104,11 +1118,12 @@ class Game extends \Bga\GameFramework\Table
         
         foreach ($effect as $effectType => $effectValue) {
             // Для массивов (например, move_task) преобразуем в JSON строку
-            if (is_array($effectValue)) {
+            // НО: для updateTrack оставляем массив как есть
+            if (is_array($effectValue) && $effectType !== 'updateTrack') {
                 $effectValue = json_encode($effectValue);
                 error_log("🔍 applyFounderEffect - Converted array to JSON for $effectType: $effectValue");
             }
-            error_log("🔍 applyFounderEffect - Processing effect type: $effectType, value: $effectValue");
+            error_log("🔍 applyFounderEffect - Processing effect type: $effectType, value: " . (is_array($effectValue) ? json_encode($effectValue) : $effectValue));
             $result = $this->processFounderEffectType($playerId, $effectType, $effectValue, $founderCard);
             if ($result !== null) {
                 $appliedEffects[] = $result;
@@ -1139,15 +1154,27 @@ class Game extends \Bga\GameFramework\Table
      */
     private function getEffectHandler(string $effectType): ?EffectHandlerInterface
     {
-        return match ($effectType) {
+        // Сначала проверяем специальные обработчики (включая updateTrack)
+        $specialHandler = match ($effectType) {
             'badger' => new BadgerEffectHandler($this),
             'card' => new CardEffectHandler($this),
             'task' => new TaskEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
-            // Здесь можно добавить другие типы эффектов в будущем:
-            // 'track' => new TrackEffectHandler($this),
+            'updateTrack' => new UpdateTrackEffectHandler($this),
             default => null,
         };
+        
+        if ($specialHandler !== null) {
+            return $specialHandler;
+        }
+        
+        // Универсальный обработчик для всех треков, заканчивающихся на Track (incomeTrack, sprintTrack, taskTrack и т.д.)
+        // НО: updateTrack обрабатывается выше, поэтому сюда не попадет
+        if (str_ends_with($effectType, 'Track')) {
+            return new TrackEffectHandler($this);
+        }
+        
+        return null;
     }
 
     /**
@@ -1160,7 +1187,17 @@ class Game extends \Bga\GameFramework\Table
      */
     private function processFounderEffectType(int $playerId, string $effectType, $effectValue, array $founderCard): ?array
     {
-        error_log("processFounderEffectType - Player: $playerId, Type: $effectType, Value: $effectValue");
+        $effectValueStr = is_array($effectValue) ? json_encode($effectValue) : (string)$effectValue;
+        error_log("processFounderEffectType - Player: $playerId, Type: $effectType, Value: $effectValueStr");
+        
+        // Специальная проверка для updateTrack
+        if ($effectType === 'updateTrack' && is_array($effectValue)) {
+            error_log("🔧🔧🔧 processFounderEffectType - updateTrack BEFORE handler: Count: " . count($effectValue));
+            error_log("🔧 processFounderEffectType - updateTrack BEFORE handler: Full: " . json_encode($effectValue));
+            foreach ($effectValue as $idx => $track) {
+                error_log("🔧 processFounderEffectType - updateTrack BEFORE handler Track #$idx: " . json_encode($track));
+            }
+        }
         
         $handler = $this->getEffectHandler($effectType);
         
@@ -1169,8 +1206,22 @@ class Game extends \Bga\GameFramework\Table
             return null;
         }
         
-        error_log("processFounderEffectType - Applying $effectType effect: $effectValue");
-        return $handler->apply($playerId, $effectValue, $founderCard);
+        error_log("processFounderEffectType - Applying $effectType effect: $effectValueStr");
+        
+        // Для треков передаем ключ эффекта через cardData
+        if (str_ends_with($effectType, 'Track')) {
+            $founderCard['_effectKey'] = $effectType;
+        }
+        
+        $result = $handler->apply($playerId, $effectValue, $founderCard);
+        
+        // Специальная проверка для updateTrack после обработки
+        if ($effectType === 'updateTrack' && is_array($result) && isset($result['tracks'])) {
+            error_log("🔧🔧🔧 processFounderEffectType - updateTrack AFTER handler: Tracks count: " . count($result['tracks']));
+            error_log("🔧 processFounderEffectType - updateTrack AFTER handler: Tracks: " . json_encode($result['tracks']));
+        }
+        
+        return $result;
     }
     
 
@@ -1280,7 +1331,7 @@ class Game extends \Bga\GameFramework\Table
         }
 
         // Обновляем кэш
-        $this->founderAssignments = $result;
+            $this->founderAssignments = $result;
 
         return $this->expandFounders($result);
     }
@@ -1561,8 +1612,8 @@ class Game extends \Bga\GameFramework\Table
         } else {
             // В основном режиме только стартовые карты (starterOrFinisher = 'S')
             $availableCards = [];
-            foreach ($allSpecialists as $cardId => $card) {
-                if (isset($card['starterOrFinisher']) && $card['starterOrFinisher'] === 'S') {
+        foreach ($allSpecialists as $cardId => $card) {
+            if (isset($card['starterOrFinisher']) && $card['starterOrFinisher'] === 'S') {
                     $availableCards[$cardId] = $card;
                 }
             }
@@ -1582,21 +1633,21 @@ class Game extends \Bga\GameFramework\Table
             $playerSpecialists = [];
             
             for ($i = 0; $i < $cardsPerPlayer; $i++) {
-                if (empty($availableIds)) {
-                    // Если карт не хватает, перемешиваем заново
+            if (empty($availableIds)) {
+                // Если карт не хватает, перемешиваем заново
                     $availableIds = array_keys($availableCards);
-                    shuffle($availableIds);
-                }
-                
-                $cardId = (int)array_shift($availableIds);
+                shuffle($availableIds);
+            }
+            
+            $cardId = (int)array_shift($availableIds);
                 $playerSpecialists[] = $cardId;
                 
                 error_log('distributeStartingSpecialistCards - Assigned specialist card ' . $cardId . ' to player ' . $playerId);
-            }
+                }
             
             // Сохраняем карты специалиста для игрока в globals
-            $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
-            
+                $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
+                
             // В Tutorial режиме сразу подтверждаем карты (нет этапа выбора)
             if ($isTutorial) {
                 $this->globals->set('player_specialists_' . $playerId, json_encode($playerSpecialists));

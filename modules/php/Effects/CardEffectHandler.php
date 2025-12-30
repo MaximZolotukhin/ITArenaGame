@@ -19,12 +19,20 @@ class CardEffectHandler implements EffectHandlerInterface
 
     public function apply(int $playerId, mixed $effectValue, array $cardData): array
     {
-        // Парсим значение: '+ 3' -> 3
-        $effectValueStr = (string)$effectValue;
+        // Парсим значение: '+ 3' -> 3, '+ 7' -> 7
+        $effectValueStr = trim((string)$effectValue);
         $cleanValue = str_replace(' ', '', $effectValueStr);
-        $amount = (int)$cleanValue;
         
-        error_log("CardEffectHandler::apply - Player: $playerId, CleanValue: $cleanValue, Amount: $amount");
+        // Используем регулярное выражение для извлечения знака и числа
+        if (preg_match('/^([+-]?)\s*(\d+)$/', $cleanValue, $matches)) {
+            $sign = $matches[1] === '-' ? -1 : 1;
+            $amount = $sign * (int)$matches[2];
+        } else {
+            // Fallback на старый способ
+            $amount = (int)$cleanValue;
+        }
+        
+        error_log("CardEffectHandler::apply - Player: $playerId, OriginalValue: $effectValueStr, CleanValue: $cleanValue, Amount: $amount");
         
         if ($amount <= 0) {
             return [

@@ -1321,6 +1321,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       // Явная подписка на уведомления
       dojo.subscribe('badgersChanged', this, 'notif_badgersChanged')
+      dojo.subscribe('incomeTrackChanged', this, 'notif_incomeTrackChanged')
       dojo.subscribe('roundStart', this, 'notif_roundStart')
       dojo.subscribe('founderSelected', this, 'notif_founderSelected')
       dojo.subscribe('founderPlaced', this, 'notif_founderPlaced')
@@ -1336,8 +1337,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
       dojo.subscribe('taskMovesCompleted', this, 'notif_taskMovesCompleted')
+      dojo.subscribe('debugUpdateTrack', this, 'notif_debugUpdateTrack')
+      dojo.subscribe('visualTrackChanged', this, 'notif_visualTrackChanged')
+      dojo.subscribe('technicalDevelopmentMovesRequired', this, 'notif_technicalDevelopmentMovesRequired')
+      dojo.subscribe('technicalDevelopmentMovesCompleted', this, 'notif_technicalDevelopmentMovesCompleted')
       
-      console.log('✅ Notifications subscribed: badgersChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted')
+      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -1685,6 +1690,226 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (amount !== 0) {
         const actionText = amount > 0 ? '+' : ''
         this.showMessage(`${founderName}: ${actionText}${amount}Б`, 'info')
+      }
+    },
+
+    notif_incomeTrackChanged: async function (notif) {
+      console.log('📈📈📈 notif_incomeTrackChanged called:', notif)
+      
+      // BGA передаёт объект notif, данные в notif.args
+      const args = notif.args || notif
+      console.log('📈 Extracted args:', args)
+      
+      const playerId = Number(args.player_id || args.playerId || 0)
+      const amount = Number(args.amount || 0)
+      const founderName = args.founder_name || args.founderName || 'Основатель'
+      const newValue = Number(args.newValue || args.new_value || 0)
+      const oldValue = Number(args.oldValue || args.old_value || 0)
+      
+      console.log('📈 Income track changed:', { playerId, oldValue, newValue, amount, founderName })
+      
+      // Обновляем данные в gamedatas
+      if (playerId > 0 && this.gamedatas.players[playerId]) {
+        this.gamedatas.players[playerId].energy = newValue
+        console.log('📈 Updated gamedatas.players[' + playerId + '].energy to', newValue)
+      }
+      
+      // Обновляем визуальное отображение трека дохода
+      console.log('📈 Calling _updateIncomeTrackPosition with playerId:', playerId, 'newValue:', newValue)
+      this._updateIncomeTrackPosition(playerId, newValue)
+      
+      // Визуальная анимация изменения
+      if (amount !== 0) {
+        const actionText = amount > 0 ? '+' : ''
+        this.showMessage(`${founderName}: ${actionText}${amount} трек дохода`, 'info')
+      }
+    },
+
+    /**
+     * Обновляет позицию жетона на треке дохода
+     * @param {number} playerId ID игрока
+     * @param {number} energyValue Значение энергии (позиция на треке от 1 до 20)
+     */
+    _updateIncomeTrackPosition: function (playerId, energyValue) {
+      console.log('📈 _updateIncomeTrackPosition called:', { playerId, energyValue })
+      
+      // Ограничиваем значение от 1 до 20
+      const position = Math.max(1, Math.min(20, energyValue || 1))
+      console.log('📈 Target position:', position)
+      
+      // Трек дохода находится в .player-personal-board, который создается в основном HTML
+      // Ищем все треки дохода на странице
+      const allIncomeTracks = document.querySelectorAll('.income-track')
+      console.log('📈 Found income tracks:', allIncomeTracks.length)
+      
+      if (allIncomeTracks.length === 0) {
+        console.log('📈 _updateIncomeTrackPosition - No income tracks found on page')
+        return
+      }
+      
+      // Если трек один, используем его (для текущего игрока)
+      // Если треков несколько, нужно найти правильный по playerId
+      // Пока используем первый найденный трек (для текущего игрока)
+      const playerBoard = allIncomeTracks[0]
+      
+      if (!playerBoard) {
+        console.log('📈 _updateIncomeTrackPosition - Income track element not found')
+        return
+      }
+      
+      console.log('📈 Found income track element:', playerBoard)
+      
+      // Находим все секторы на треке
+      const sectors = playerBoard.querySelectorAll('.income-track__sector')
+      console.log('📈 Found sectors:', sectors.length)
+      
+      if (!sectors || sectors.length === 0) {
+        console.log('📈 _updateIncomeTrackPosition - No sectors found')
+        return
+      }
+      
+      // Удаляем жетон из всех секторов
+      let removedCount = 0
+      sectors.forEach(sector => {
+        const token = sector.querySelector('.income-track__token')
+        if (token) {
+          token.remove()
+          removedCount++
+          console.log('📈 Removed token from sector:', sector.dataset.value)
+        }
+      })
+      console.log('📈 Removed tokens from', removedCount, 'sectors')
+      
+      // Находим сектор с нужным значением
+      const targetSector = Array.from(sectors).find(sector => {
+        const sectorValue = parseInt(sector.dataset.value, 10)
+        const matches = sectorValue === position
+        if (matches) {
+          console.log('📈 Found matching sector:', sectorValue, 'for position:', position)
+        }
+        return matches
+      })
+      
+      if (targetSector) {
+        console.log('📈 Target sector found:', targetSector)
+        // Находим контейнер содержимого сектора
+        const sectorContent = targetSector.querySelector('.income-track__sector-content')
+        if (sectorContent) {
+          console.log('📈 Sector content found:', sectorContent)
+          // Создаем и добавляем жетон
+          const token = document.createElement('div')
+          token.className = 'income-track__token'
+          sectorContent.appendChild(token)
+          console.log('✅ Added token to sector:', position, 'in sectorContent:', sectorContent)
+        } else {
+          console.log('❌ _updateIncomeTrackPosition - Sector content not found for position:', position)
+          console.log('📈 Target sector HTML:', targetSector.outerHTML.substring(0, 200))
+        }
+      } else {
+        console.log('❌ _updateIncomeTrackPosition - Target sector not found for position:', position)
+        console.log('📈 Available sector values:', Array.from(sectors).map(s => s.dataset.value).join(', '))
+      }
+    },
+
+    notif_visualTrackChanged: async function (notif) {
+      console.log('🎯 notif_visualTrackChanged called:', notif)
+      
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const trackId = args.track_id || args.trackId || ''
+      const amount = Number(args.amount || 0)
+      const newValue = Number(args.newValue || args.new_value || 0)
+      
+      console.log('🎯 Visual track changed:', { playerId, trackId, amount, newValue })
+      
+      // Обрабатываем трек эволюции бэк-офиса
+      if (trackId === 'player-department-back-office-evolution-column-1') {
+        console.log('🎯 Processing back-office evolution column-1')
+        this._updateBackOfficeEvolutionColumn1(playerId, newValue, amount)
+      }
+      
+      // Визуальная анимация изменения
+      if (amount !== 0) {
+        const actionText = amount > 0 ? '+' : ''
+        this.showMessage(`${args.founder_name || 'Основатель'}: ${actionText}${amount} ${args.track_name || trackId}`, 'info')
+      }
+    },
+
+    /**
+     * Обновляет позицию жетона в колонке эволюции бэк-офиса
+     * @param {number} playerId ID игрока
+     * @param {number} newValue Новое значение (не используется, вычисляется из текущей позиции + amount)
+     * @param {number} amount Изменение (относительное, прибавляется к текущей позиции)
+     */
+    _updateBackOfficeEvolutionColumn1: function (playerId, newValue, amount) {
+      console.log('🎯 _updateBackOfficeEvolutionColumn1 called:', { playerId, newValue, amount })
+      
+      // Находим контейнер колонки для текущего игрока
+      const columnElement = document.getElementById('player-department-back-office-evolution-column-1')
+      if (!columnElement) {
+        console.log('🎯 Column element not found')
+        return
+      }
+      
+      // Находим все строки в колонке
+      const rows = columnElement.querySelectorAll('.player-department-back-office-evolution__row')
+      console.log('🎯 Found rows:', rows.length)
+      
+      if (rows.length === 0) {
+        console.log('🎯 No rows found')
+        return
+      }
+      
+      // Находим текущую позицию жетона (где он сейчас находится)
+      let currentPosition = 1 // По умолчанию позиция 1 (нижняя ячейка)
+      rows.forEach(row => {
+        const token = row.querySelector('.player-department-back-office-evolution__token')
+        if (token) {
+          const rowIndex = parseInt(row.dataset.rowIndex, 10)
+          currentPosition = rowIndex
+          console.log('🎯 Found current token at row:', rowIndex)
+        }
+      })
+      
+      console.log('🎯 Current position:', currentPosition, 'amount:', amount)
+      
+      // Вычисляем новую позицию: текущая позиция + изменение
+      const newPosition = Math.max(1, Math.min(6, currentPosition + amount))
+      console.log('🎯 New position:', newPosition, '(current:', currentPosition, '+ amount:', amount, ')')
+      
+      // Удаляем жетон из всех строк
+      let removedCount = 0
+      rows.forEach(row => {
+        const token = row.querySelector('.player-department-back-office-evolution__token')
+        if (token) {
+          token.remove()
+          removedCount++
+          console.log('🎯 Removed token from row:', row.dataset.rowIndex)
+        }
+      })
+      console.log('🎯 Removed tokens from', removedCount, 'rows')
+      
+      // Находим строку с нужной позицией (row-1 снизу, row-6 сверху)
+      // newPosition = 1 означает нижнюю ячейку (row-1), newPosition = 6 означает верхнюю ячейку (row-6)
+      const targetRow = Array.from(rows).find(row => {
+        const rowIndex = parseInt(row.dataset.rowIndex, 10)
+        const matches = rowIndex === newPosition
+        if (matches) {
+          console.log('🎯 Found matching row:', rowIndex, 'for position:', newPosition)
+        }
+        return matches
+      })
+      
+      if (targetRow) {
+        console.log('🎯 Target row found:', targetRow)
+        // Создаем и добавляем жетон
+        const token = document.createElement('div')
+        token.className = 'player-department-back-office-evolution__token'
+        targetRow.appendChild(token)
+        console.log('✅ Added token to row:', newPosition)
+      } else {
+        console.log('❌ Target row not found for position:', newPosition)
+        console.log('🎯 Available row indices:', Array.from(rows).map(r => r.dataset.rowIndex).join(', '))
       }
     },
 
@@ -2057,6 +2282,56 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
     },
 
+    notif_debugUpdateTrack: async function (notif) {
+      const args = notif.args || notif
+      console.log('🔵🔵🔵 DEBUG updateTrack:', args)
+      console.log('🔵 Card:', args.card_name, 'ID:', args.card_id)
+      console.log('🔵 Has updateTrack:', args.has_updateTrack)
+      console.log('🔵 updateTrack value:', args.updateTrack_value)
+      console.log('🔵 updateTrack value type:', typeof args.updateTrack_value)
+      console.log('🔵 updateTrack value is_array:', Array.isArray(args.updateTrack_value))
+      console.log('🔵 updateTrack_count (from FoundersData):', args.updateTrack_count)
+      if (Array.isArray(args.updateTrack_value)) {
+        console.log('🔵 updateTrack value count:', args.updateTrack_value.length)
+        args.updateTrack_value.forEach((track, idx) => {
+          console.log(`🔵 updateTrack value[${idx}]:`, track)
+        })
+      }
+      console.log('🔵 Applied effects count:', args.applied_effects_count)
+      console.log('🔵 Applied effects:', args.applied_effects)
+      console.log('🔵 updateTrack_in_applied:', args.updateTrack_in_applied)
+      console.log('🔵 tracks_in_applied_count:', args.tracks_in_applied_count)
+      console.log('🔵 tracks_in_applied:', args.tracks_in_applied)
+      
+      if (Array.isArray(args.tracks_in_applied)) {
+        console.log('🔵 tracks_in_applied count:', args.tracks_in_applied.length)
+        args.tracks_in_applied.forEach((track, idx) => {
+          console.log(`🔵 tracks_in_applied[${idx}]:`, track)
+          if (track.trackId === 'player-department-technical-development') {
+            console.log(`🔧🔧🔧 FOUND technical-development track in applied! column:`, track.column)
+          }
+        })
+      }
+      
+      // Проверяем, есть ли updateTrack в примененных эффектах
+      if (args.applied_effects && Array.isArray(args.applied_effects)) {
+        const updateTrackEffect = args.applied_effects.find(e => e.type === 'updateTrack')
+        if (updateTrackEffect) {
+          console.log('🔵🔵🔵 FOUND updateTrack in applied_effects!', updateTrackEffect)
+          if (updateTrackEffect.tracks && Array.isArray(updateTrackEffect.tracks)) {
+            const incomeTrack = updateTrackEffect.tracks.find(t => t.trackId === 'income-track')
+            if (incomeTrack) {
+              console.log('🔵🔵🔵 FOUND income-track in tracks!', incomeTrack)
+            } else {
+              console.log('🔴🔴🔴 income-track NOT FOUND in tracks!')
+            }
+          }
+        } else {
+          console.log('🔴🔴🔴 updateTrack NOT FOUND in applied_effects!')
+        }
+      }
+    },
+
     notif_founderEffectsApplied: async function (notif) {
       const args = notif.args || notif
       const playerId = Number(args.player_id || 0)
@@ -2070,8 +2345,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const hasPendingTaskSelection = this.gamedatas?.pendingTaskSelection || false
         const hasPendingTaskMoves = this.gamedatas?.pendingTaskMoves || false
         const hasPendingTaskMovesJson = this.gamedatas?.pendingTaskMovesJson || false
+        const hasPendingTechnicalDevelopmentMoves = this.gamedatas?.pendingTechnicalDevelopmentMoves || false
         
-        if (!hasPendingTaskSelection && !hasPendingTaskMoves && !hasPendingTaskMovesJson) {
+        if (!hasPendingTaskSelection && !hasPendingTaskMoves && !hasPendingTaskMovesJson && !hasPendingTechnicalDevelopmentMoves) {
           const finishButton = document.getElementById('finish-turn-button')
           if (finishButton) {
             finishButton.disabled = false
@@ -2082,7 +2358,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             this._addFinishTurnButton(false)
           }
         } else {
-          console.log('⏳ Finish turn button remains disabled - waiting for task selection/moves')
+          console.log('⏳ Finish turn button remains disabled - waiting for task selection/moves/technical development')
         }
       }
     },
@@ -2195,6 +2471,42 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
     },
 
+    notif_technicalDevelopmentMovesRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const moveCount = Number(args.move_count || 0)
+      const founderName = args.founder_name || 'Основатель'
+      
+      console.log('🔧🔧🔧 notif_technicalDevelopmentMovesRequired received for player:', playerId, 'moveCount:', moveCount, 'founderName:', founderName)
+      
+      // Если это текущий игрок, активируем режим выбора колонок
+      if (Number(playerId) === Number(this.player_id)) {
+        console.log('✅ This is current player, activating technical development move mode')
+        this._activateTechnicalDevelopmentMoveMode(moveCount, founderName)
+      } else {
+        console.log('⏭️ This is not current player, skipping')
+      }
+    },
+
+    notif_technicalDevelopmentMovesCompleted: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      
+      console.log('✅ notif_technicalDevelopmentMovesCompleted received for player:', playerId)
+      
+      // Если это текущий игрок, деактивируем режим выбора
+      if (Number(playerId) === Number(this.player_id)) {
+        this._deactivateTechnicalDevelopmentMoveMode()
+        
+        // Теперь можно разблокировать кнопку "Завершить ход"
+        const finishButton = document.getElementById('finish-turn-button')
+        if (finishButton) {
+          finishButton.disabled = false
+          finishButton.removeAttribute('title')
+        }
+      }
+    },
+
     notif_tasksSelected: async function (notif) {
       const args = notif.args || notif
       const playerId = Number(args.player_id || 0)
@@ -2264,16 +2576,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             // Преобразуем данные в формат, который ожидает клиент
             if (movesData && (movesData.move_count || movesData.moveCount)) {
               // Сохраняем в pendingTaskMoves для использования в _handleTaskTokenClick
+              // ВАЖНО: Сохраняем существующие moves и usedMoves, если они есть
+              const existingMoves = this.gamedatas.pendingTaskMoves?.moves || []
+              const existingUsedMoves = this.gamedatas.pendingTaskMoves?.usedMoves || 0
+              
               this.gamedatas.pendingTaskMoves = {
                 moveCount: movesData.move_count || movesData.moveCount,
                 moveColor: movesData.move_color || movesData.moveColor || 'any',
-                usedMoves: movesData.used_moves || movesData.usedMoves || 0,
-                moves: [],
+                usedMoves: existingUsedMoves || movesData.used_moves || movesData.usedMoves || 0, // Сохраняем существующие или используем из args
+                moves: [...existingMoves], // ВАЖНО: Сохраняем существующие перемещения!
                 fromEffect: true, // ВАЖНО: это эффект карты
                 moveSource: 'founder_effect', // ВАЖНО: источник - эффект карты
                 founderName: movesData.founder_name || movesData.founderName || ''
               }
-              console.log('✅✅✅ notif_tasksSelected - pendingTaskMoves set from args (PRIORITY):', this.gamedatas.pendingTaskMoves)
+              console.log('✅✅✅ notif_tasksSelected - pendingTaskMoves set from args (PRIORITY, preserving moves):', {
+                ...this.gamedatas.pendingTaskMoves,
+                moves: this.gamedatas.pendingTaskMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation }))
+              })
               
               // Также сохраняем в movesData для дальнейшей обработки
               movesData.moveCount = this.gamedatas.pendingTaskMoves.moveCount
@@ -2311,16 +2630,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           if (!this.gamedatas.pendingTaskMoves) {
             console.log('⚠️ notif_tasksSelected - pendingTaskMoves is NOT set, setting it now from movesData')
             // Активируем режим перемещения задач после выбора задач
+            // ВАЖНО: Сохраняем существующие moves и usedMoves, если они есть
+            const existingMoves = this.gamedatas.pendingTaskMoves?.moves || []
+            const existingUsedMoves = this.gamedatas.pendingTaskMoves?.usedMoves || 0
+            
             this.gamedatas.pendingTaskMoves = {
               moveCount: movesData.move_count || movesData.moveCount,
               moveColor: movesData.move_color || movesData.moveColor || 'any',
-              usedMoves: 0,
-              moves: [],
+              usedMoves: existingUsedMoves, // Сохраняем существующие использованные ходы
+              moves: [...existingMoves], // ВАЖНО: Сохраняем существующие перемещения!
               fromEffect: true, // Флаг, что это эффект карты
               moveSource: 'founder_effect', // Источник перемещения: 'founder_effect' или 'sprint_phase'
               founderName: movesData.founder_name || movesData.founderName || ''
             }
-            console.log('✅ pendingTaskMoves set from movesData:', this.gamedatas.pendingTaskMoves)
+            console.log('✅ pendingTaskMoves set from movesData (preserving existing moves):', {
+              ...this.gamedatas.pendingTaskMoves,
+              moves: this.gamedatas.pendingTaskMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation }))
+            })
           } else {
             console.log('⚠️ notif_tasksSelected - pendingTaskMoves already exists, ensuring fromEffect and moveSource are set')
             // ВАЖНО: Гарантируем, что fromEffect и moveSource установлены правильно
@@ -2702,61 +3028,77 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     
     // Обновляет баннер с текущим этапом игры
     _updateStageBanner: function () {
-      const banner = document.getElementById('round-banner')
-      if (!banner) {
-        console.error('🏷️ _updateStageBanner: banner element not found!')
-        return
+      try {
+        const banner = document.getElementById('round-banner')
+        if (!banner) {
+          console.error('🏷️ _updateStageBanner: banner element not found!')
+          return
+        }
+        
+        const content = banner.querySelector('.round-banner__content')
+        const currentState = this.gamedatas?.gamestate?.name
+        const roundNumber = this.gamedatas?.round || this.gamedatas?.roundNumber || this.gamedatas?.round_number || 0
+        const roundName = this.gamedatas?.roundName || ''
+        
+        console.log('🏷️ _updateStageBanner called:', { currentState, roundNumber, roundName })
+        
+        // Определяем текущий этап
+        // ЭТАП 1: GameSetup, FounderSelection (выбор карт основателей), SpecialistSelection (выбор карт сотрудников)
+        // ЭТАП 2: RoundEvent, PlayerTurn, NextPlayer и т.д.
+        const isStage1 = currentState === 'GameSetup' || currentState === 'FounderSelection' || currentState === 'SpecialistSelection'
+        
+        let bannerText = ''
+        let bgColor = ''
+        let bannerClass = ''
+        
+        try {
+          if (isStage1) {
+            bannerText = typeof _ !== 'undefined' ? _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ') : '🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ'
+            bgColor = '#FFA500' // Оранжевый
+            bannerClass = 'round-banner round-banner--setup'
+          } else if (roundNumber > 0) {
+            // ЭТАП 2 с номером раунда
+            const baseText = typeof _ !== 'undefined' ? _('🎮 ЭТАП 2: РАУНД ${round}') : '🎮 ЭТАП 2: РАУНД ${round}'
+            bannerText = baseText.replace('${round}', roundNumber)
+            bgColor = '#2196F3' // Синий
+            bannerClass = 'round-banner round-banner--game-start'
+          } else {
+            // ЭТАП 2 без данных о раунде
+            bannerText = typeof _ !== 'undefined' ? _('🎮 ЭТАП 2: НАЧАЛО ИГРЫ') : '🎮 ЭТАП 2: НАЧАЛО ИГРЫ'
+            bgColor = '#2196F3' // Синий
+            bannerClass = 'round-banner round-banner--game-start'
+          }
+        } catch (e) {
+          console.error('🏷️ Error in banner text generation:', e)
+          bannerText = '🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ'
+          bgColor = '#FFA500'
+          bannerClass = 'round-banner round-banner--setup'
+        }
+        
+        // Обновляем баннер
+        try {
+          if (content) {
+            content.textContent = bannerText
+          } else {
+            banner.textContent = bannerText
+          }
+          banner.className = bannerClass
+          banner.style.backgroundColor = bgColor
+          banner.style.color = '#FFFFFF'
+          banner.style.fontSize = '20px'
+          banner.style.fontWeight = 'bold'
+          banner.style.padding = '10px 0px'
+          banner.style.textAlign = 'center'
+          banner.style.display = 'block'
+          banner.style.visibility = 'visible'
+        } catch (e) {
+          console.error('🏷️ Error updating banner styles:', e)
+        }
+        
+        console.log('🏷️ Stage banner updated:', bannerText, 'state:', currentState, 'bgColor:', bgColor)
+      } catch (e) {
+        console.error('🏷️ Error in _updateStageBanner:', e)
       }
-      
-      const content = banner.querySelector('.round-banner__content')
-      const currentState = this.gamedatas?.gamestate?.name
-      const roundNumber = this.gamedatas?.round || this.gamedatas?.roundNumber || this.gamedatas?.round_number || 0
-      const roundName = this.gamedatas?.roundName || ''
-      
-      console.log('🏷️ _updateStageBanner called:', { currentState, roundNumber, roundName })
-      
-      // Определяем текущий этап
-      // ЭТАП 1: GameSetup, FounderSelection (выбор карт основателей), SpecialistSelection (выбор карт сотрудников)
-      // ЭТАП 2: RoundEvent, PlayerTurn, NextPlayer и т.д.
-      const isStage1 = currentState === 'GameSetup' || currentState === 'FounderSelection' || currentState === 'SpecialistSelection'
-      
-      let bannerText = ''
-      let bgColor = ''
-      let bannerClass = ''
-      
-      if (isStage1) {
-        bannerText = _('🔄 ЭТАП 1: ПОДГОТОВКА К ИГРЕ')
-        bgColor = '#FFA500' // Оранжевый
-        bannerClass = 'round-banner round-banner--setup'
-      } else if (roundNumber > 0) {
-        // ЭТАП 2 с номером раунда
-        bannerText = _('🎮 ЭТАП 2: РАУНД ${round}').replace('${round}', roundNumber)
-        bgColor = '#2196F3' // Синий
-        bannerClass = 'round-banner round-banner--game-start'
-      } else {
-        // ЭТАП 2 без данных о раунде
-        bannerText = _('🎮 ЭТАП 2: НАЧАЛО ИГРЫ')
-        bgColor = '#2196F3' // Синий
-        bannerClass = 'round-banner round-banner--game-start'
-      }
-      
-      // Обновляем баннер
-      if (content) {
-        content.textContent = bannerText
-      } else {
-        banner.textContent = bannerText
-      }
-      banner.className = bannerClass
-      banner.style.backgroundColor = bgColor
-      banner.style.color = '#FFFFFF'
-      banner.style.fontSize = '20px'
-      banner.style.fontWeight = 'bold'
-      banner.style.padding = '10px 0px'
-      banner.style.textAlign = 'center'
-      banner.style.display = 'block'
-      banner.style.visibility = 'visible'
-      
-      console.log('🏷️ Stage banner updated:', bannerText, 'state:', currentState, 'bgColor:', bgColor)
     },
 
     _renderPlayerIndicators: function (container) {
@@ -3849,11 +4191,77 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         token.style.top = `${20 + index * 50}px`
 
         // Делаем жетоны кликабельными в backlog или в режиме move_task
+        // ВАЖНО: Всегда берем актуальное значение из gamedatas
         const pendingMoves = this.gamedatas?.pendingTaskMoves
         const isMoveMode = pendingMoves !== null && pendingMoves !== undefined
         
+        // Дополнительная проверка для отладки
+        if (isMoveMode && pendingMoves && pendingMoves.moves) {
+          console.log('🔍 _renderTaskTokens - pendingMoves check:', {
+            movesCount: pendingMoves.moves.length,
+            moves: pendingMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation, blocks: m.blocks }))
+          })
+        }
+        
+        // Проверяем, есть ли уже перемещение для этого жетона (делает его неактивным)
+        const tokenIdNum = parseInt(tokenData?.token_id, 10)
+        const tokenIdStr = String(tokenData?.token_id)
+        
+        // ВАЖНО: Берем актуальное значение из gamedatas, а не из замыкания
+        const currentPendingMoves = this.gamedatas?.pendingTaskMoves
+        const currentMoves = currentPendingMoves?.moves || []
+        
+        const hasExistingMove = isMoveMode && currentPendingMoves && Array.isArray(currentMoves) && currentMoves.length > 0 && currentMoves.some(m => {
+          if (!m || !m.tokenId) return false
+          const moveTokenIdNum = parseInt(m.tokenId, 10)
+          const moveTokenIdStr = String(m.tokenId)
+          // Проверяем все возможные варианты сравнения
+          const matches = moveTokenIdNum === tokenIdNum || 
+                         moveTokenIdStr === tokenIdStr || 
+                         m.tokenId == tokenData?.token_id || 
+                         m.tokenId === tokenData?.token_id ||
+                         String(m.tokenId) === String(tokenData?.token_id)
+          if (matches) {
+            console.log('🔒 Found existing move for token during render:', { 
+              tokenId: tokenData?.token_id, 
+              tokenIdNum: tokenIdNum,
+              tokenIdStr: tokenIdStr,
+              move: m,
+              moveTokenId: m.tokenId,
+              moveTokenIdNum: moveTokenIdNum,
+              moveTokenIdStr: moveTokenIdStr
+            })
+          }
+          return matches
+        })
+        
+        console.log('🔍 Token render check:', {
+          tokenId: tokenData?.token_id,
+          tokenIdNum: tokenIdNum,
+          tokenIdStr: tokenIdStr,
+          hasExistingMove: hasExistingMove,
+          isMoveMode: isMoveMode,
+          pendingMovesExists: !!currentPendingMoves,
+          movesCount: currentMoves.length,
+          moves: currentMoves.map(m => ({ 
+            tokenId: m.tokenId, 
+            tokenIdType: typeof m.tokenId,
+            toLocation: m.toLocation 
+          }))
+        })
+        
         if (location === 'backlog' || isMoveMode) {
-          token.style.cursor = 'pointer'
+          // Если жетон уже перемещен - делаем его неактивным
+          if (hasExistingMove) {
+            token.classList.add('task-token--inactive')
+            token.style.cursor = 'not-allowed'
+            console.log('🔒 Token is inactive (has existing move):', { tokenId: tokenData?.token_id, location: location })
+          } else {
+            token.style.cursor = 'pointer'
+            token.classList.remove('task-token--inactive')
+            console.log('✅ Token is active (no existing move):', { tokenId: tokenData?.token_id, location: location })
+          }
+          
           token.style.pointerEvents = 'auto'
           token.classList.add('task-token--clickable')
           
@@ -3865,6 +4273,88 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Добавляем новый обработчик
           const clickHandler = (e) => {
             e.stopPropagation()
+            
+            // ВАЖНО: Проверяем актуальное состояние при каждом клике
+            const currentPendingMoves = this.gamedatas?.pendingTaskMoves
+            const currentTokenId = tokenData?.token_id
+            const currentTokenIdNum = parseInt(currentTokenId, 10)
+            const currentlyHasMove = currentPendingMoves && currentPendingMoves.moves && currentPendingMoves.moves.some(m => {
+              const moveTokenId = parseInt(m.tokenId, 10)
+              return moveTokenId === currentTokenIdNum || m.tokenId == currentTokenId || m.tokenId === currentTokenId
+            })
+            
+            // Если жетон неактивен и имеет перемещение - отменяем перемещение
+            if (currentlyHasMove && token.classList.contains('task-token--inactive')) {
+              console.log('🔄 Activating inactive token on click - canceling move:', { tokenId: currentTokenId })
+              
+              // ВАЖНО: Удаляем перемещение из pendingMoves, чтобы активировать жетон
+              const moveIndex = currentPendingMoves.moves.findIndex(m => {
+                const moveTokenId = parseInt(m.tokenId, 10)
+                return moveTokenId === currentTokenIdNum || m.tokenId == currentTokenId || m.tokenId === currentTokenId
+              })
+              
+              if (moveIndex !== -1) {
+                const canceledMove = currentPendingMoves.moves[moveIndex]
+                currentPendingMoves.usedMoves -= canceledMove.blocks
+                currentPendingMoves.moves.splice(moveIndex, 1)
+                
+                // Обновляем gamedatas
+                if (this.gamedatas.pendingTaskMoves) {
+                  this.gamedatas.pendingTaskMoves.moves = [...currentPendingMoves.moves]
+                  this.gamedatas.pendingTaskMoves.usedMoves = currentPendingMoves.usedMoves
+                  console.log('✅ Updated gamedatas.pendingTaskMoves after canceling move on token click:', {
+                    movesCount: this.gamedatas.pendingTaskMoves.moves.length,
+                    usedMoves: this.gamedatas.pendingTaskMoves.usedMoves
+                  })
+                }
+                
+                // Возвращаем жетон в исходное положение
+                const currentPlayer = this.gamedatas.players[this.player_id]
+                if (currentPlayer && currentPlayer.taskTokens) {
+                  const tokenDataInGamedatas = currentPlayer.taskTokens.find(t => t.token_id == currentTokenId)
+                  if (tokenDataInGamedatas) {
+                    tokenDataInGamedatas.location = canceledMove.fromLocation
+                    console.log('✅ Reverted token to original location:', { 
+                      tokenId: currentTokenId, 
+                      newLocation: canceledMove.fromLocation 
+                    })
+                  }
+                }
+                
+                // Перерисовываем жетоны
+                this._renderTaskTokens(this.gamedatas.players)
+                this._updateTaskMoveModeUI()
+                
+                // Скрываем кнопку подтверждения, если не все ходы использованы
+                if (currentPendingMoves.usedMoves < currentPendingMoves.moveCount) {
+                  this._hideTaskMovesConfirmButton()
+                }
+                
+                // ВАЖНО: Очищаем подсветку колонок, чтобы можно было выбрать другой жетон
+                this._clearColumnHighlight()
+                console.log('✅ Cleared column highlight after canceling move - token remains inactive')
+              }
+              
+              // НЕ активируем жетон после отмены перемещения - он остается неактивным
+              // Это позволяет выбрать другой жетон для перемещения
+              return // Выходим, не обрабатываем дальше
+            }
+            
+            // Если жетон неактивен, но НЕ имеет перемещения - активируем его
+            // Это может произойти после отмены перемещения, когда жетон остался неактивным
+            if (!currentlyHasMove && token.classList.contains('task-token--inactive')) {
+              console.log('🔄 Activating inactive token (no move) on click:', { tokenId: currentTokenId })
+              token.classList.remove('task-token--inactive')
+              token.style.cursor = 'pointer'
+              // Продолжаем обработку - вызовем _handleTaskTokenClick ниже
+            }
+            
+            // Если жетон активен, но имеет перемещение - это не должно происходить, но на всякий случай проверяем
+            if (currentlyHasMove && !token.classList.contains('task-token--inactive')) {
+              console.warn('⚠️ Active token has existing move - this should not happen:', { tokenId: currentTokenId })
+            }
+            
+            // Обычный клик на активный жетон
             this._handleTaskTokenClick(token, tokenData)
           }
           token.addEventListener('click', clickHandler)
@@ -3983,7 +4473,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _handleTaskTokenClick: function (tokenElement, tokenData) {
       const color = tokenData?.color
       const tokenId = tokenData?.token_id
-      const location = tokenData?.location || 'backlog'
+      
+      // ВАЖНО: Получаем актуальную локацию из gamedatas, а не из tokenData
+      // tokenData может содержать устаревшую информацию
+      let location = tokenData?.location || 'backlog'
+      const currentPlayer = this.gamedatas.players[this.player_id]
+      if (currentPlayer && currentPlayer.taskTokens) {
+        const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+        if (token && token.location) {
+          location = token.location
+          console.log('✅ Using actual location from gamedatas:', { tokenId, location, tokenDataLocation: tokenData?.location })
+        }
+      }
 
       if (!color || !tokenId) {
         console.error('Invalid token data:', tokenData)
@@ -4018,6 +4519,53 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       if (pendingMoves) {
         console.log('✅✅✅ _handleTaskTokenClick - STEP 2: pendingMoves EXISTS, entering effect mode branch')
+        
+        // ВАЖНО: Проверяем, есть ли уже перемещение для этого жетона
+        // Если есть - подсвечиваем все доступные колонки (включая бэклог и все промежуточные)
+        const tokenIdNum = parseInt(tokenId, 10)
+        const existingMoveIndex = pendingMoves.moves.findIndex(m => {
+          const moveTokenId = parseInt(m.tokenId, 10)
+          return moveTokenId === tokenIdNum || m.tokenId == tokenId || m.tokenId === tokenId
+        })
+        
+        if (existingMoveIndex !== -1) {
+          // Найдено существующее перемещение - активируем жетон и подсвечиваем все доступные колонки
+          const existingMove = pendingMoves.moves[existingMoveIndex]
+          console.log('🔄🔄🔄 Found existing move for token, activating and allowing re-move:', {
+            tokenId: tokenId,
+            existingMove: existingMove,
+            currentLocation: location,
+            fromLocation: existingMove.fromLocation
+          })
+          
+          // Активируем жетон визуально (убираем неактивное состояние)
+          const tokenElement = document.querySelector(`[data-token-id="${tokenId}"]`)
+          if (tokenElement) {
+            tokenElement.classList.remove('task-token--inactive')
+            tokenElement.style.cursor = 'pointer'
+            console.log('✅ Token activated visually:', { tokenId })
+          }
+          
+          // Подсвечиваем все доступные колонки, включая бэклог и все промежуточные
+          // Используем исходную локацию для подсчета доступных колонок
+          const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves + existingMove.blocks
+          const maxBlocks = isEffectMode ? availableMoves : Math.min(this._getTechDepartmentPosition(color), availableMoves)
+          
+          console.log('🔄 Re-highlighting columns for moved token:', {
+            tokenId: tokenId,
+            currentLocation: location,
+            fromLocation: existingMove.fromLocation,
+            availableMoves: availableMoves,
+            maxBlocks: maxBlocks
+          })
+          
+          // Подсвечиваем колонки, начиная с исходной локации (включая бэклог и все промежуточные)
+          this._highlightAvailableColumns(maxBlocks, color, tokenId, existingMove.fromLocation, pendingMoves)
+          
+          // Выходим из функции - подсветка выполнена
+          return
+        }
+        
         // Режим перемещения задач от эффекта карты
         // Проверяем цвет, если указан
         if (pendingMoves.moveColor !== 'any' && color !== pendingMoves.moveColor) {
@@ -4139,6 +4687,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
      * @param {Object} pendingMoves Данные о ожидающих перемещениях (для режима эффекта карты)
      */
     _highlightAvailableColumns: function (maxBlocks, color, tokenId, fromLocation = 'backlog', pendingMoves = null) {
+      console.log('🎯🎯🎯 _highlightAvailableColumns CALLED:', {
+        maxBlocks: maxBlocks,
+        color: color,
+        tokenId: tokenId,
+        fromLocation: fromLocation,
+        pendingMoves: pendingMoves
+      })
+      
       // Убираем предыдущую подсветку
       this._clearColumnHighlight()
 
@@ -4146,16 +4702,39 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const locationOrder = ['backlog', 'in-progress', 'testing', 'completed']
       const fromIndex = locationOrder.indexOf(fromLocation)
       
+      console.log('🔍 Location check:', {
+        fromLocation: fromLocation,
+        fromIndex: fromIndex,
+        locationOrder: locationOrder
+      })
+      
       if (fromIndex === -1) {
         console.error('Invalid fromLocation:', fromLocation)
         return
       }
       
+      // Проверяем, есть ли уже перемещение для этого жетона (для возможности возврата в бэклог)
+      const tokenIdNum = parseInt(tokenId, 10)
+      const hasExistingMove = pendingMoves && pendingMoves.moves && pendingMoves.moves.some(m => {
+        const moveTokenId = parseInt(m.tokenId, 10)
+        return moveTokenId === tokenIdNum || m.tokenId == tokenId || m.tokenId === tokenId
+      })
+      
+      console.log('🔍 Existing move check:', {
+        tokenId: tokenId,
+        tokenIdNum: tokenIdNum,
+        hasExistingMove: hasExistingMove,
+        moves: pendingMoves?.moves
+      })
+      
+      // ВАЖНО: Добавляем бэклог в список колонок для возможности возврата
       const columns = [
+        { id: 'sprint-column-backlog', location: 'backlog' },
         { id: 'sprint-column-in-progress', location: 'in-progress' },
         { id: 'sprint-column-testing', location: 'testing' },
         { id: 'sprint-column-completed', location: 'completed' }
       ]
+      
 
       // Проверяем, находимся ли мы в режиме перемещения от эффекта карты
       // Если pendingMoves не передан, берем из gamedatas
@@ -4212,18 +4791,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         techDeptPosition: isEffectMode ? 'IGNORED (founder effect)' : (this._getTechDepartmentPosition ? this._getTechDepartmentPosition(color || '') : 'N/A')
       })
 
-      // Подсвечиваем доступные колонки (только те, что дальше текущей позиции)
+      // Подсвечиваем доступные колонки
+      console.log('🔍🔍🔍 Starting to highlight columns:', {
+        columnsCount: columns.length,
+        columns: columns.map(c => ({ id: c.id, location: c.location })),
+        fromLocation: fromLocation,
+        fromIndex: fromIndex,
+        hasBacklog: columns.some(c => c.location === 'backlog')
+      })
+      
       columns.forEach((col) => {
         const toIndex = locationOrder.indexOf(col.location)
-        if (toIndex === -1) return
+        if (toIndex === -1) {
+          console.log(`⚠️ Column ${col.location} not found in locationOrder`)
+          return
+        }
         
         const blocksNeeded = toIndex - fromIndex
         
-        // В режиме эффекта карты показываем все колонки в пределах доступных ходов
-        // В обычном режиме показываем только те, что в пределах maxBlocks
-        if (blocksNeeded > 0 && blocksNeeded <= maxBlocks) {
-          // Дополнительная проверка для режима эффекта карты
-          if (isEffectMode) {
+        // ВАЖНО: Разрешаем перемещение в любую колонку (включая назад в бэклог и промежуточные)
+        // Если перемещаем назад (blocksNeeded < 0) - это возврат, вычитаем ходы
+        // Если перемещаем вперед (blocksNeeded > 0) - это обычное перемещение
+        const canMoveBackward = blocksNeeded < 0 // Перемещение назад (в бэклог или промежуточные колонки)
+        const canMoveForward = blocksNeeded > 0 && blocksNeeded <= maxBlocks // Перемещение вперед
+        
+        if (canMoveBackward || canMoveForward) {
+          // Дополнительная проверка для режима эффекта карты (только для перемещения вперед)
+          if (isEffectMode && canMoveForward) {
             // В режиме эффекта карты проверяем, что у нас достаточно доступных ходов
             // ИГНОРИРУЕМ техотдел - используем только moveCount из эффекта
             const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
@@ -4233,17 +4827,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
               return // Пропускаем, если не хватает ходов
             }
             console.log(`✅ Will highlight column ${col.location} (founder effect mode, ignoring tech dept)`)
-          } else if (isSprintPhase) {
-            // В режиме фазы Спринт используем ограничение из техотдела (maxBlocks уже установлен)
-            console.log(`✅ Will highlight column ${col.location} (sprint phase mode, maxBlocks=${maxBlocks} from tech dept)`)
-          } else {
-            // Обычный режим (без pendingMoves) - используем maxBlocks
-            console.log(`✅ Will highlight column ${col.location} (normal mode, maxBlocks=${maxBlocks})`)
+          } else if (canMoveBackward) {
+            console.log(`✅ Will highlight column ${col.location} (moving backward, blocksNeeded=${blocksNeeded})`)
           }
-          
-          const columnElement = document.getElementById(col.id)
-          if (columnElement) {
-            console.log(`✅ Found column element: ${col.id}`, { 
+        } else if (isSprintPhase) {
+          // В режиме фазы Спринт используем ограничение из техотдела (maxBlocks уже установлен)
+          console.log(`✅ Will highlight column ${col.location} (sprint phase mode, maxBlocks=${maxBlocks} from tech dept)`)
+        } else {
+          // Обычный режим (без pendingMoves) - используем maxBlocks
+          console.log(`✅ Will highlight column ${col.location} (normal mode, maxBlocks=${maxBlocks})`)
+        }
+        
+        const columnElement = document.getElementById(col.id)
+        if (columnElement) {
+          console.log(`✅ Found column element: ${col.id}`, { 
               element: columnElement, 
               id: columnElement.id,
               classes: columnElement.className,
@@ -4277,6 +4874,32 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                 bubbles: e.bubbles,
                 cancelable: e.cancelable
               })
+              
+              // ВАЖНО: Проверяем, активен ли жетон перед обработкой клика на колонку
+              const currentPendingMoves = this.gamedatas?.pendingTaskMoves
+              const currentTokenIdNum = parseInt(tokenId, 10)
+              const currentlyHasMove = currentPendingMoves && currentPendingMoves.moves && currentPendingMoves.moves.some(m => {
+                const moveTokenId = parseInt(m.tokenId, 10)
+                return moveTokenId === currentTokenIdNum || m.tokenId == tokenId || m.tokenId === tokenId
+              })
+              
+              // Находим элемент жетона в DOM
+              const tokenElement = document.querySelector(`[data-token-id="${tokenId}"]`)
+              const isTokenInactive = tokenElement && tokenElement.classList.contains('task-token--inactive')
+              
+              // Если жетон неактивен - игнорируем клик на колонку
+              if (currentlyHasMove || isTokenInactive) {
+                console.log('🔒 Ignoring column click - token is inactive:', { 
+                  tokenId, 
+                  currentlyHasMove, 
+                  isTokenInactive,
+                  tokenElement: !!tokenElement
+                })
+                e.stopPropagation()
+                e.stopImmediatePropagation()
+                e.preventDefault()
+                return // Выходим, не обрабатываем клик
+              }
               
               // Останавливаем распространение события, чтобы обработчик отмены не сработал
               e.stopPropagation()
@@ -4319,7 +4942,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           } else {
             console.error(`❌❌❌ Column element NOT FOUND: ${col.id}`)
           }
-        }
       })
 
       // Сохраняем информацию о текущем выборе
@@ -4381,10 +5003,39 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
         
         const clickedToken = target.closest('.task-token--clickable')
+        // ВАЖНО: Игнорируем неактивные жетоны - они не должны обрабатываться при клике на другой жетон
+        const isInactiveToken = clickedToken && clickedToken.classList.contains('task-token--inactive')
         
-        if (!isColumnClick && !clickedToken) {
-          console.log('🔒 Click outside highlighted area, clearing highlight', { 
+        // Проверяем, является ли клик на активный жетон (не неактивный)
+        const isActiveToken = clickedToken && !isInactiveToken
+        
+        // Если клик на активный жетон - всегда очищаем подсветку и обрабатываем клик
+        // Это позволяет выбрать другой жетон после перемещения первого
+        if (isActiveToken) {
+          console.log('🔄 Click on active token, clearing highlight and processing click', { 
             clickedToken: !!clickedToken,
+            clickedTokenId: clickedToken?.dataset?.tokenId,
+            currentSelectionTokenId: this._currentTaskSelection?.tokenId,
+            isColumnClick: isColumnClick
+          })
+          this._clearColumnHighlight()
+          document.removeEventListener('click', this._columnClickCancelHandler)
+          this._columnClickCancelHandler = null
+          
+          // Обрабатываем клик на активный жетон
+          console.log('🔄 Processing click on active token')
+          // Даем время на очистку, затем обрабатываем клик
+          setTimeout(() => {
+            clickedToken.click()
+          }, 50)
+          return // Выходим, не обрабатываем дальше
+        }
+        
+        // Если клик вне области или на неактивный жетон - очищаем подсветку
+        if (!isColumnClick && (!clickedToken || isInactiveToken)) {
+          console.log('🔒 Click outside highlighted area or on inactive token, clearing highlight', { 
+            clickedToken: !!clickedToken,
+            isInactiveToken: isInactiveToken,
             isColumnClick: isColumnClick,
             target: target,
             targetId: target.id,
@@ -4434,6 +5085,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
      */
     _clearColumnHighlight: function () {
       const columns = [
+        'sprint-column-backlog',
         'sprint-column-in-progress',
         'sprint-column-testing',
         'sprint-column-completed'
@@ -4463,6 +5115,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       delete this._currentTaskSelection
+      
+      console.log('✅ Column highlight cleared, handlers removed')
     },
 
     /**
@@ -4534,80 +5188,234 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             oldUsedMoves: pendingMoves.usedMoves,
             currentLocation: actualFromLocation,
             existingMoveFromLocation: existingMove.fromLocation,
-            existingMoveToLocation: existingMove.toLocation
+            existingMoveToLocation: existingMove.toLocation,
+            newLocation: newLocation
           })
-          
-          // Отменяем предыдущее перемещение - вычитаем использованные блоки
-          const oldUsedMoves = pendingMoves.usedMoves
-          pendingMoves.usedMoves -= existingMove.blocks
-          
-          console.log('✅✅✅ Canceled move blocks:', {
-            oldUsedMoves: oldUsedMoves,
-            blocksToSubtract: existingMove.blocks,
-            newUsedMoves: pendingMoves.usedMoves
-          })
-          
-          // Удаляем предыдущее перемещение из списка
-          pendingMoves.moves.splice(existingMoveIndex, 1)
           
           // ВАЖНО: Используем исходную локацию из отмененного перемещения для нового расчета
           actualFromLocation = existingMove.fromLocation
           
-          // Возвращаем жетон в исходное положение
-          const currentPlayer = this.gamedatas.players[this.player_id]
-          if (currentPlayer && currentPlayer.taskTokens) {
-            const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
-            if (token) {
-              const oldTokenLocation = token.location
-              token.location = existingMove.fromLocation
-              console.log('✅ Reverted token to original location:', { 
-                tokenId, 
-                oldLocation: oldTokenLocation,
-                newLocation: existingMove.fromLocation 
-              })
-            } else {
-              console.warn('⚠️ Token not found in gamedatas for reversion:', tokenId)
-            }
-          } else {
-            console.warn('⚠️ Current player or taskTokens not found for reversion')
+          // Проверяем, пытается ли пользователь переместить жетон обратно в исходное положение (отмена без нового перемещения)
+          // Отмена происходит, если пользователь кликает на колонку, где жетон был ДО перемещения
+          const isCancelingMove = (newLocation === existingMove.fromLocation)
+          
+          // Также проверяем, не пытается ли пользователь переместить жетон в то же место, где он уже находится
+          // ВАЖНО: Используем existingMove.toLocation, так как это место, куда жетон был перемещен
+          const isMovingToSameLocation = (newLocation === existingMove.toLocation)
+          
+          const blocks = this._calculateBlocksBetween(actualFromLocation, newLocation)
+          
+          console.log('🔍🔍🔍 Checking if canceling move:', {
+            newLocation: newLocation,
+            existingMoveFromLocation: existingMove.fromLocation,
+            existingMoveToLocation: existingMove.toLocation,
+            isCancelingMove: isCancelingMove,
+            isMovingToSameLocation: isMovingToSameLocation,
+            blocks: blocks
+          })
+          
+          // ВАЖНО: Сначала проверяем попытку переместить в то же место - игнорируем
+          if (isMovingToSameLocation) {
+            console.log('⚠️ User is trying to move token to the same location - ignoring')
+            this.showMessage(_('Жетон уже находится в этой колонке'), 'info')
+            return
           }
           
-          // Перерисовываем жетоны
-          this._renderTaskTokens(this.gamedatas.players)
-          
-          // Обновляем UI после отмены
-          this._updateTaskMoveModeUI()
-          
-          console.log('✅ After canceling previous move:', {
-            usedMoves: pendingMoves.usedMoves,
-            movesCount: pendingMoves.moves.length,
-            availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
-            actualFromLocation: actualFromLocation,
-            remainingMoves: pendingMoves.moves
-          })
+          // Если пользователь кликает на исходную колонку - это отмена
+          if (isCancelingMove) {
+            // Пользователь перемещает жетон обратно в исходное положение - просто отменяем перемещение
+            console.log('✅✅✅ User is moving token back to original location - canceling move only')
+            
+            // Отменяем предыдущее перемещение - вычитаем использованные блоки
+            const oldUsedMoves = pendingMoves.usedMoves
+            pendingMoves.usedMoves -= existingMove.blocks
+            
+            console.log('✅✅✅ Canceled move blocks:', {
+              oldUsedMoves: oldUsedMoves,
+              blocksToSubtract: existingMove.blocks,
+              newUsedMoves: pendingMoves.usedMoves
+            })
+            
+            // Удаляем предыдущее перемещение из списка
+            pendingMoves.moves.splice(existingMoveIndex, 1)
+            
+            // ВАЖНО: Обновляем gamedatas.pendingTaskMoves после отмены
+            if (this.gamedatas.pendingTaskMoves) {
+              // ВАЖНО: Создаем новый массив, чтобы гарантировать обновление ссылки
+              this.gamedatas.pendingTaskMoves.moves = [...pendingMoves.moves]
+              this.gamedatas.pendingTaskMoves.usedMoves = pendingMoves.usedMoves
+              console.log('✅ Updated gamedatas.pendingTaskMoves after cancel (back to original):', {
+                movesCount: this.gamedatas.pendingTaskMoves.moves.length,
+                usedMoves: this.gamedatas.pendingTaskMoves.usedMoves,
+                moves: this.gamedatas.pendingTaskMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation }))
+              })
+            } else {
+              console.error('❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!')
+            }
+            
+            // Возвращаем жетон в исходное положение
+            const currentPlayer = this.gamedatas.players[this.player_id]
+            if (currentPlayer && currentPlayer.taskTokens) {
+              const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+              if (token) {
+                const oldTokenLocation = token.location
+                token.location = existingMove.fromLocation
+                console.log('✅ Reverted token to original location:', { 
+                  tokenId, 
+                  oldLocation: oldTokenLocation,
+                  newLocation: existingMove.fromLocation 
+                })
+              } else {
+                console.warn('⚠️ Token not found in gamedatas for reversion:', tokenId)
+              }
+            }
+            
+            // Перерисовываем жетоны после отмены
+            this._renderTaskTokens(this.gamedatas.players)
+            
+            // Обновляем UI после отмены
+            this._updateTaskMoveModeUI()
+            
+            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
+            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+              this._hideTaskMovesConfirmButton()
+              console.log('✅ Hidden confirm button after canceling move')
+            } else {
+              console.warn('⚠️ Current player or taskTokens not found for reversion')
+            }
+            
+            // Перерисовываем жетоны
+            this._renderTaskTokens(this.gamedatas.players)
+            
+            // Обновляем UI после отмены
+            this._updateTaskMoveModeUI()
+            
+            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
+            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+              const confirmButton = document.getElementById('task-moves-confirm-button')
+              if (confirmButton) {
+                confirmButton.remove()
+                console.log('✅ Hidden confirm button after canceling move')
+              }
+            }
+            
+            console.log('✅ After canceling previous move:', {
+              usedMoves: pendingMoves.usedMoves,
+              movesCount: pendingMoves.moves.length,
+              availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
+              actualFromLocation: actualFromLocation,
+              remainingMoves: pendingMoves.moves
+            })
+            
+            // Выходим из функции, так как это была только отмена без нового перемещения
+            return
+          } else {
+            // Пользователь перемещает жетон в другое место - отменяем старое и добавляем новое
+            console.log('✅✅✅ User is moving token to different location - canceling old and adding new')
+            
+            // Отменяем предыдущее перемещение - вычитаем использованные блоки
+            const oldUsedMoves = pendingMoves.usedMoves
+            pendingMoves.usedMoves -= existingMove.blocks
+            
+            console.log('✅✅✅ Canceled move blocks:', {
+              oldUsedMoves: oldUsedMoves,
+              blocksToSubtract: existingMove.blocks,
+              newUsedMoves: pendingMoves.usedMoves
+            })
+            
+            // Удаляем предыдущее перемещение из списка
+            pendingMoves.moves.splice(existingMoveIndex, 1)
+            
+            // ВАЖНО: Обновляем gamedatas.pendingTaskMoves после отмены
+            if (this.gamedatas.pendingTaskMoves) {
+              // ВАЖНО: Создаем новый массив, чтобы гарантировать обновление ссылки
+              this.gamedatas.pendingTaskMoves.moves = [...pendingMoves.moves]
+              this.gamedatas.pendingTaskMoves.usedMoves = pendingMoves.usedMoves
+              console.log('✅ Updated gamedatas.pendingTaskMoves after cancel:', {
+                movesCount: this.gamedatas.pendingTaskMoves.moves.length,
+                usedMoves: this.gamedatas.pendingTaskMoves.usedMoves,
+                moves: this.gamedatas.pendingTaskMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation }))
+              })
+            } else {
+              console.error('❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!')
+            }
+            
+            // Возвращаем жетон в исходное положение (временно, перед новым перемещением)
+            const currentPlayer = this.gamedatas.players[this.player_id]
+            if (currentPlayer && currentPlayer.taskTokens) {
+              const token = currentPlayer.taskTokens.find(t => t.token_id == tokenId)
+              if (token) {
+                token.location = existingMove.fromLocation
+                console.log('✅ Reverted token to original location before new move:', { 
+                  tokenId, 
+                  newLocation: existingMove.fromLocation 
+                })
+              }
+            }
+            
+            // Перерисовываем жетоны перед новым перемещением
+            this._renderTaskTokens(this.gamedatas.players)
+            
+            // Обновляем UI после отмены
+            this._updateTaskMoveModeUI()
+            
+            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
+            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+              const confirmButton = document.getElementById('task-moves-confirm-button')
+              if (confirmButton) {
+                confirmButton.remove()
+                console.log('✅ Hidden confirm button after canceling move')
+              }
+            }
+            
+            console.log('✅ After canceling previous move (before new move):', {
+              usedMoves: pendingMoves.usedMoves,
+              movesCount: pendingMoves.moves.length,
+              availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
+              actualFromLocation: actualFromLocation,
+              remainingMoves: pendingMoves.moves
+            })
+            
+            // Продолжаем выполнение для добавления нового перемещения
+          }
         } else {
           console.log('✅ No existing move found for this token, proceeding with new move')
+          
+          // Проверяем, не пытается ли пользователь переместить жетон в то же место, где он уже находится
+          const currentTokenLocation = this._getTokenCurrentLocation(tokenId)
+          if (newLocation === currentTokenLocation) {
+            console.log('⚠️ User is trying to move token to the same location - ignoring')
+            this.showMessage(_('Жетон уже находится в этой колонке'), 'info')
+            return
+          }
         }
         
         // Режим перемещения задач - добавляем в список перемещений
         // Используем actualFromLocation (может быть исходной, если было отменено предыдущее перемещение)
         const blocks = this._calculateBlocksBetween(actualFromLocation, newLocation)
         
+        // ВАЖНО: Если перемещаем назад (blocks < 0), это возврат - вычитаем ходы
+        // Если перемещаем вперед (blocks > 0), это обычное перемещение - добавляем ходы
+        const isMovingBackward = blocks < 0
+        const blocksToUse = Math.abs(blocks) // Используем абсолютное значение для подсчета
+        
         console.log('🔍🔍🔍 _moveTaskTokenToColumn - Move calculation:', {
           fromLocation: actualFromLocation,
           toLocation: newLocation,
           blocks: blocks,
+          blocksToUse: blocksToUse,
+          isMovingBackward: isMovingBackward,
           usedMoves: pendingMoves.usedMoves,
           moveCount: pendingMoves.moveCount,
           availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
           existingMoves: pendingMoves.moves
         })
         
-        // Проверяем, достаточно ли ходов для нового перемещения
-        if (pendingMoves.usedMoves + blocks > pendingMoves.moveCount) {
+        // Проверяем, достаточно ли ходов для нового перемещения (только для перемещения вперед)
+        if (!isMovingBackward && pendingMoves.usedMoves + blocksToUse > pendingMoves.moveCount) {
           console.warn('❌ Not enough moves:', {
             used: pendingMoves.usedMoves,
-            needed: blocks,
+            needed: blocksToUse,
             total: pendingMoves.moveCount,
             available: pendingMoves.moveCount - pendingMoves.usedMoves
           })
@@ -4626,14 +5434,55 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         }
         
         // Добавляем новое перемещение в список
+        // ВАЖНО: Сохраняем tokenId как строку для единообразия
+        const normalizedTokenId = String(tokenId)
         pendingMoves.moves.push({
-          tokenId: tokenId,
+          tokenId: normalizedTokenId, // ВАЖНО: Сохраняем как строку для единообразия
           fromLocation: actualFromLocation, // Используем исходную локацию
           toLocation: newLocation,
-          blocks: blocks,
+          blocks: blocksToUse, // Сохраняем абсолютное значение
           color: color
         })
-        pendingMoves.usedMoves += blocks
+        console.log('✅ Added move to pendingMoves.moves:', {
+          tokenId: normalizedTokenId,
+          tokenIdType: typeof normalizedTokenId,
+          fromLocation: actualFromLocation,
+          toLocation: newLocation,
+          blocks: blocksToUse,
+          totalMoves: pendingMoves.moves.length
+        })
+        
+        // ВАЖНО: Если перемещаем назад - вычитаем ходы, если вперед - добавляем
+        if (isMovingBackward) {
+          pendingMoves.usedMoves -= blocksToUse
+          console.log('✅ Moving backward - subtracting moves:', {
+            blocksToUse: blocksToUse,
+            oldUsedMoves: pendingMoves.usedMoves + blocksToUse,
+            newUsedMoves: pendingMoves.usedMoves
+          })
+        } else {
+          pendingMoves.usedMoves += blocksToUse
+          console.log('✅ Moving forward - adding moves:', {
+            blocksToUse: blocksToUse,
+            oldUsedMoves: pendingMoves.usedMoves - blocksToUse,
+            newUsedMoves: pendingMoves.usedMoves
+          })
+        }
+        
+        // ВАЖНО: Обновляем gamedatas.pendingTaskMoves, чтобы при следующем рендеринге жетон был неактивным
+        // pendingMoves - это ссылка на this.gamedatas.pendingTaskMoves, но на всякий случай обновляем явно
+        if (this.gamedatas.pendingTaskMoves) {
+          // ВАЖНО: Создаем новый массив, чтобы гарантировать обновление ссылки
+          this.gamedatas.pendingTaskMoves.moves = [...pendingMoves.moves]
+          this.gamedatas.pendingTaskMoves.usedMoves = pendingMoves.usedMoves
+          console.log('✅ Updated gamedatas.pendingTaskMoves:', {
+            movesCount: this.gamedatas.pendingTaskMoves.moves.length,
+            usedMoves: this.gamedatas.pendingTaskMoves.usedMoves,
+            moves: this.gamedatas.pendingTaskMoves.moves.map(m => ({ tokenId: m.tokenId, toLocation: m.toLocation }))
+          })
+        } else {
+          console.error('❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after move!')
+        }
         
         console.log('✅✅✅ _moveTaskTokenToColumn - Move added:', {
           moves: pendingMoves.moves,
@@ -4671,10 +5520,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           console.warn('⚠️ Current player or taskTokens not found')
         }
         
-        // Перерисовываем жетоны - это переместит жетон в правильную колонку
+        // Перерисовываем жетоны - это переместит жетон в правильную колонку и сделает его неактивным
         console.log('🔄 Rendering task tokens after move...')
         this._renderTaskTokens(this.gamedatas.players)
-        console.log('✅ Task tokens rendered')
+        console.log('✅ Task tokens rendered (moved token is now inactive)')
+        
+        // ВАЖНО: Очищаем подсветку колонок после перемещения, чтобы можно было выбрать другой жетон
+        this._clearColumnHighlight()
+        console.log('✅ Cleared column highlight after move - ready for next token selection')
         
         // Если все ходы использованы, показываем кнопку подтверждения
         if (pendingMoves.usedMoves >= pendingMoves.moveCount) {
@@ -4770,6 +5623,693 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     /**
      * Деактивирует режим перемещения задач
      */
+    _activateTechnicalDevelopmentMoveMode: function (moveCount, founderName) {
+      console.log('🔧🔧🔧 _activateTechnicalDevelopmentMoveMode called:', { moveCount, founderName })
+      
+      // Сохраняем данные о режиме выбора
+      this.gamedatas.pendingTechnicalDevelopmentMoves = {
+        moveCount: moveCount, // Общее количество очков для распределения (2)
+        usedMoves: 0, // Использовано очков
+        moves: [], // Массив перемещений: [{column: 1, amount: 1}, {column: 2, amount: 1}] или [{column: 1, amount: 2}]
+        founderName: founderName,
+        fromEffect: true,
+        moveSource: 'founder_effect'
+      }
+      
+      console.log('✅ pendingTechnicalDevelopmentMoves set:', this.gamedatas.pendingTechnicalDevelopmentMoves)
+      
+      // Делаем строки техотдела кликабельными (как в треке задач)
+      // В техотделе 4 колонки: column-1, column-2, column-3, column-4
+      const columns = [1, 2, 3, 4]
+      let tokensFound = 0
+      
+      columns.forEach((columnNum) => {
+        const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+        console.log('🔧 Looking for column:', columnNum, 'found:', !!column)
+        
+        if (column) {
+          // Ищем все строки в колонке (могут быть в wrapper или напрямую)
+          const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+          const container = wrapper || column
+          const rows = container.querySelectorAll('.player-department-technical-development__row')
+          
+          console.log('🔧 Found rows in column', columnNum, ':', rows.length)
+          
+          // Находим текущую позицию жетона в этой колонке
+          let currentTokenRowIndex = null
+          rows.forEach((row) => {
+            const token = row.querySelector('.player-department-technical-development__token')
+            if (token) {
+              tokensFound++
+              currentTokenRowIndex = parseInt(row.dataset.rowIndex, 10)
+              console.log('🔧 Found token in column', columnNum, 'row', currentTokenRowIndex)
+              
+              // НЕ подсвечиваем жетон сразу - только после клика на строку
+            }
+          })
+          
+          // Обновляем кликабельные строки для этой колонки (с учетом доступных очков)
+          if (currentTokenRowIndex !== null) {
+            // Используем функцию обновления, которая учитывает доступные очки
+            this._updateClickableRowsForColumn(columnNum)
+          }
+        } else {
+          console.warn('⚠️ Column not found:', columnNum)
+        }
+      })
+      
+      console.log('🔧 Total tokens found and activated:', tokensFound)
+      
+      if (tokensFound === 0) {
+        console.error('❌ No tokens found in technical development columns!')
+        // Не показываем ошибку, возможно жетоны появятся позже
+        console.warn('⚠️ No tokens found, but continuing anyway')
+      }
+      
+      // Показываем подсказку
+      this.showMessage(_('Выберите колонки техотдела для улучшения (всего ${count} очков)').replace('${count}', moveCount), 'info')
+      
+      // Добавляем кнопку подтверждения
+      this._addTechnicalDevelopmentConfirmButton()
+      
+      // Блокируем кнопку завершения хода
+      this._updateFinishTurnButtonForTechnicalDevelopment()
+    },
+
+    _deactivateTechnicalDevelopmentMoveMode: function () {
+      console.log('🔒 Deactivating technical development move mode')
+      
+      // Убираем классы с жетонов
+      const tokens = document.querySelectorAll('.technical-development-token--move-mode')
+      tokens.forEach((token) => {
+        token.classList.remove('technical-development-token--move-mode')
+      })
+      
+      // Убираем классы и обработчики со строк
+      const rows = document.querySelectorAll('.technical-development-row--clickable')
+      rows.forEach((row) => {
+        row.classList.remove('technical-development-row--clickable')
+        row.style.cursor = ''
+        row.style.position = ''
+        row.removeAttribute('data-clickable')
+      })
+      
+      // Удаляем обработчики делегирования с контейнеров
+      const columns = [1, 2, 3, 4]
+      columns.forEach((columnNum) => {
+        const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+        if (!column) return
+        
+        const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+        const container = wrapper || column
+        
+        if (container._technicalDevClickHandler) {
+          container.removeEventListener('click', container._technicalDevClickHandler, true)
+          container._technicalDevClickHandler = null
+        }
+      })
+      
+      // Убираем кнопку подтверждения
+      const confirmButton = document.getElementById('technical-development-moves-confirm-button')
+      if (confirmButton) {
+        confirmButton.remove()
+      }
+      
+      // Очищаем данные
+      this.gamedatas.pendingTechnicalDevelopmentMoves = null
+      
+      // Разблокируем кнопку завершения хода
+      this._updateFinishTurnButtonForTechnicalDevelopment()
+    },
+
+    _handleTechnicalDevelopmentRowClick: function (columnNum, fromRowIndex, toRowIndex) {
+      console.log('🔧 Technical development row clicked:', { columnNum, fromRowIndex, toRowIndex })
+      
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves) {
+        console.warn('⚠️ No pending technical development moves')
+        return
+      }
+      
+      // Находим текущую реальную позицию жетона (может измениться после предыдущих кликов)
+      const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+      if (!column) {
+        console.error('❌ Column not found:', columnNum)
+        return
+      }
+      
+      // Ищем строки в wrapper или напрямую в колонке
+      const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+      const container = wrapper || column
+      const rows = container.querySelectorAll('.player-department-technical-development__row')
+      
+      // Находим строку, где сейчас находится жетон
+      let actualCurrentRowIndex = fromRowIndex
+      rows.forEach(row => {
+        const token = row.querySelector('.player-department-technical-development__token')
+        if (token) {
+          actualCurrentRowIndex = parseInt(row.dataset.rowIndex, 10)
+        }
+      })
+      
+      console.log('🔧 Actual current row index:', actualCurrentRowIndex, 'target row:', toRowIndex)
+      
+      // Проверяем, есть ли уже перемещение для этой колонки
+      const existingMove = pendingMoves.moves.find(m => m.column === columnNum)
+      
+      // Если кликнули на исходную позицию (для отмены перемещения)
+      if (existingMove && existingMove.amount > 0 && toRowIndex === existingMove.fromRowIndex) {
+        // Возвращаем жетон в исходную позицию
+        const originalRowIndex = existingMove.fromRowIndex
+        const currentAmount = existingMove.amount
+        
+        console.log('🔧 Canceling move: returning token from row', actualCurrentRowIndex, 'to original row', originalRowIndex, 'amount:', -currentAmount)
+        
+        this._moveTechnicalDevelopmentToken(columnNum, actualCurrentRowIndex, originalRowIndex, -currentAmount)
+        
+        // Обновляем подсветку жетонов после отмены
+        this._updateTechnicalDevelopmentTokenHighlights()
+        
+        // Обновляем кликабельные строки после отмены
+        this._updateClickableRowsForColumn(columnNum)
+        return
+      }
+      
+      // Если кликнули на строку, где уже находится жетон или ниже (но не исходная), ничего не делаем
+      if (toRowIndex <= actualCurrentRowIndex) {
+        return
+      }
+      
+      // Вычисляем количество позиций для перемещения
+      const moveAmount = toRowIndex - actualCurrentRowIndex
+      
+      // Проверяем, достаточно ли очков
+      const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+      if (moveAmount > availableMoves) {
+        this.showMessage(_('Недостаточно очков для перемещения на ${amount} позиций').replace('${amount}', moveAmount), 'error')
+        return
+      }
+      
+      // Если есть существующее перемещение, сначала отменяем его
+      if (existingMove && existingMove.amount > 0) {
+        const originalRowIndex = existingMove.fromRowIndex
+        const currentAmount = existingMove.amount
+        // Отменяем предыдущее перемещение
+        this._moveTechnicalDevelopmentToken(columnNum, actualCurrentRowIndex, originalRowIndex, -currentAmount)
+        // Обновляем actualCurrentRowIndex после отмены
+        actualCurrentRowIndex = originalRowIndex
+      }
+      
+      // Перемещаем жетон в выбранную строку
+      this._moveTechnicalDevelopmentToken(columnNum, actualCurrentRowIndex, toRowIndex, moveAmount)
+      
+      // Обновляем подсветку жетонов после перемещения
+      this._updateTechnicalDevelopmentTokenHighlights()
+    },
+
+    _moveTechnicalDevelopmentToken: function (columnNum, fromRowIndex, toRowIndex, amount) {
+      console.log('🔧 Moving technical development token:', { columnNum, fromRowIndex, toRowIndex, amount })
+      
+      const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+      if (!column) {
+        console.error('❌ Column not found:', columnNum)
+        return
+      }
+      
+      // Ищем строки в wrapper или напрямую в колонке
+      const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+      const container = wrapper || column
+      
+      // ВАЖНО: Всегда находим реальную текущую позицию жетона, а не используем fromRowIndex
+      // fromRowIndex используется только для сохранения исходной позиции в данных
+      // Ищем ТОЛЬКО строки (не жетоны!)
+      const rows = container.querySelectorAll('.player-department-technical-development__row')
+      let currentRowIndex = null
+      let currentRow = null
+      let token = null
+      
+      console.log('🔧 Searching for token in', rows.length, 'rows')
+      rows.forEach(row => {
+        // Проверяем, что это действительно строка, а не жетон
+        if (!row.classList.contains('player-department-technical-development__row')) {
+          return
+        }
+        const rowToken = row.querySelector('.player-department-technical-development__token')
+        if (rowToken) {
+          currentRowIndex = parseInt(row.dataset.rowIndex, 10)
+          currentRow = row
+          token = rowToken
+          console.log('🔧 Found token at row:', currentRowIndex)
+        }
+      })
+      
+      // Если жетон не найден, это ошибка - жетон должен быть на поле
+      if (!currentRow || !token) {
+        console.error('❌ Token not found in any row! This should not happen.')
+        console.error('❌ Available rows:', Array.from(rows).map(r => ({ id: r.id, rowIndex: r.dataset.rowIndex, className: r.className })))
+        return
+      }
+      
+      // Находим целевую строку (ВАЖНО: ищем только строки, не жетоны!)
+      let toRow = null
+      // Сначала ищем по ID строки
+      toRow = document.getElementById(`player-department-technical-development-column-${columnNum}-row-${toRowIndex}`)
+      // Проверяем, что это действительно строка
+      if (toRow && !toRow.classList.contains('player-department-technical-development__row')) {
+        console.warn('⚠️ Element found by ID is not a row, searching again')
+        toRow = null
+      }
+      
+      // Если не нашли, ищем среди строк по data-row-index
+      if (!toRow) {
+        rows.forEach(row => {
+          // Проверяем, что это действительно строка, а не жетон
+          if (!row.classList.contains('player-department-technical-development__row')) {
+            return
+          }
+          const rowIndex = parseInt(row.dataset.rowIndex, 10)
+          if (rowIndex === toRowIndex) {
+            toRow = row
+          }
+        })
+      }
+      
+      // Финальная проверка: убеждаемся, что toRow - это действительно строка
+      if (toRow && !toRow.classList.contains('player-department-technical-development__row')) {
+        console.error('❌ Target element is not a row!', { toRow, className: toRow.className, id: toRow.id })
+        toRow = null
+      }
+      
+      if (!currentRow || !token) {
+        console.error('❌ Current row or token not found:', { currentRowIndex, fromRowIndex, toRowIndex, columnNum })
+        console.error('❌ Available rows:', Array.from(rows).map(r => ({ id: r.id, rowIndex: r.dataset.rowIndex, className: r.className })))
+        return
+      }
+      
+      if (!toRow) {
+        console.error('❌ Target row not found:', { toRowIndex, columnNum })
+        console.error('❌ Available rows:', Array.from(rows).map(r => ({ id: r.id, rowIndex: r.dataset.rowIndex, className: r.className })))
+        return
+      }
+      
+      // Финальная проверка: toRow должен быть строкой, а не жетоном
+      if (!toRow.classList.contains('player-department-technical-development__row')) {
+        console.error('❌ Target element is not a row! It is:', { 
+          element: toRow, 
+          className: toRow.className, 
+          id: toRow.id,
+          tagName: toRow.tagName 
+        })
+        return
+      }
+      
+      // Проверяем, что мы не пытаемся переместить жетон в ту же строку
+      if (currentRowIndex === toRowIndex) {
+        console.warn('⚠️ Token is already at target row:', toRowIndex)
+        return
+      }
+      
+      // Проверяем, что toRow и currentRow - это разные элементы
+      if (currentRow === toRow) {
+        console.warn('⚠️ Current row and target row are the same element!', { currentRowIndex, toRowIndex })
+        return
+      }
+      
+      console.log('✅ Moving token from row', currentRowIndex, 'to row', toRowIndex)
+      console.log('✅ Current row element:', currentRow.id || currentRow.className)
+      console.log('✅ Target row element:', toRow.id || toRow.className)
+      
+      // Перемещаем жетон
+      // Сначала удаляем из текущей строки
+      try {
+        if (token.parentNode) {
+          token.parentNode.removeChild(token)
+        } else {
+          token.remove()
+        }
+        
+        // Затем добавляем в целевую строку
+        toRow.appendChild(token)
+        console.log('✅ Token successfully moved')
+      } catch (error) {
+        console.error('❌ Error moving token:', error)
+        console.error('❌ Token:', token)
+        console.error('❌ Current row:', currentRow)
+        console.error('❌ Target row:', toRow)
+        return
+      }
+      
+      // Обновляем данные о перемещении
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (pendingMoves) {
+        // Ищем существующее перемещение для этой колонки
+        const existingMove = pendingMoves.moves.find(m => m.column === columnNum)
+        if (existingMove) {
+          // Если перемещение уже есть, изменяем amount и обновляем toRowIndex
+          existingMove.amount += amount
+          
+          // Если amount стал 0 или меньше, удаляем перемещение и возвращаем toRowIndex в исходную позицию
+          if (existingMove.amount <= 0) {
+            existingMove.toRowIndex = existingMove.fromRowIndex // Возвращаем в исходную позицию
+            const index = pendingMoves.moves.indexOf(existingMove)
+            pendingMoves.moves.splice(index, 1)
+          } else {
+            // Обновляем целевую позицию только если amount > 0
+            existingMove.toRowIndex = toRowIndex
+          }
+        } else {
+          // Создаем новое перемещение только если amount > 0
+          if (amount > 0) {
+            pendingMoves.moves.push({
+              column: columnNum,
+              fromRowIndex: fromRowIndex, // Исходная позиция
+              toRowIndex: toRowIndex, // Текущая позиция после перемещения
+              amount: amount
+            })
+          }
+        }
+        
+        pendingMoves.usedMoves += amount
+        
+        // Проверяем, что usedMoves не стал отрицательным
+        if (pendingMoves.usedMoves < 0) {
+          pendingMoves.usedMoves = 0
+        }
+        
+        console.log('✅ Token moved, pendingMoves:', pendingMoves)
+        
+        // Обновляем подсветку жетонов (только в колонках с активными перемещениями)
+        this._updateTechnicalDevelopmentTokenHighlights()
+        
+        // Обновляем кликабельные строки для этой колонки
+        this._updateClickableRowsForColumn(columnNum)
+        
+        // Обновляем кнопку подтверждения
+        this._updateTechnicalDevelopmentConfirmButton()
+        
+        // Блокируем кнопку завершения, пока есть ожидающие перемещения
+        this._updateFinishTurnButtonForTechnicalDevelopment()
+      }
+    },
+    
+    _updateTechnicalDevelopmentTokenHighlights: function () {
+      // Убираем подсветку со всех жетонов
+      const allTokens = document.querySelectorAll('.technical-development-token--move-mode')
+      allTokens.forEach(token => {
+        token.classList.remove('technical-development-token--move-mode')
+      })
+      
+      // Подсвечиваем только жетоны в колонках с активными перемещениями
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves) return
+      
+      pendingMoves.moves.forEach(move => {
+        const columnNum = move.column
+        const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+        if (!column) return
+        
+        const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+        const container = wrapper || column
+        const rows = container.querySelectorAll('.player-department-technical-development__row')
+        
+        rows.forEach(row => {
+          const token = row.querySelector('.player-department-technical-development__token')
+          if (token) {
+            token.classList.add('technical-development-token--move-mode')
+          }
+        })
+      })
+    },
+    
+    _updateActiveTechnicalDevelopmentTokenHighlight: function (token) {
+      token.classList.add('technical-development-token--move-mode')
+    },
+    
+    _removeActiveTechnicalDevelopmentTokenHighlight: function (token) {
+      token.classList.remove('technical-development-token--move-mode')
+    },
+    
+    _updateClickableRowsForColumn: function (columnNum) {
+      // Проверяем, что режим перемещения активирован
+      if (!this.gamedatas.pendingTechnicalDevelopmentMoves) {
+        return
+      }
+      
+      const column = document.getElementById(`player-department-technical-development-column-${columnNum}`)
+      if (!column) return
+      
+      const wrapper = column.querySelector(`.player-department-technical-development-column-${columnNum}__rows-wrapper`)
+      const container = wrapper || column
+      const rows = container.querySelectorAll('.player-department-technical-development__row')
+      
+      // Удаляем старый обработчик делегирования, если есть
+      if (container._technicalDevClickHandler) {
+        container.removeEventListener('click', container._technicalDevClickHandler, true)
+        container._technicalDevClickHandler = null
+      }
+      
+      // Находим текущую позицию жетона (ВАЖНО: вычисляем заново каждый раз)
+      let currentTokenRowIndex = null
+      rows.forEach((row) => {
+        const token = row.querySelector('.player-department-technical-development__token')
+        if (token) {
+          currentTokenRowIndex = parseInt(row.dataset.rowIndex, 10)
+        }
+      })
+      
+      if (currentTokenRowIndex === null) return
+      
+      // Обновляем кликабельность строк
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves) return
+      
+      const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+      
+      // Сохраняем текущий индекс для использования в замыкании
+      const currentRowIndex = currentTokenRowIndex
+      const self = this
+      
+      // Проверяем, есть ли активное перемещение для этой колонки (для отмены)
+      const existingMove = pendingMoves.moves.find(m => m.column === columnNum)
+      const originalRowIndex = existingMove ? existingMove.fromRowIndex : null
+      
+      // Обновляем визуальное состояние строк
+      rows.forEach((row) => {
+        const rowIndex = parseInt(row.dataset.rowIndex, 10)
+        const moveAmount = rowIndex - currentRowIndex
+        
+        // Строка кликабельна, если:
+        // 1. Она выше текущей позиции и в пределах доступных очков (для перемещения вверх)
+        // 2. ИЛИ это исходная позиция и есть активное перемещение (для отмены)
+        const isClickableForMove = rowIndex > currentRowIndex && moveAmount <= availableMoves
+        const isClickableForUndo = originalRowIndex !== null && rowIndex === originalRowIndex && existingMove && existingMove.amount > 0
+        
+        if (isClickableForMove || isClickableForUndo) {
+          row.classList.add('technical-development-row--clickable')
+          row.style.cursor = 'pointer'
+          row.style.position = 'relative'
+          row.style.pointerEvents = 'auto'
+          row.style.zIndex = '10'
+          row.setAttribute('data-clickable', 'true')
+          if (isClickableForUndo) {
+            row.setAttribute('data-undo', 'true') // Помечаем строку для отмены
+          }
+        } else {
+          row.classList.remove('technical-development-row--clickable')
+          row.style.cursor = ''
+          row.style.position = ''
+          row.style.pointerEvents = ''
+          row.style.zIndex = ''
+          row.removeAttribute('data-clickable')
+          row.removeAttribute('data-undo')
+        }
+      })
+      
+      const clickableCount = container.querySelectorAll('[data-clickable="true"]').length
+      console.log('🔴 Total clickable rows in column', columnNum, ':', clickableCount)
+      
+      // Обработчик клика
+      const clickHandler = function(e) {
+        console.log('🔴🔴🔴 CLICK HANDLER CALLED!', e.target, e.type)
+        
+        // Находим строку, на которую кликнули
+        let clickedRow = e.target.closest('.player-department-technical-development__row')
+        console.log('🔴 clickedRow:', clickedRow)
+        
+        if (!clickedRow) {
+          console.log('🔴 No row found')
+          return
+        }
+        
+        console.log('🔴 Row found, checking clickable:', clickedRow.hasAttribute('data-clickable'), 'rowIndex:', clickedRow.dataset.rowIndex)
+        
+        // Проверяем, что строка кликабельна
+        if (!clickedRow.hasAttribute('data-clickable')) {
+          console.log('🔴 Row is not clickable')
+          return
+        }
+        
+        e.stopPropagation()
+        e.preventDefault()
+        
+        const targetRowIndex = parseInt(clickedRow.dataset.rowIndex, 10)
+        console.log('🔴✅ CLICK PROCESSED! column:', columnNum, 'targetRow:', targetRowIndex)
+        
+        // Вычисляем текущую позицию жетона заново при клике
+        const currentRows = container.querySelectorAll('.player-department-technical-development__row')
+        let actualCurrentRowIndex = null
+        
+        // Убираем подсветку со всех жетонов и находим текущую позицию
+        currentRows.forEach((r) => {
+          const t = r.querySelector('.player-department-technical-development__token')
+          if (t) {
+            t.classList.remove('technical-development-token--move-mode')
+            actualCurrentRowIndex = parseInt(r.dataset.rowIndex, 10)
+          }
+        })
+        
+        // Подсвечиваем жетон в текущей позиции
+        if (actualCurrentRowIndex !== null) {
+          currentRows.forEach((r) => {
+            const t = r.querySelector('.player-department-technical-development__token')
+            if (t && parseInt(r.dataset.rowIndex, 10) === actualCurrentRowIndex) {
+              t.classList.add('technical-development-token--move-mode')
+            }
+          })
+          
+          // Обрабатываем клик
+          self._handleTechnicalDevelopmentRowClick(columnNum, actualCurrentRowIndex, targetRowIndex)
+        }
+      }
+      
+      // Добавляем обработчики на разные события для надежности
+      container.addEventListener('mousedown', function(e) {
+        console.log('🔴 MOUSEDOWN on container, target:', e.target)
+        const clickedRow = e.target.closest('.player-department-technical-development__row')
+        if (clickedRow && clickedRow.hasAttribute('data-clickable')) {
+          console.log('🔴✅ MOUSEDOWN on clickable row!')
+          e.preventDefault()
+          clickHandler(e)
+        }
+      }, true)
+      
+      container.addEventListener('click', clickHandler, true)
+      container._technicalDevClickHandler = clickHandler
+      
+      console.log('🔴✅ Event listeners added to container:', container, 'column:', columnNum)
+    },
+
+    _addTechnicalDevelopmentConfirmButton: function () {
+      // Удаляем существующую кнопку, если есть
+      const existingButton = document.getElementById('technical-development-moves-confirm-button')
+      if (existingButton) {
+        existingButton.remove()
+      }
+      
+      // Создаем кнопку
+      const button = document.createElement('button')
+      button.id = 'technical-development-moves-confirm-button'
+      button.className = 'technical-development-moves-confirm-button'
+      button.textContent = _('Подтвердить улучшения')
+      button.disabled = true
+      
+      // Добавляем обработчик
+      button.onclick = () => {
+        this._confirmTechnicalDevelopmentMoves()
+      }
+      
+      // Добавляем кнопку в интерфейс (вверху экрана, по центру)
+      // Используем фиксированное позиционирование вверху экрана по центру
+      button.style.position = 'fixed'
+      button.style.top = '80px'
+      button.style.left = '50%'
+      button.style.transform = 'translateX(-50%)'
+      button.style.zIndex = '1000'
+      document.body.appendChild(button)
+      
+      this._updateTechnicalDevelopmentConfirmButton()
+    },
+
+    _updateTechnicalDevelopmentConfirmButton: function () {
+      const button = document.getElementById('technical-development-moves-confirm-button')
+      if (!button) return
+      
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves) {
+        button.disabled = true
+        return
+      }
+      
+      const usedMoves = pendingMoves.usedMoves
+      const totalMoves = pendingMoves.moveCount
+      const remaining = totalMoves - usedMoves
+      
+      // Кнопка активна, если использованы все очки
+      button.disabled = usedMoves !== totalMoves
+      
+      if (remaining > 0) {
+        button.textContent = _('Подтвердить улучшения (осталось ${count} очков)').replace('${count}', remaining)
+      } else {
+        button.textContent = _('Подтвердить улучшения')
+      }
+    },
+
+    _updateFinishTurnButtonForTechnicalDevelopment: function () {
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      const finishButton = document.getElementById('finish-turn-button')
+      
+      if (!finishButton) return
+      
+      if (pendingMoves && pendingMoves.usedMoves > 0) {
+        // Блокируем кнопку завершения, пока есть ожидающие перемещения
+        finishButton.disabled = true
+        finishButton.setAttribute('title', _('Завершите улучшение техотдела'))
+        console.log('🔒 Finish turn button disabled - technical development moves pending')
+      } else if (!pendingMoves) {
+        // Если нет ожидающих перемещений, проверяем другие условия
+        const hasPendingTaskSelection = this.gamedatas?.pendingTaskSelection || false
+        const hasPendingTaskMoves = this.gamedatas?.pendingTaskMoves || false
+        const hasPendingTaskMovesJson = this.gamedatas?.pendingTaskMovesJson || false
+        
+        if (!hasPendingTaskSelection && !hasPendingTaskMoves && !hasPendingTaskMovesJson) {
+          finishButton.disabled = false
+          finishButton.removeAttribute('title')
+          console.log('✅ Finish turn button enabled - no pending moves')
+        }
+      }
+    },
+
+    _confirmTechnicalDevelopmentMoves: function () {
+      const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves) {
+        console.error('❌ No pending technical development moves')
+        return
+      }
+      
+      if (pendingMoves.usedMoves !== pendingMoves.moveCount) {
+        this.showMessage(_('Используйте все доступные очки'), 'error')
+        return
+      }
+      
+      console.log('🔧 Confirming technical development moves:', pendingMoves.moves)
+      
+      // Отправляем данные на сервер (преобразуем массив в JSON строку)
+      this.ajaxcall('/' + this.game_name + '/' + this.game_name + '/actConfirmTechnicalDevelopmentMoves.html', {
+        movesJson: JSON.stringify(pendingMoves.moves)
+      }, this, (result) => {
+        if (result && !result.error) {
+          console.log('✅ Technical development moves confirmed')
+          this._deactivateTechnicalDevelopmentMoveMode()
+          
+          // Разблокируем кнопку завершения
+          this._updateFinishTurnButtonForTechnicalDevelopment()
+        } else {
+          console.error('❌ Failed to confirm technical development moves:', result)
+          this.showMessage(result?.error || _('Ошибка при подтверждении'), 'error')
+        }
+      })
+    },
+
     _deactivateTaskMoveMode: function () {
       console.log('🔒 Deactivating task move mode')
       
@@ -4817,6 +6357,41 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       `
       
       document.body.appendChild(indicator)
+      
+      // Позиционируем окно под окном "Эффект карты" с отступом 10px
+      this._positionTaskMoveIndicator()
+    },
+    
+    /**
+     * Позиционирует индикатор режима перемещения задач под окном эффекта карты
+     */
+    _positionTaskMoveIndicator: function () {
+      const founderHint = document.getElementById('founder-effect-sequence-hint')
+      const taskIndicator = document.getElementById('task-move-mode-indicator')
+      
+      if (!taskIndicator) {
+        return
+      }
+      
+      if (!founderHint) {
+        // Если окно эффекта карты не найдено, используем стандартное позиционирование по центру
+        taskIndicator.style.position = 'fixed'
+        taskIndicator.style.top = '420px'
+        taskIndicator.style.left = '50%'
+        taskIndicator.style.transform = 'translateX(-50%)'
+        taskIndicator.style.width = 'auto'
+        return
+      }
+      
+      // Получаем позицию и размеры окна эффекта карты
+      const founderRect = founderHint.getBoundingClientRect()
+      
+      // Устанавливаем позицию окна "Режим перемещения задач" под окном эффекта карты
+      taskIndicator.style.position = 'fixed'
+      taskIndicator.style.top = (founderRect.bottom + 10) + 'px' // 10px отступ
+      taskIndicator.style.left = founderRect.left + 'px' // Выравниваем по левому краю
+      taskIndicator.style.transform = 'none' // Убираем transform, так как позиционируем напрямую
+      taskIndicator.style.width = founderRect.width + 'px' // Ширина такая же, как у окна эффекта карты
     },
 
     /**
@@ -4877,6 +6452,16 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       
       indicator.appendChild(button)
+    },
+
+    /**
+     * Скрывает кнопку подтверждения перемещений
+     */
+    _hideTaskMovesConfirmButton: function () {
+      const confirmButton = document.getElementById('task-moves-confirm-button')
+      if (confirmButton) {
+        confirmButton.remove()
+      }
     },
 
     /**
@@ -5062,6 +6647,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       `
       
       document.body.appendChild(hint)
+      
+      // Обновляем позицию окна "Режим перемещения задач", если оно уже отображается
+      setTimeout(() => {
+        this._positionTaskMoveIndicator()
+      }, 0)
     },
 
     /**
@@ -5838,7 +7428,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this.gamedatas.founders[playerId].department = department
         }
       })
-    },
+    }
   })
 })
 
