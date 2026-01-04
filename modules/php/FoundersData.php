@@ -210,6 +210,7 @@ class FoundersData
                 'updateTrack' => [
                     ['track' => 'income-track', 'amount' => '+ 1'], // Трек дохода в отделе продаж
                     ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                    ['track' => 'player-department-technical-development', 'amount' => '+ 1', 'column' => 'any'], // Трек технического развития в любом отделе
                 ]
             ], // Эффект
             'department' => 'back-office', // Отдел
