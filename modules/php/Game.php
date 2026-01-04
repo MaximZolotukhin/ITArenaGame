@@ -265,14 +265,81 @@ class Game extends \Bga\GameFramework\Table
 
         // WARNING: We must only return information visible by the current player.
         $current_player_id = (int) $this->getCurrentPlayerId();
+        error_log("🔵🔵🔵 Game::getAllDatas() - Called for current_player_id: $current_player_id");
 
         // Get information about players.
         // NOTE: you can retrieve some extra field you added for "player" table in `dbmodel.sql` if you need it.
         $result["players"] = $this->getCollectionFromDb(
             "SELECT `player_id` `id`, `player_score` `score`, `player_color` `color` FROM `player`"
         );
-        $this->playerEnergy->fillResult($result);
-        $this->playerBadgers->fillResult($result);
+        
+        // ВЫВОДИМ СТРУКТУРУ ТАБЛИЦЫ player (ВСЕ ПОЛЯ)
+        error_log('========================================');
+        error_log('=== СТРУКТУРА ТАБЛИЦЫ player (ВСЕ ПОЛЯ) ===');
+        error_log('========================================');
+        $tableStructure = $this->getCollectionFromDb("DESCRIBE `player`");
+        foreach ($tableStructure as $field) {
+            error_log('ПОЛЕ: ' . $field['Field'] . ' | ТИП: ' . $field['Type'] . ' | NULL: ' . $field['Null'] . ' | КЛЮЧ: ' . $field['Key'] . ' | ПО УМОЛЧАНИЮ: ' . ($field['Default'] ?? 'NULL') . ' | ДОПОЛНИТЕЛЬНО: ' . ($field['Extra'] ?? ''));
+        }
+        error_log('========================================');
+        error_log('');
+        
+        // ВЫВОДИМ ВСЕ ПОЛЯ ИЗ БД ДЛЯ КАЖДОГО ИГРОКА
+        error_log('========================================');
+        error_log('=== ВСЕ ПОЛЯ ИЗ БД ДЛЯ ИГРОКОВ ===');
+        error_log('========================================');
+        foreach ($result["players"] as $player) {
+            $playerId = (int)($player['id'] ?? 0);
+            error_log('');
+            error_log('========================================');
+            error_log('ИГРОК ' . $playerId . ' - ВСЕ ПОЛЯ ИЗ ТАБЛИЦЫ player:');
+            error_log('========================================');
+            
+            // Получаем ВСЕ поля из таблицы player
+            $allPlayerFields = $this->getObjectFromDb("
+                SELECT * FROM `player` WHERE `player_id` = $playerId
+            ");
+            
+            if ($allPlayerFields) {
+                // Выводим каждое поле на отдельной строке
+                foreach ($allPlayerFields as $fieldName => $fieldValue) {
+                    $valueStr = is_null($fieldValue) ? 'NULL' : (is_string($fieldValue) ? $fieldValue : var_export($fieldValue, true));
+                    error_log($fieldName . ' = ' . $valueStr);
+                }
+            } else {
+                error_log('ОШИБКА: Игрок ' . $playerId . ' не найден в таблице player!');
+            }
+            error_log('========================================');
+            error_log('');
+        }
+        error_log('========================================');
+        // НЕ используем fillResult для energy и badgers, т.к. они теперь хранятся в player_game_data
+        // $this->playerEnergy->fillResult($result);
+        // $this->playerBadgers->fillResult($result);
+        
+        // ВАЖНО: Логируем данные баджерсов для каждого игрока (теперь из player_game_data)
+        // Это покажет, сколько баджерсов ДЕЙСТВИТЕЛЬНО в базе данных у каждого игрока
+        error_log('🔵🔵🔵 Game::getAllDatas() - Badgers data after fillResult for current_player_id: ' . $current_player_id);
+        foreach ($result["players"] as $player) {
+            $playerId = (int)($player['id'] ?? 0);
+            $badgersFromFillResult = $player['badgers'] ?? null;
+            
+            // ВАЖНО: Проверяем, что данные правильно прочитаны из базы данных
+            $dbBadgers = $this->playerBadgers->get($playerId);
+            
+            error_log("🔵 Player $playerId - fillResult: " . ($badgersFromFillResult !== null ? $badgersFromFillResult : 'NULL') . ", DB: $dbBadgers");
+            
+            if ($badgersFromFillResult !== $dbBadgers) {
+                error_log("🔴🔴🔴 ERROR: Player $playerId badgers mismatch! fillResult: $badgersFromFillResult, DB: $dbBadgers");
+            }
+            
+            // ВАЖНО: Если у игрока больше 5 баджерсов на старте, это проблема в бэкенде
+            // НО: Проверяем только если это НЕ текущий игрок, для которого вызывается getAllDatas
+            // (текущий игрок может иметь больше 5 баджерсов после применения эффекта)
+            if ($playerId !== $current_player_id && $dbBadgers > 5) {
+                error_log("🔴🔴🔴🔴🔴 CRITICAL ERROR: Player $playerId (NOT current player $current_player_id) has $dbBadgers badgers (expected 5 at start)! This indicates a backend issue - effect was applied to wrong player!");
+            }
+        }
 
         $basicInfos = $this->loadPlayersBasicInfos();
         $foundersByPlayer = $this->getFoundersByPlayer();
@@ -294,10 +361,153 @@ class Game extends \Bga\GameFramework\Table
             }
             // Добавляем жетоны штрафа для игрока
             $player['penaltyTokens'] = $penaltyTokensByPlayer[$playerId] ?? [];
-            // Добавляем жетоны задач для игрока
-            $player['taskTokens'] = $taskTokensByPlayer[$playerId] ?? [];
-            // Добавляем жетоны проектов для игрока
-            $player['projectTokens'] = $this->getProjectTokensByPlayer($playerId);
+            
+            // ВАЖНО: При старте хода игрока считываем ВСЕ данные из player_game_data
+            // Это основной источник данных для отображения на планшете игрока
+            $gameData = $this->getPlayerGameData($playerId);
+            
+            if ($gameData) {
+                // Базовые параметры из таблицы player_game_data (приоритетный источник)
+                $player['energy'] = $gameData['incomeTrack']; // Трек дохода
+                $player['badgers'] = $gameData['badgers']; // Баджерсы
+                
+                // Треки бэк-офиса
+                $player['backOfficeCol1'] = $gameData['backOfficeCol1'];
+                $player['backOfficeCol2'] = $gameData['backOfficeCol2'];
+                $player['backOfficeCol3'] = $gameData['backOfficeCol3'];
+                
+                // Треки технического развития
+                $player['techDevCol1'] = $gameData['techDevCol1'];
+                $player['techDevCol2'] = $gameData['techDevCol2'];
+                $player['techDevCol3'] = $gameData['techDevCol3'];
+                $player['techDevCol4'] = $gameData['techDevCol4'];
+                
+                // Жетон навыка
+                $player['skillToken'] = $gameData['skillToken'];
+                
+                // Прогресс трека задач
+                $player['sprintColumnTasksProgress'] = $gameData['sprintColumnTasksProgress'];
+                
+                // Трек спринта (из player_game_data)
+                $player['sprintTrack'] = $gameData['sprintTrack'];
+                
+                // Жетоны задач (из player_game_data)
+                if (!empty($gameData['taskTokens']) && is_array($gameData['taskTokens'])) {
+                    $player['taskTokens'] = $gameData['taskTokens'];
+                } else {
+                    // Если нет в player_game_data, читаем из БД
+                    $player['taskTokens'] = $taskTokensByPlayer[$playerId] ?? [];
+                }
+                
+                // Жетоны проектов (из player_game_data)
+                if (!empty($gameData['projectTokens']) && is_array($gameData['projectTokens'])) {
+                    $player['projectTokens'] = $gameData['projectTokens'];
+                } else {
+                    // Если нет в player_game_data, читаем из БД
+                    $player['projectTokens'] = $this->getProjectTokensByPlayer($playerId);
+                }
+                
+                // Карты специалистов на руке (из player_game_data)
+                if (!empty($gameData['specialistHand']) && is_array($gameData['specialistHand'])) {
+                    $player['specialistHand'] = $gameData['specialistHand'];
+                } else {
+                    // Если нет в player_game_data, читаем из globals
+                    $specialistHandIdsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+                    $player['specialistHand'] = !empty($specialistHandIdsJson) ? json_decode($specialistHandIdsJson, true) : [];
+                }
+                
+                // Карты сотрудников (из player_game_data)
+                if (!empty($gameData['playerSpecialists']) && is_array($gameData['playerSpecialists'])) {
+                    $player['playerSpecialists'] = $gameData['playerSpecialists'];
+                } else {
+                    // Если нет в player_game_data, читаем из globals
+                    $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+                    $player['playerSpecialists'] = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
+                }
+                
+                // Бонусы IT проектов
+                $player['itProjectBonuses'] = $gameData['itProjectBonuses'];
+                
+                // Цели игры
+                $player['gameGoals'] = $gameData['gameGoals'];
+            } else {
+                // Если данных нет в player_game_data, инициализируем и читаем из других источников
+                $this->initPlayerGameData($playerId);
+                
+                // Читаем из PlayerCounter и других источников
+                $player['energy'] = $this->playerEnergy->get($playerId);
+                $player['badgers'] = $this->playerBadgers->get($playerId);
+                $player['taskTokens'] = $taskTokensByPlayer[$playerId] ?? [];
+                $player['projectTokens'] = $this->getProjectTokensByPlayer($playerId);
+                
+                // Формируем трек спринта из жетонов задач
+                $sprintTrack = [
+                    'backlog' => [],
+                    'in-progress' => [],
+                    'testing' => [],
+                    'completed' => [],
+                ];
+                foreach ($player['taskTokens'] as $token) {
+                    $location = $token['location'] ?? 'backlog';
+                    if (isset($sprintTrack[$location])) {
+                        $sprintTrack[$location][] = $token;
+                    }
+                }
+                $player['sprintTrack'] = [
+                    'backlog' => $sprintTrack['backlog'],
+                    'inProgress' => $sprintTrack['in-progress'],
+                    'testing' => $sprintTrack['testing'],
+                    'completed' => $sprintTrack['completed'],
+                    'backlogCount' => count($sprintTrack['backlog']),
+                    'inProgressCount' => count($sprintTrack['in-progress']),
+                    'testingCount' => count($sprintTrack['testing']),
+                    'completedCount' => count($sprintTrack['completed']),
+                ];
+                
+                // Читаем из globals
+                $specialistHandIdsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+                $player['specialistHand'] = !empty($specialistHandIdsJson) ? json_decode($specialistHandIdsJson, true) : [];
+                
+                $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+                $player['playerSpecialists'] = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
+                
+                // Значения по умолчанию для остальных полей
+                $player['backOfficeCol1'] = null;
+                $player['backOfficeCol2'] = null;
+                $player['backOfficeCol3'] = null;
+                $player['techDevCol1'] = null;
+                $player['techDevCol2'] = null;
+                $player['techDevCol3'] = null;
+                $player['techDevCol4'] = null;
+                $player['skillToken'] = null;
+                $player['sprintColumnTasksProgress'] = null;
+                $player['itProjectBonuses'] = [];
+                $player['gameGoals'] = [];
+            }
+            
+            // ВЫВОДИМ ПОЛНУЮ ИНФОРМАЦИЮ О ВСЕХ СВОЙСТВАХ ИГРОКА В БД
+            error_log('========================================');
+            error_log('=== ПОЛНАЯ ИНФОРМАЦИЯ О ИГРОКЕ ' . $playerId . ' В БД ===');
+            error_log('========================================');
+            error_log('  id=' . var_export($player['id'], true));
+            error_log('  score=' . var_export($player['score'], true));
+            error_log('  color=' . var_export($player['color'], true));
+            error_log('  energy (incomeTrack)=' . var_export($player['energy'] ?? null, true));
+            error_log('  badgers=' . var_export($player['badgers'] ?? null, true));
+            error_log('  founder=' . json_encode($player['founder'] ?? null, JSON_UNESCAPED_UNICODE));
+            error_log('  penaltyTokens: всего=' . count($player['penaltyTokens'] ?? []) . ', данные=' . json_encode($player['penaltyTokens'] ?? [], JSON_UNESCAPED_UNICODE));
+            error_log('  taskTokens: всего=' . count($player['taskTokens'] ?? []) . ', данные=' . json_encode($player['taskTokens'] ?? [], JSON_UNESCAPED_UNICODE));
+            error_log('  sprintTrack: backlog=' . ($player['sprintTrack']['backlogCount'] ?? 0) . ', inProgress=' . ($player['sprintTrack']['inProgressCount'] ?? 0) . ', testing=' . ($player['sprintTrack']['testingCount'] ?? 0) . ', completed=' . ($player['sprintTrack']['completedCount'] ?? 0));
+            error_log('  sprintColumnTasksProgress=' . var_export($player['sprintColumnTasksProgress'] ?? null, true));
+            error_log('  projectTokens: всего=' . count($player['projectTokens'] ?? []) . ', данные=' . json_encode($player['projectTokens'] ?? [], JSON_UNESCAPED_UNICODE));
+            error_log('  backOfficeCol1=' . var_export($player['backOfficeCol1'] ?? null, true) . ', backOfficeCol2=' . var_export($player['backOfficeCol2'] ?? null, true) . ', backOfficeCol3=' . var_export($player['backOfficeCol3'] ?? null, true));
+            error_log('  techDevCol1=' . var_export($player['techDevCol1'] ?? null, true) . ', techDevCol2=' . var_export($player['techDevCol2'] ?? null, true) . ', techDevCol3=' . var_export($player['techDevCol3'] ?? null, true) . ', techDevCol4=' . var_export($player['techDevCol4'] ?? null, true));
+            error_log('  skillToken=' . var_export($player['skillToken'] ?? null, true));
+            error_log('  itProjectBonuses=' . json_encode($player['itProjectBonuses'] ?? [], JSON_UNESCAPED_UNICODE));
+            error_log('  gameGoals=' . json_encode($player['gameGoals'] ?? [], JSON_UNESCAPED_UNICODE));
+            error_log('  === Полный массив player для игрока ' . $playerId . ' ===');
+            error_log('  ' . json_encode($player, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            error_log('========================================');
         }
         unset($player);
 
@@ -332,6 +542,135 @@ class Game extends \Bga\GameFramework\Table
         $result['founders'] = $foundersByPlayer; // Данные по основателям игроков
         $result['gameMode'] = $this->getGameMode(); // Режим игры (1 - Обучающий, 2 - Основной)
         $result['isTutorialMode'] = $this->isTutorialMode(); // Является ли режим обучающим
+        
+        // ВСЕГДА добавляем начальные значения всех игроков в getAllDatas
+        // Это гарантирует, что данные будут доступны при каждой загрузке страницы
+        error_log('========================================');
+        error_log('=== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ===');
+        error_log('=== Game::getAllDatas() - Called for current_player_id: ' . $current_player_id . ' ===');
+        error_log('========================================');
+        $initialValues = [];
+        $allPlayerIds = array_keys($basicInfos);
+        error_log('Обрабатываем ' . count($allPlayerIds) . ' игроков для начальных значений');
+        foreach ($allPlayerIds as $playerId) {
+            $playerId = (int)$playerId;
+            
+            // Базовые параметры
+            $badgers = $this->playerBadgers->get($playerId);
+            $incomeTrack = $this->playerEnergy->get($playerId);
+            
+            // Жетоны задач
+            $taskTokens = $this->getTaskTokensByPlayer($playerId);
+            $taskTokensCount = count($taskTokens);
+            $taskTokensByLocation = [];
+            $sprintTrackData = [
+                'backlog' => [],
+                'in-progress' => [],
+                'testing' => [],
+                'completed' => [],
+            ];
+            foreach ($taskTokens as $token) {
+                $location = $token['location'] ?? 'unknown';
+                $taskTokensByLocation[$location] = ($taskTokensByLocation[$location] ?? 0) + 1;
+                if (isset($sprintTrackData[$location])) {
+                    $sprintTrackData[$location][] = $token;
+                }
+            }
+            
+            // Жетоны проектов
+            $projectTokens = $this->getProjectTokensByPlayer($playerId);
+            $projectTokensCount = count($projectTokens);
+            
+            // Карты специалистов на руке (для выбора)
+            $specialistHandIdsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+            $specialistHandIds = !empty($specialistHandIdsJson) ? json_decode($specialistHandIdsJson, true) : [];
+            $specialistHandCount = is_array($specialistHandIds) ? count($specialistHandIds) : 0;
+            
+            // Карты сотрудников (подтвержденные)
+            $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+            $playerSpecialistsIds = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
+            $playerSpecialistsCount = is_array($playerSpecialistsIds) ? count($playerSpecialistsIds) : 0;
+            
+            // Получаем игровые данные из таблицы player_game_data
+            $gameData = $this->getPlayerGameData($playerId);
+            
+            // Треки бэк-офиса
+            $backOfficeCol1 = $gameData ? $gameData['backOfficeCol1'] : null;
+            $backOfficeCol2 = $gameData ? $gameData['backOfficeCol2'] : null;
+            $backOfficeCol3 = $gameData ? $gameData['backOfficeCol3'] : null;
+            
+            // Треки технического развития
+            $techDevCol1 = $gameData ? $gameData['techDevCol1'] : null;
+            $techDevCol2 = $gameData ? $gameData['techDevCol2'] : null;
+            $techDevCol3 = $gameData ? $gameData['techDevCol3'] : null;
+            $techDevCol4 = $gameData ? $gameData['techDevCol4'] : null;
+            
+            // Жетон навыка (если есть)
+            $skillToken = $gameData ? $gameData['skillToken'] : null;
+            
+            // Бонусы IT проектов
+            $itProjectBonuses = $gameData ? $gameData['itProjectBonuses'] : [];
+            
+            // Цели игры
+            $gameGoals = $gameData ? $gameData['gameGoals'] : [];
+            
+            // Прогресс улучшения трека задач (sprint-column-tasks)
+            $sprintColumnTasksProgress = $gameData ? $gameData['sprintColumnTasksProgress'] : null;
+            
+            $initialValues[$playerId] = [
+                'badgers' => $badgers,
+                'incomeTrack' => $incomeTrack,
+                'taskTokens' => ['total' => $taskTokensCount, 'byLocation' => $taskTokensByLocation],
+                'sprintTrack' => [
+                    'backlog' => $sprintTrackData['backlog'],
+                    'inProgress' => $sprintTrackData['in-progress'],
+                    'testing' => $sprintTrackData['testing'],
+                    'completed' => $sprintTrackData['completed'],
+                    'backlogCount' => count($sprintTrackData['backlog']),
+                    'inProgressCount' => count($sprintTrackData['in-progress']),
+                    'testingCount' => count($sprintTrackData['testing']),
+                    'completedCount' => count($sprintTrackData['completed']),
+                ],
+                'sprintColumnTasksProgress' => $sprintColumnTasksProgress,
+                'projectTokens' => $projectTokensCount,
+                'specialistHand' => ['count' => $specialistHandCount, 'ids' => $specialistHandIds],
+                'playerSpecialists' => ['count' => $playerSpecialistsCount, 'ids' => $playerSpecialistsIds],
+                'backOfficeCol1' => $backOfficeCol1,
+                'backOfficeCol2' => $backOfficeCol2,
+                'backOfficeCol3' => $backOfficeCol3,
+                'techDevCol1' => $techDevCol1,
+                'techDevCol2' => $techDevCol2,
+                'techDevCol3' => $techDevCol3,
+                'techDevCol4' => $techDevCol4,
+                'skillToken' => $skillToken,
+                'itProjectBonuses' => $itProjectBonuses,
+                'gameGoals' => $gameGoals,
+            ];
+            
+            // ВЫВОДИМ ВСЕ НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ДЛЯ КАЖДОГО ИГРОКА В error_log
+            error_log('--- Игрок ' . $playerId . ' ---');
+            error_log('  badgers=' . var_export($badgers, true));
+            error_log('  incomeTrack=' . var_export($incomeTrack, true));
+            error_log('  taskTokens: всего=' . $taskTokensCount . ', по локациям=' . json_encode($taskTokensByLocation, JSON_UNESCAPED_UNICODE));
+            error_log('  sprintTrack: backlog=' . count($sprintTrackData['backlog']) . ', inProgress=' . count($sprintTrackData['in-progress']) . ', testing=' . count($sprintTrackData['testing']) . ', completed=' . count($sprintTrackData['completed']));
+            error_log('  sprintColumnTasksProgress=' . var_export($sprintColumnTasksProgress, true));
+            error_log('  projectTokens: всего=' . $projectTokensCount);
+            error_log('  specialistHand (на руке): всего=' . $specialistHandCount . ', IDs=' . json_encode($specialistHandIds, JSON_UNESCAPED_UNICODE));
+            error_log('  playerSpecialists (подтвержденные): всего=' . $playerSpecialistsCount . ', IDs=' . json_encode($playerSpecialistsIds, JSON_UNESCAPED_UNICODE));
+            error_log('  backOfficeCol1=' . var_export($backOfficeCol1, true) . ', backOfficeCol2=' . var_export($backOfficeCol2, true) . ', backOfficeCol3=' . var_export($backOfficeCol3, true));
+            error_log('  techDevCol1=' . var_export($techDevCol1, true) . ', techDevCol2=' . var_export($techDevCol2, true) . ', techDevCol3=' . var_export($techDevCol3, true) . ', techDevCol4=' . var_export($techDevCol4, true));
+            error_log('  skillToken=' . var_export($skillToken, true));
+            error_log('  itProjectBonuses=' . json_encode($itProjectBonuses, JSON_UNESCAPED_UNICODE));
+            error_log('  gameGoals=' . json_encode($gameGoals, JSON_UNESCAPED_UNICODE));
+            
+            // Дополнительная проверка: выводим все значения из массива $initialValues для этого игрока
+            error_log('  === Полный массив initialValues для игрока ' . $playerId . ' ===');
+            error_log('  ' . json_encode($initialValues[$playerId], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        }
+        $result['initialPlayerValues'] = $initialValues;
+        error_log('========================================');
+        error_log('=== Добавлено initialPlayerValues для ' . count($initialValues) . ' игроков ===');
+        error_log('========================================');
         
         // В основном режиме передаем карты на выбор для текущего игрока (если еще не выбрал)
         // Также передаем для активного игрока, если состояние - FounderSelection
@@ -530,6 +869,9 @@ class Game extends \Bga\GameFramework\Table
         $this->eventDeck->autoreshuffle = false;
         $this->eventDeck->createCards(EventCardsData::getCardsForDeck(), 'deck');
         $this->eventDeck->shuffle('deck');
+
+        // Инициализируем колоды специалистов
+        $this->initSpecialistDecks();
 
         // Init game statistics.
         //
@@ -2030,6 +2372,281 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Получает игровые данные игрока из таблицы player_game_data
+     * @param int $playerId ID игрока
+     * @return array|null Массив данных игрока или null если не найдено
+     */
+    public function getPlayerGameData(int $playerId): ?array
+    {
+        $data = $this->getObjectFromDb("
+            SELECT * FROM `player_game_data` WHERE `player_id` = $playerId
+        ");
+        
+        if (!$data) {
+            return null;
+        }
+        
+        return [
+            'incomeTrack' => $data['income_track'] !== null ? (int)$data['income_track'] : 1,
+            'badgers' => $data['badgers'] !== null ? (int)$data['badgers'] : 0,
+            'backOfficeCol1' => $data['back_office_col1'] !== null ? (int)$data['back_office_col1'] : null,
+            'backOfficeCol2' => $data['back_office_col2'] !== null ? (int)$data['back_office_col2'] : null,
+            'backOfficeCol3' => $data['back_office_col3'] !== null ? (int)$data['back_office_col3'] : null,
+            'techDevCol1' => $data['tech_dev_col1'] !== null ? (int)$data['tech_dev_col1'] : null,
+            'techDevCol2' => $data['tech_dev_col2'] !== null ? (int)$data['tech_dev_col2'] : null,
+            'techDevCol3' => $data['tech_dev_col3'] !== null ? (int)$data['tech_dev_col3'] : null,
+            'techDevCol4' => $data['tech_dev_col4'] !== null ? (int)$data['tech_dev_col4'] : null,
+            'skillToken' => $data['skill_token'],
+            'sprintColumnTasksProgress' => $data['sprint_column_tasks_progress'] !== null ? (int)$data['sprint_column_tasks_progress'] : null,
+            'sprintTrack' => [
+                'backlog' => !empty($data['sprint_track_backlog']) ? json_decode($data['sprint_track_backlog'], true) : [],
+                'inProgress' => !empty($data['sprint_track_in_progress']) ? json_decode($data['sprint_track_in_progress'], true) : [],
+                'testing' => !empty($data['sprint_track_testing']) ? json_decode($data['sprint_track_testing'], true) : [],
+                'completed' => !empty($data['sprint_track_completed']) ? json_decode($data['sprint_track_completed'], true) : [],
+            ],
+            'taskTokens' => !empty($data['task_tokens']) ? json_decode($data['task_tokens'], true) : [],
+            'projectTokens' => !empty($data['project_tokens']) ? json_decode($data['project_tokens'], true) : [],
+            'specialistHand' => !empty($data['specialist_hand']) ? json_decode($data['specialist_hand'], true) : [],
+            'playerSpecialists' => !empty($data['player_specialists']) ? json_decode($data['player_specialists'], true) : [],
+            'itProjectBonuses' => !empty($data['it_project_bonuses']) ? json_decode($data['it_project_bonuses'], true) : [],
+            'gameGoals' => !empty($data['game_goals']) ? json_decode($data['game_goals'], true) : [],
+        ];
+    }
+    
+    /**
+     * Инициализирует игровые данные игрока (создает запись если не существует)
+     * @param int $playerId ID игрока
+     */
+    public function initPlayerGameData(int $playerId): void
+    {
+        $existing = $this->getObjectFromDb("
+            SELECT `id` FROM `player_game_data` WHERE `player_id` = $playerId
+        ");
+        
+        if (!$existing) {
+            // Инициализируем с начальными значениями
+            $incomeTrack = $this->playerEnergy->get($playerId);
+            $badgers = $this->playerBadgers->get($playerId);
+            $this->DbQuery("
+                INSERT INTO `player_game_data` (`player_id`, `income_track`, `badgers`) 
+                VALUES ($playerId, $incomeTrack, $badgers)
+            ");
+        }
+    }
+    
+    /**
+     * Обновляет позицию на треке бэк-офиса
+     * @param int $playerId ID игрока
+     * @param int $column Номер колонки (1, 2, 3)
+     * @param int|null $value Новое значение позиции (null для сброса)
+     */
+    public function setBackOfficeColumn(int $playerId, int $column, ?int $value): void
+    {
+        $this->initPlayerGameData($playerId);
+        $columnName = 'back_office_col' . $column;
+        $valueStr = $value !== null ? (int)$value : 'NULL';
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `$columnName` = $valueStr 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Обновляет позицию на треке технического развития
+     * @param int $playerId ID игрока
+     * @param int $column Номер колонки (1, 2, 3, 4)
+     * @param int|null $value Новое значение позиции (null для сброса)
+     */
+    public function setTechDevColumn(int $playerId, int $column, ?int $value): void
+    {
+        $this->initPlayerGameData($playerId);
+        $columnName = 'tech_dev_col' . $column;
+        $valueStr = $value !== null ? (int)$value : 'NULL';
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `$columnName` = $valueStr 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Увеличивает позицию на треке бэк-офиса
+     * @param int $playerId ID игрока
+     * @param int $column Номер колонки (1, 2, 3)
+     * @param int $amount На сколько увеличить
+     */
+    public function incBackOfficeColumn(int $playerId, int $column, int $amount): void
+    {
+        $this->initPlayerGameData($playerId);
+        $data = $this->getPlayerGameData($playerId);
+        $currentValue = $data['backOfficeCol' . $column] ?? 0;
+        $newValue = $currentValue + $amount;
+        $this->setBackOfficeColumn($playerId, $column, $newValue);
+    }
+    
+    /**
+     * Увеличивает позицию на треке технического развития
+     * @param int $playerId ID игрока
+     * @param int $column Номер колонки (1, 2, 3, 4)
+     * @param int $amount На сколько увеличить
+     */
+    public function incTechDevColumn(int $playerId, int $column, int $amount): void
+    {
+        $this->initPlayerGameData($playerId);
+        $data = $this->getPlayerGameData($playerId);
+        $currentValue = $data['techDevCol' . $column] ?? 0;
+        $newValue = $currentValue + $amount;
+        $this->setTechDevColumn($playerId, $column, $newValue);
+    }
+    
+    /**
+     * Устанавливает жетон навыка
+     * @param int $playerId ID игрока
+     * @param string|null $skillToken Значение жетона навыка (null для удаления)
+     */
+    public function setSkillToken(int $playerId, ?string $skillToken): void
+    {
+        $this->initPlayerGameData($playerId);
+        $valueStr = $skillToken !== null ? "'" . addslashes($skillToken) . "'" : 'NULL';
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `skill_token` = $valueStr 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Устанавливает прогресс трека задач
+     * @param int $playerId ID игрока
+     * @param int|null $progress Значение прогресса (null для сброса)
+     */
+    public function setSprintColumnTasksProgress(int $playerId, ?int $progress): void
+    {
+        $this->initPlayerGameData($playerId);
+        $valueStr = $progress !== null ? (int)$progress : 'NULL';
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `sprint_column_tasks_progress` = $valueStr 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Устанавливает бонусы IT проектов
+     * @param int $playerId ID игрока
+     * @param array $bonuses Массив бонусов
+     */
+    public function setItProjectBonuses(int $playerId, array $bonuses): void
+    {
+        $this->initPlayerGameData($playerId);
+        $json = json_encode($bonuses, JSON_UNESCAPED_UNICODE);
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `it_project_bonuses` = '" . addslashes($json) . "' 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Устанавливает цели игры
+     * @param int $playerId ID игрока
+     * @param array $goals Массив целей
+     */
+    public function setGameGoals(int $playerId, array $goals): void
+    {
+        $this->initPlayerGameData($playerId);
+        $json = json_encode($goals, JSON_UNESCAPED_UNICODE);
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `game_goals` = '" . addslashes($json) . "' 
+            WHERE `player_id` = $playerId
+        ");
+    }
+    
+    /**
+     * Сохраняет все данные игрока в таблицу player_game_data при завершении хода
+     * @param int $playerId ID игрока
+     */
+    public function savePlayerGameDataOnTurnEnd(int $playerId): void
+    {
+        $this->initPlayerGameData($playerId);
+        
+        // Получаем текущие данные из различных источников
+        $incomeTrack = $this->playerEnergy->get($playerId);
+        $badgers = $this->playerBadgers->get($playerId);
+        
+        // Получаем жетоны задач
+        $taskTokens = $this->getTaskTokensByPlayer($playerId);
+        $taskTokensJson = json_encode($taskTokens, JSON_UNESCAPED_UNICODE);
+        
+        // Получаем жетоны проектов
+        $projectTokens = $this->getProjectTokensByPlayer($playerId);
+        $projectTokensJson = json_encode($projectTokens, JSON_UNESCAPED_UNICODE);
+        
+        // Получаем карты специалистов на руке
+        $specialistHandIdsJson = $this->globals->get('specialist_hand_' . $playerId, '');
+        $specialistHandIds = !empty($specialistHandIdsJson) ? json_decode($specialistHandIdsJson, true) : [];
+        $specialistHandJson = json_encode($specialistHandIds, JSON_UNESCAPED_UNICODE);
+        
+        // Получаем карты сотрудников (подтвержденные)
+        $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $playerSpecialistsIds = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
+        $playerSpecialistsJson = json_encode($playerSpecialistsIds, JSON_UNESCAPED_UNICODE);
+        
+        // Формируем трек спринта из жетонов задач
+        $sprintTrackBacklog = [];
+        $sprintTrackInProgress = [];
+        $sprintTrackTesting = [];
+        $sprintTrackCompleted = [];
+        
+        foreach ($taskTokens as $token) {
+            $location = $token['location'] ?? 'backlog';
+            switch ($location) {
+                case 'backlog':
+                    $sprintTrackBacklog[] = $token;
+                    break;
+                case 'in-progress':
+                    $sprintTrackInProgress[] = $token;
+                    break;
+                case 'testing':
+                    $sprintTrackTesting[] = $token;
+                    break;
+                case 'completed':
+                    $sprintTrackCompleted[] = $token;
+                    break;
+            }
+        }
+        
+        $sprintTrackBacklogJson = json_encode($sprintTrackBacklog, JSON_UNESCAPED_UNICODE);
+        $sprintTrackInProgressJson = json_encode($sprintTrackInProgress, JSON_UNESCAPED_UNICODE);
+        $sprintTrackTestingJson = json_encode($sprintTrackTesting, JSON_UNESCAPED_UNICODE);
+        $sprintTrackCompletedJson = json_encode($sprintTrackCompleted, JSON_UNESCAPED_UNICODE);
+        
+        // Получаем текущие данные из таблицы (чтобы не перезаписать то, что уже есть)
+        $currentData = $this->getPlayerGameData($playerId);
+        
+        // Обновляем все данные в таблице
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET 
+                `income_track` = $incomeTrack,
+                `badgers` = $badgers,
+                `task_tokens` = '" . addslashes($taskTokensJson) . "',
+                `project_tokens` = '" . addslashes($projectTokensJson) . "',
+                `specialist_hand` = '" . addslashes($specialistHandJson) . "',
+                `player_specialists` = '" . addslashes($playerSpecialistsJson) . "',
+                `sprint_track_backlog` = '" . addslashes($sprintTrackBacklogJson) . "',
+                `sprint_track_in_progress` = '" . addslashes($sprintTrackInProgressJson) . "',
+                `sprint_track_testing` = '" . addslashes($sprintTrackTestingJson) . "',
+                `sprint_track_completed` = '" . addslashes($sprintTrackCompletedJson) . "'
+            WHERE `player_id` = $playerId
+        ");
+        
+        error_log("💾 savePlayerGameDataOnTurnEnd - Saved all data for player $playerId: incomeTrack=$incomeTrack, badgers=$badgers, taskTokens=" . count($taskTokens) . ", projectTokens=" . count($projectTokens));
+    }
+
+    /**
      * Получает жетоны проектов для игрока
      * @param int $playerId ID игрока
      * @return array Массив жетонов проектов игрока
@@ -2518,31 +3135,221 @@ class Game extends \Bga\GameFramework\Table
     // ========================================
     // МЕТОДЫ ДЛЯ РАБОТЫ С КАРТАМИ СОТРУДНИКОВ
     // ========================================
+    // Управление колодами специалистов
+
+    /**
+     * Инициализирует основную колоду специалистов всеми 110 картами
+     */
+    public function initSpecialistDecks(): void
+    {
+        $allCards = SpecialistsData::getAllCards();
+        $allCardIds = array_map(fn($card) => (int)$card['id'], $allCards);
+        
+        // Перемешиваем основную колоду
+        shuffle($allCardIds);
+        
+        // Сохраняем основную колоду
+        $this->globals->set('specialist_main_deck', json_encode($allCardIds));
+        
+        // Инициализируем пустую колоду сброса
+        $this->globals->set('specialist_discard_pile', json_encode([]));
+        
+        // Инициализируем пустую промежуточную колоду
+        $this->globals->set('specialist_intermediate_deck', json_encode([]));
+        
+        error_log("initSpecialistDecks - Initialized main deck with " . count($allCardIds) . " cards");
+    }
+
+    /**
+     * Получает основную колоду специалистов
+     * @return array Массив ID карт
+     */
+    private function getMainDeck(): array
+    {
+        $deckJson = $this->globals->get('specialist_main_deck', '');
+        $deck = !empty($deckJson) ? json_decode($deckJson, true) : [];
+        return is_array($deck) ? array_map('intval', $deck) : [];
+    }
+
+    /**
+     * Сохраняет основную колоду специалистов
+     * @param array $deck Массив ID карт
+     */
+    private function setMainDeck(array $deck): void
+    {
+        $this->globals->set('specialist_main_deck', json_encode(array_map('intval', $deck)));
+    }
+
+    /**
+     * Получает промежуточную колоду специалистов
+     * @return array Массив ID карт
+     */
+    private function getIntermediateDeck(): array
+    {
+        $deckJson = $this->globals->get('specialist_intermediate_deck', '');
+        $deck = !empty($deckJson) ? json_decode($deckJson, true) : [];
+        return is_array($deck) ? array_map('intval', $deck) : [];
+    }
+
+    /**
+     * Сохраняет промежуточную колоду специалистов
+     * @param array $deck Массив ID карт
+     */
+    private function setIntermediateDeck(array $deck): void
+    {
+        $this->globals->set('specialist_intermediate_deck', json_encode(array_map('intval', $deck)));
+    }
+
+    /**
+     * Получает колоду сброса специалистов
+     * @return array Массив ID карт
+     */
+    private function getDiscardPile(): array
+    {
+        $pileJson = $this->globals->get('specialist_discard_pile', '');
+        $pile = !empty($pileJson) ? json_decode($pileJson, true) : [];
+        return is_array($pile) ? array_map('intval', $pile) : [];
+    }
+
+    /**
+     * Сохраняет колоду сброса специалистов
+     * @param array $pile Массив ID карт
+     */
+    private function setDiscardPile(array $pile): void
+    {
+        $this->globals->set('specialist_discard_pile', json_encode(array_map('intval', $pile)));
+    }
+
+    /**
+     * Добавляет карты в колоду сброса
+     * @param array $cardIds Массив ID карт для добавления
+     */
+    public function addToDiscardPile(array $cardIds): void
+    {
+        $pile = $this->getDiscardPile();
+        $pile = array_merge($pile, array_map('intval', $cardIds));
+        $this->setDiscardPile($pile);
+        error_log("addToDiscardPile - Added " . count($cardIds) . " cards. Total in discard: " . count($pile));
+    }
+
+    /**
+     * Берет карты из активной колоды (основной или промежуточной)
+     * Автоматически переключается между колодами при необходимости
+     * @param int $count Количество карт для взятия
+     * @return array Массив ID карт
+     */
+    public function drawFromActiveDeck(int $count): array
+    {
+        $drawnCards = [];
+        
+        // Сначала пытаемся взять из основной колоды
+        $mainDeck = $this->getMainDeck();
+        
+        if (count($mainDeck) >= $count) {
+            // Достаточно карт в основной колоде
+            $drawnCards = array_slice($mainDeck, 0, $count);
+            $remainingDeck = array_slice($mainDeck, $count);
+            $this->setMainDeck($remainingDeck);
+            error_log("drawFromActiveDeck - Drew $count cards from main deck. Remaining: " . count($remainingDeck));
+            return $drawnCards;
+        }
+        
+        // Берем все оставшиеся карты из основной колоды
+        if (!empty($mainDeck)) {
+            $drawnCards = $mainDeck;
+            $this->setMainDeck([]);
+            $count -= count($drawnCards);
+            error_log("drawFromActiveDeck - Took all " . count($drawnCards) . " cards from main deck. Need $count more.");
+        }
+        
+        // Основная колода пуста - проверяем промежуточную
+        $intermediateDeck = $this->getIntermediateDeck();
+        
+        if (count($intermediateDeck) >= $count) {
+            // Достаточно карт в промежуточной колоде
+            $additionalCards = array_slice($intermediateDeck, 0, $count);
+            $drawnCards = array_merge($drawnCards, $additionalCards);
+            $remainingDeck = array_slice($intermediateDeck, $count);
+            $this->setIntermediateDeck($remainingDeck);
+            error_log("drawFromActiveDeck - Drew $count cards from intermediate deck. Remaining: " . count($remainingDeck));
+            return $drawnCards;
+        }
+        
+        // Берем все оставшиеся карты из промежуточной колоды
+        if (!empty($intermediateDeck)) {
+            $drawnCards = array_merge($drawnCards, $intermediateDeck);
+            $this->setIntermediateDeck([]);
+            $count -= count($intermediateDeck);
+            error_log("drawFromActiveDeck - Took all " . count($intermediateDeck) . " cards from intermediate deck. Need $count more.");
+        }
+        
+        // Промежуточная колода тоже пуста - создаем новую из колоды сброса
+        $discardPile = $this->getDiscardPile();
+        
+        if (!empty($discardPile)) {
+            // Перемешиваем колоду сброса
+            shuffle($discardPile);
+            
+            // Создаем новую промежуточную колоду из колоды сброса
+            $newIntermediateDeck = $discardPile;
+            $this->setIntermediateDeck($newIntermediateDeck);
+            
+            // Очищаем колоду сброса
+            $this->setDiscardPile([]);
+            
+            error_log("drawFromActiveDeck - Created new intermediate deck from discard pile with " . count($newIntermediateDeck) . " cards");
+            
+            // Теперь берем из новой промежуточной колоды
+            if (count($newIntermediateDeck) >= $count) {
+                $additionalCards = array_slice($newIntermediateDeck, 0, $count);
+                $drawnCards = array_merge($drawnCards, $additionalCards);
+                $remainingDeck = array_slice($newIntermediateDeck, $count);
+                $this->setIntermediateDeck($remainingDeck);
+                error_log("drawFromActiveDeck - Drew $count cards from new intermediate deck. Remaining: " . count($remainingDeck));
+                return $drawnCards;
+            } else {
+                // Берем все карты из новой промежуточной колоды
+                $drawnCards = array_merge($drawnCards, $newIntermediateDeck);
+                $this->setIntermediateDeck([]);
+                error_log("drawFromActiveDeck - Took all " . count($newIntermediateDeck) . " cards from new intermediate deck. Still need " . ($count - count($newIntermediateDeck)) . " more.");
+            }
+        }
+        
+        // Если все колоды пусты, возвращаем то, что удалось взять
+        if (empty($drawnCards)) {
+            error_log("drawFromActiveDeck - WARNING: All decks are empty! Cannot draw $count cards.");
+        } else {
+            error_log("drawFromActiveDeck - WARNING: Could only draw " . count($drawnCards) . " cards instead of $count");
+        }
+        
+        return $drawnCards;
+    }
 
     /**
      * Раздаёт указанное количество случайных карт сотрудников игроку
+     * Использует систему колод: основная -> промежуточная -> колода сброса
      * @param int $playerId ID игрока
      * @param int $count Количество карт для раздачи
      * @return array Массив раздаённых карт
      */
     public function dealSpecialistCards(int $playerId, int $count): array
     {
-        // Получаем все карты сотрудников
-        $allCards = SpecialistsData::getAllCards();
+        // Берем карты из активной колоды
+        $drawnCardIds = $this->drawFromActiveDeck($count);
         
-        // Получаем уже использованные карты (у других игроков или в сбросе)
-        $usedCardIds = $this->getUsedSpecialistCardIds();
+        if (empty($drawnCardIds)) {
+            error_log("dealSpecialistCards - ERROR: No cards available for player $playerId");
+            return [];
+        }
         
-        // Фильтруем доступные карты
-        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
-            return !in_array($card['id'], $usedCardIds, true);
-        });
-        
-        // Перемешиваем и берём нужное количество
-        $availableCards = array_values($availableCards);
-        shuffle($availableCards);
-        
-        $dealtCards = array_slice($availableCards, 0, $count);
+        // Получаем полные данные карт по ID
+        $dealtCards = [];
+        foreach ($drawnCardIds as $cardId) {
+            $card = SpecialistsData::getCard((int)$cardId);
+            if ($card) {
+                $dealtCards[] = $card;
+            }
+        }
         
         error_log("dealSpecialistCards - Dealt " . count($dealtCards) . " cards to player $playerId");
         
@@ -2575,11 +3382,22 @@ class Game extends \Bga\GameFramework\Table
             }
         }
         
-        // ID карт в сбросе (JSON)
-        $discardPileJson = $this->globals->get('specialist_discard_pile', '');
-        $discardPile = !empty($discardPileJson) ? json_decode($discardPileJson, true) : [];
-        if (!empty($discardPile) && is_array($discardPile)) {
+        // ID карт в сбросе (используем метод для получения)
+        $discardPile = $this->getDiscardPile();
+        if (!empty($discardPile)) {
             $usedIds = array_merge($usedIds, $discardPile);
+        }
+        
+        // ID карт в промежуточной колоде (тоже считаются использованными для проверки)
+        $intermediateDeck = $this->getIntermediateDeck();
+        if (!empty($intermediateDeck)) {
+            $usedIds = array_merge($usedIds, $intermediateDeck);
+        }
+        
+        // ID карт в основной колоде (тоже считаются использованными для проверки)
+        $mainDeck = $this->getMainDeck();
+        if (!empty($mainDeck)) {
+            $usedIds = array_merge($usedIds, $mainDeck);
         }
         
         return array_unique($usedIds);

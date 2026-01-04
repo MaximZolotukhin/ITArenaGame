@@ -94,6 +94,16 @@ class FounderSelection extends GameState
     {
         $this->game->checkAction('actSelectFounder');
         
+        // ВАЖНО: Проверяем, что activePlayerId из параметра совпадает с реальным активным игроком
+        $realActivePlayerId = $this->game->getActivePlayerId();
+        $realActivePlayerId = $realActivePlayerId !== null ? (int)$realActivePlayerId : null;
+        error_log("🔴🔴🔴 actSelectFounder - Parameter activePlayerId: $activePlayerId, Real activePlayerId: " . ($realActivePlayerId ?? 'null'));
+        if ($activePlayerId !== $realActivePlayerId) {
+            error_log("🔴🔴🔴 actSelectFounder - CRITICAL ERROR: activePlayerId mismatch! Parameter: $activePlayerId, Real: " . ($realActivePlayerId ?? 'null'));
+            // Используем реальный активный игрок, а не параметр
+            $activePlayerId = $realActivePlayerId ?? $activePlayerId;
+        }
+        
         // Проверяем, что карта доступна для выбора
         $options = $this->game->getFounderOptionsForPlayer($activePlayerId);
         if (empty($options)) {
@@ -178,6 +188,16 @@ class FounderSelection extends GameState
     {
         $this->game->checkAction('actPlaceFounder');
         
+        // ВАЖНО: Проверяем, что activePlayerId из параметра совпадает с реальным активным игроком
+        $realActivePlayerId = $this->game->getActivePlayerId();
+        $realActivePlayerId = $realActivePlayerId !== null ? (int)$realActivePlayerId : null;
+        error_log("🔴🔴🔴 actPlaceFounder - Parameter activePlayerId: $activePlayerId, Real activePlayerId: " . ($realActivePlayerId ?? 'null'));
+        if ($activePlayerId !== $realActivePlayerId) {
+            error_log("🔴🔴🔴 actPlaceFounder - CRITICAL ERROR: activePlayerId mismatch! Parameter: $activePlayerId, Real: " . ($realActivePlayerId ?? 'null'));
+            // Используем реальный активный игрок, а не параметр
+            $activePlayerId = $realActivePlayerId ?? $activePlayerId;
+        }
+        
         // Проверяем, что у игрока есть неразмещенная универсальная карта
         if (!$this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('У вас нет универсальной карты основателя для размещения'));
@@ -222,6 +242,17 @@ class FounderSelection extends GameState
      */
     private function applyFounderEffectsAfterPlacement(int $playerId, int $cardId): void
     {
+        // ВАЖНО: Проверяем, что playerId правильный и не используем getActivePlayerId()
+        $activePlayerId = $this->game->getActivePlayerId();
+        error_log("🔵🔵🔵 applyFounderEffectsAfterPlacement - PlayerId from parameter: $playerId, ActivePlayerId: " . ($activePlayerId ?? 'null'));
+        
+        if ($playerId !== $activePlayerId) {
+            error_log("🔴🔴🔵 WARNING: PlayerId mismatch! Parameter: $playerId, Active: " . ($activePlayerId ?? 'null') . " - Using parameter playerId");
+        }
+        
+        // ВАЖНО: Используем переданный playerId, а не getActivePlayerId()
+        $targetPlayerId = $playerId;
+        
         $founderCard = \Bga\Games\itarenagame\FoundersData::getCard($cardId);
         if ($founderCard === null) {
             error_log("applyFounderEffectsAfterPlacement - Card not found: $cardId");
@@ -231,7 +262,7 @@ class FounderSelection extends GameState
         $activationStage = $founderCard['activationStage'] ?? null;
         $effect = $founderCard['effect'] ?? null;
         
-        error_log("applyFounderEffectsAfterPlacement - Player: $playerId, Card: $cardId");
+        error_log("applyFounderEffectsAfterPlacement - Target Player: $targetPlayerId, Card: $cardId");
         error_log("applyFounderEffectsAfterPlacement - ActivationStage: " . ($activationStage ?? 'null'));
         error_log("applyFounderEffectsAfterPlacement - Effect: " . json_encode($effect));
         
@@ -252,8 +283,8 @@ class FounderSelection extends GameState
         if ($activationStage !== 'GameSetup') {
             // Если activationStage != 'GameSetup', эффекты не применяются, но кнопка все равно разблокируется
             error_log("applyFounderEffectsAfterPlacement - ActivationStage mismatch, skipping effects");
-            $this->notify->player($playerId, 'founderEffectsApplied', '', [
-                'player_id' => $playerId,
+            $this->notify->player($targetPlayerId, 'founderEffectsApplied', '', [
+                'player_id' => $targetPlayerId,
             ]);
             return;
         }
@@ -284,7 +315,8 @@ class FounderSelection extends GameState
             }
         }
         
-        $appliedEffects = $this->game->applyFounderEffect($playerId, $cardId, 'GameSetup');
+        // ВАЖНО: Используем targetPlayerId вместо playerId для явности
+        $appliedEffects = $this->game->applyFounderEffect($targetPlayerId, $cardId, 'GameSetup');
         error_log("applyFounderEffectsAfterPlacement - Applied effects count: " . count($appliedEffects));
         error_log("applyFounderEffectsAfterPlacement - Applied effects: " . json_encode($appliedEffects));
         
@@ -304,8 +336,8 @@ class FounderSelection extends GameState
         $tracksInApplied = $updateTrackInApplied['tracks'] ?? [];
         $tracksInAppliedCount = is_array($tracksInApplied) ? count($tracksInApplied) : 0;
         
-        $this->notify->player($playerId, 'debugUpdateTrack', '', [
-            'player_id' => $playerId,
+        $this->notify->player($targetPlayerId, 'debugUpdateTrack', '', [
+            'player_id' => $targetPlayerId,
             'card_id' => $cardId,
             'card_name' => $founderCard['name'] ?? 'unknown',
             'has_updateTrack' => isset($effect['updateTrack']) ? 'YES' : 'NO',
@@ -366,8 +398,8 @@ class FounderSelection extends GameState
                     
                     // Отправляем уведомление об изменении баджерсов (включая данные банка)
                     $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря эффекту карты «${founder_name}»'), [
-                        'player_id' => $playerId,
-                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'player_id' => $targetPlayerId,
+                        'player_name' => $this->game->getPlayerNameById($targetPlayerId),
                         'action_text' => $effect['amount'] > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
                         'amount' => abs($effect['amount']),
                         'founder_name' => $effect['founderName'] ?? 'Основатель',
@@ -384,8 +416,8 @@ class FounderSelection extends GameState
                     
                     // Отправляем уведомление о выдаче карт специалистов на руку
                     $this->notify->all('specialistsDealtToHand', clienttranslate('${player_name} получает ${amount} карт специалистов благодаря эффекту карты «${founder_name}»'), [
-                        'player_id' => $playerId,
-                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'player_id' => $targetPlayerId,
+                        'player_name' => $this->game->getPlayerNameById($targetPlayerId),
                         'amount' => $effect['amount'],
                         'founder_name' => $effect['founderName'] ?? 'Основатель',
                         'cardIds' => $effect['cardIds'] ?? [],
@@ -393,11 +425,11 @@ class FounderSelection extends GameState
                     ]);
                     
                     // Обновляем данные игрока для клиента
-                    $this->game->notify->player($playerId, 'specialistsUpdated', '', [
-                        'player_id' => $playerId,
+                    $this->game->notify->player($targetPlayerId, 'specialistsUpdated', '', [
+                        'player_id' => $targetPlayerId,
                     ]);
                     
-                    error_log('FounderSelection - Player ' . $playerId . ' received ' . $effect['amount'] . ' specialist cards (card): ' . $cardNames);
+                    error_log('FounderSelection - Player ' . $targetPlayerId . ' received ' . $effect['amount'] . ' specialist cards (card): ' . $cardNames);
                 }
                 // Эффект 3: INCOME_TRACK - изменение трека дохода
                 elseif ($effectType === 'incomeTrack' && isset($effect['amount']) && $effect['amount'] !== 0) {
@@ -405,8 +437,8 @@ class FounderSelection extends GameState
                     
                     // Отправляем уведомление об изменении трека дохода
                     $this->notify->all('incomeTrackChanged', clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'), [
-                        'player_id' => $playerId,
-                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'player_id' => $targetPlayerId,
+                        'player_name' => $this->game->getPlayerNameById($targetPlayerId),
                         'action_text' => $effect['amount'] > 0 ? clienttranslate('увеличивает') : clienttranslate('уменьшает'),
                         'amount' => abs($effect['amount']),
                         'founder_name' => $effect['founderName'] ?? 'Основатель',
@@ -415,13 +447,13 @@ class FounderSelection extends GameState
                         'i18n' => ['action_text'],
                     ]);
                     
-                    error_log('FounderSelection - Player ' . $playerId . ' income track changed from ' . $effect['oldValue'] . ' to ' . $effect['newValue']);
+                    error_log('FounderSelection - Player ' . $targetPlayerId . ' income track changed from ' . $effect['oldValue'] . ' to ' . $effect['newValue']);
                 }
                 // Эффект 4: UPDATE_TRACK - обновление нескольких треков
                 elseif ($effectType === 'updateTrack') {
                     error_log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
                     error_log('🔵🔵🔵 FounderSelection - Processing updateTrack effect');
-                    error_log('🔵 FounderSelection - Player: ' . $playerId);
+                    error_log('🔵 FounderSelection - Target Player: ' . $targetPlayerId);
                     error_log('🔵 FounderSelection - Effect type: ' . $effectType);
                     error_log('🔵 FounderSelection - Effect data: ' . json_encode($effect));
                     error_log('🔵 FounderSelection - Effect keys: ' . implode(', ', array_keys($effect)));
@@ -469,8 +501,8 @@ class FounderSelection extends GameState
                                 }
                                 
                                 $notificationData = [
-                                    'player_id' => $playerId,
-                                    'player_name' => $this->game->getPlayerNameById($playerId),
+                                    'player_id' => $targetPlayerId,
+                                    'player_name' => $this->game->getPlayerNameById($targetPlayerId),
                                     'action_text' => $amount > 0 ? clienttranslate('увеличивает') : clienttranslate('уменьшает'),
                                     'amount' => abs($amount),
                                     'founder_name' => $effect['founderName'] ?? 'Основатель',
@@ -483,7 +515,7 @@ class FounderSelection extends GameState
                                 
                                 $this->notify->all('incomeTrackChanged', clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'), $notificationData);
                                 
-                                error_log('✅✅✅ FounderSelection - incomeTrackChanged notification SENT for player ' . $playerId . ' from ' . $oldValue . ' to ' . $newValue);
+                                error_log('✅✅✅ FounderSelection - incomeTrackChanged notification SENT for player ' . $targetPlayerId . ' from ' . $oldValue . ' to ' . $newValue);
                             }
                             // Для визуальных треков отделов отправляем уведомление для обновления на клиенте
                             elseif (str_starts_with($trackId, 'player-department-')) {
@@ -503,7 +535,7 @@ class FounderSelection extends GameState
                                     error_log('🔧🔧🔧 FounderSelection - Technical development requires column selection!');
                                     
                                     // Сохраняем данные о перемещениях в globals
-                                    $globalsKey = 'pending_technical_development_moves_' . $playerId;
+                                    $globalsKey = 'pending_technical_development_moves_' . $targetPlayerId;
                                     $pendingMovesData = [
                                         'move_count' => $amount, // Количество очков для распределения (2)
                                         'founder_name' => $effect['founderName'] ?? 'Основатель',
@@ -513,18 +545,18 @@ class FounderSelection extends GameState
                                     error_log('✅ FounderSelection - Saved pending_technical_development_moves to globals: ' . json_encode($pendingMovesData));
                                     
                                     // Отправляем уведомление для активации режима выбора колонок
-                                    $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
-                                        'player_id' => $playerId,
+                                    $this->notify->player($targetPlayerId, 'technicalDevelopmentMovesRequired', '', [
+                                        'player_id' => $targetPlayerId,
                                         'move_count' => $amount, // Количество очков для распределения (2)
                                         'founder_name' => $effect['founderName'] ?? 'Основатель',
                                     ]);
                                     
-                                    error_log('✅✅✅ FounderSelection - technicalDevelopmentMovesRequired notification SENT for player ' . $playerId . ' with ' . $amount . ' points to distribute');
+                                    error_log('✅✅✅ FounderSelection - technicalDevelopmentMovesRequired notification SENT for player ' . $targetPlayerId . ' with ' . $amount . ' points to distribute');
                                 } else {
                                     // Обычный визуальный трек без выбора
                                     $this->notify->all('visualTrackChanged', clienttranslate('${player_name} обновляет ${track_name} на ${amount} благодаря эффекту карты «${founder_name}»'), [
-                                        'player_id' => $playerId,
-                                        'player_name' => $this->game->getPlayerNameById($playerId),
+                                        'player_id' => $targetPlayerId,
+                                        'player_name' => $this->game->getPlayerNameById($targetPlayerId),
                                         'track_id' => $trackId,
                                         'track_name' => $trackName,
                                         'amount' => $amount,
@@ -550,12 +582,12 @@ class FounderSelection extends GameState
                 // Эффект 5: TASK - выдача задач (task tokens)
                 elseif ($effectType === 'task' && isset($effect['amount']) && $effect['amount'] > 0) {
                     // Отправляем уведомление о необходимости выбора задач
-                    $this->notify->player($playerId, 'taskSelectionRequired', '', [
-                        'player_id' => $playerId,
+                    $this->notify->player($targetPlayerId, 'taskSelectionRequired', '', [
+                        'player_id' => $targetPlayerId,
                         'amount' => $effect['amount'],
                         'founder_name' => $founderCard['name'] ?? '',
                     ]);
-                    error_log('FounderSelection - Effect "task": Player ' . $playerId . ' must select ' . $effect['amount'] . ' tasks');
+                    error_log('FounderSelection - Effect "task": Player ' . $targetPlayerId . ' must select ' . $effect['amount'] . ' tasks');
                 }
                 // Эффект 6: MOVE_TASK - перемещение жетонов задач
                 elseif ($effectType === 'move_task') {
@@ -568,14 +600,14 @@ class FounderSelection extends GameState
                     
                     if ($moveCount > 0) {
                         // Отправляем уведомление о необходимости перемещения задач
-                        error_log('🎯🎯🎯 FounderSelection - Sending taskMovesRequired notification to player ' . $playerId);
-                        $this->notify->player($playerId, 'taskMovesRequired', '', [
-                            'player_id' => $playerId,
+                        error_log('🎯🎯🎯 FounderSelection - Sending taskMovesRequired notification to player ' . $targetPlayerId);
+                        $this->notify->player($targetPlayerId, 'taskMovesRequired', '', [
+                            'player_id' => $targetPlayerId,
                             'move_count' => $moveCount,
                             'move_color' => $moveColor,
                             'founder_name' => $founderCard['name'] ?? '',
                         ]);
-                        error_log('✅✅✅ FounderSelection - Effect "move_task": Player ' . $playerId . ' must move tasks ' . $moveCount . ' times (color: ' . $moveColor . ') - NOTIFICATION SENT');
+                        error_log('✅✅✅ FounderSelection - Effect "move_task": Player ' . $targetPlayerId . ' must move tasks ' . $moveCount . ' times (color: ' . $moveColor . ') - NOTIFICATION SENT');
                     } else {
                         error_log('❌❌❌ FounderSelection - Effect "move_task": move_count is 0 or not set, skipping. moveCount=' . $moveCount);
                     }
@@ -587,13 +619,13 @@ class FounderSelection extends GameState
             }
             
             // После применения всех эффектов отправляем уведомление о готовности к завершению хода
-            $this->notify->player($playerId, 'founderEffectsApplied', '', [
-                'player_id' => $playerId,
+            $this->notify->player($targetPlayerId, 'founderEffectsApplied', '', [
+                'player_id' => $targetPlayerId,
             ]);
         } else {
             // Если эффектов нет, все равно разблокируем кнопку
-            $this->notify->player($playerId, 'founderEffectsApplied', '', [
-                'player_id' => $playerId,
+            $this->notify->player($targetPlayerId, 'founderEffectsApplied', '', [
+                'player_id' => $targetPlayerId,
             ]);
         }
     }
@@ -625,6 +657,9 @@ class FounderSelection extends GameState
             ]));
         }
 
+        // ВАЖНО: Сохраняем все данные игрока в таблицу player_game_data перед завершением хода
+        $this->game->savePlayerGameDataOnTurnEnd($activePlayerId);
+        
         $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
             'player_id' => $activePlayerId,
             'player_name' => $this->game->getPlayerNameById($activePlayerId),
@@ -949,8 +984,16 @@ class FounderSelection extends GameState
             }
         }
         
-        // Сохраняем перемещения в globals для последующего использования
-        $this->game->globals->set($globalsKey, null); // Очищаем ожидающие перемещения
+        // Сохраняем перемещения в БД (таблица player_game_data)
+        foreach ($moves as $move) {
+            $column = (int)$move['column'];
+            $amount = (int)$move['amount'];
+            $this->game->incTechDevColumn($activePlayerId, $column, $amount);
+            error_log("🔧 actConfirmTechnicalDevelopmentMoves - Updated techDevCol$column for player $activePlayerId by $amount");
+        }
+        
+        // Очищаем ожидающие перемещения из globals
+        $this->game->globals->set($globalsKey, null);
         
         // Отправляем уведомление о завершении перемещений
         $this->notify->all('technicalDevelopmentMovesCompleted', clienttranslate('${player_name} улучшил техотдел благодаря эффекту карты «${founder_name}»'), [

@@ -404,11 +404,8 @@ class SpecialistSelection extends GameState
         error_log('SpecialistSelection::actConfirmSpecialists - Selected cards: ' . count($keptCardIds));
         error_log('SpecialistSelection::actConfirmSpecialists - Total cards after merge: ' . count($allSpecialistIds));
         
-        // Добавляем сброшенные карты в стопку сброса (в JSON)
-        $discardPileJson = $this->game->globals->get('specialist_discard_pile', '');
-        $discardPile = !empty($discardPileJson) ? json_decode($discardPileJson, true) : [];
-        $discardPile = array_merge($discardPile, array_values($discardedCardIds));
-        $this->game->globals->set('specialist_discard_pile', json_encode($discardPile));
+        // Добавляем сброшенные карты в стопку сброса через метод Game
+        $this->game->addToDiscardPile(array_values($discardedCardIds));
         
         // Очищаем временные данные
         $this->game->globals->delete('specialist_hand_' . $activePlayerId);
@@ -451,11 +448,8 @@ class SpecialistSelection extends GameState
         // Сохраняем выбранные ID
         $this->game->globals->set('player_specialists_' . $playerId, json_encode($keptCardIds));
         
-        // Добавляем сброшенные в стопку сброса
-        $discardPileJson = $this->game->globals->get('specialist_discard_pile', '');
-        $discardPile = !empty($discardPileJson) ? json_decode($discardPileJson, true) : [];
-        $discardPile = array_merge($discardPile, $discardedCardIds);
-        $this->game->globals->set('specialist_discard_pile', json_encode($discardPile));
+        // Добавляем сброшенные в стопку сброса через метод Game
+        $this->game->addToDiscardPile($discardedCardIds);
         
         $this->game->globals->delete('specialist_hand_' . $playerId);
         $this->game->globals->delete('specialist_selected_' . $playerId);

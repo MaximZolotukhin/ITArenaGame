@@ -42,29 +42,11 @@ class CardEffectHandler implements EffectHandlerInterface
             ];
         }
         
-        // Получаем все карты специалистов
-        $allCards = SpecialistsData::getAllCards();
+        // Используем новую систему колод для получения карт
+        // Берем карты из активной колоды (основная -> промежуточная -> колода сброса)
+        $dealtCardIds = $this->game->drawFromActiveDeck($amount);
         
-        // Получаем уже использованные карты (закрепленные + на руке + в отбое)
-        $usedCardIds = $this->game->getUsedSpecialistCardIds();
-        
-        // Также получаем карты на руке игрока, чтобы не выдавать дубликаты
-        $currentHandJson = $this->game->globals->get('specialist_hand_' . $playerId, '');
-        $currentHand = !empty($currentHandJson) ? json_decode($currentHandJson, true) : [];
-        if (!is_array($currentHand)) {
-            $currentHand = [];
-        }
-        
-        // Добавляем карты на руке к использованным (чтобы не выдавать дубликаты)
-        $usedCardIds = array_merge($usedCardIds, $currentHand);
-        $usedCardIds = array_unique($usedCardIds);
-        
-        // Фильтруем доступные карты
-        $availableCards = array_filter($allCards, function($card) use ($usedCardIds) {
-            return !in_array($card['id'], $usedCardIds, true);
-        });
-        
-        if (empty($availableCards)) {
+        if (empty($dealtCardIds)) {
             error_log("CardEffectHandler::apply - ERROR: No available specialist cards for player $playerId");
             return [
                 'type' => 'card',
@@ -73,13 +55,9 @@ class CardEffectHandler implements EffectHandlerInterface
             ];
         }
         
-        // Перемешиваем и берём нужное количество
-        $availableCardIds = array_keys($availableCards);
-        shuffle($availableCardIds);
-        
         // Берём не больше доступных карт
-        $cardsToDeal = min($amount, count($availableCardIds));
-        $dealtCardIds = array_slice($availableCardIds, 0, $cardsToDeal);
+        $cardsToDeal = min($amount, count($dealtCardIds));
+        $dealtCardIds = array_slice($dealtCardIds, 0, $cardsToDeal);
         
         // ВАЖНО: Эффект 'card' сразу закрепляет карты за игроком (player_specialists_)
         // Эти карты НЕ попадают в specialist_hand_ и НЕ участвуют в выборе из 7 карт

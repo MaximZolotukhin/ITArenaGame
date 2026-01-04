@@ -109,3 +109,34 @@ CREATE TABLE IF NOT EXISTS `player_project_token` (
   CONSTRAINT `fk_player_project_token_token` FOREIGN KEY (`token_id`) REFERENCES `project_token` (`token_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- Таблица для хранения игровых данных игрока
+-- Хранит позиции на треках, жетон навыка, бонусы IT проектов, цели игры и прогресс трека задач
+CREATE TABLE IF NOT EXISTS `player_game_data` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `player_id` int(10) unsigned NOT NULL,
+  `income_track` tinyint(3) unsigned DEFAULT 1 COMMENT 'Позиция на треке дохода (income-track, energy)',
+  `badgers` int(11) DEFAULT 0 COMMENT 'Количество баджерсов',
+  `back_office_col1` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке бэк-офиса колонка 1',
+  `back_office_col2` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке бэк-офиса колонка 2',
+  `back_office_col3` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке бэк-офиса колонка 3',
+  `tech_dev_col1` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке технического развития колонка 1',
+  `tech_dev_col2` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке технического развития колонка 2',
+  `tech_dev_col3` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке технического развития колонка 3',
+  `tech_dev_col4` tinyint(3) unsigned DEFAULT NULL COMMENT 'Позиция на треке технического развития колонка 4',
+  `skill_token` varchar(50) DEFAULT NULL COMMENT 'Жетон навыка',
+  `sprint_column_tasks_progress` tinyint(3) unsigned DEFAULT NULL COMMENT 'Прогресс улучшения трека задач',
+  `sprint_track_backlog` text DEFAULT NULL COMMENT 'Трек спринта: бэклог (JSON массив жетонов задач)',
+  `sprint_track_in_progress` text DEFAULT NULL COMMENT 'Трек спринта: в работе (JSON массив жетонов задач)',
+  `sprint_track_testing` text DEFAULT NULL COMMENT 'Трек спринта: тестирование (JSON массив жетонов задач)',
+  `sprint_track_completed` text DEFAULT NULL COMMENT 'Трек спринта: готово (JSON массив жетонов задач)',
+  `task_tokens` text DEFAULT NULL COMMENT 'Все жетоны задач игрока (JSON массив)',
+  `project_tokens` text DEFAULT NULL COMMENT 'Все жетоны проектов игрока (JSON массив)',
+  `specialist_hand` text DEFAULT NULL COMMENT 'Карты специалистов на руке для выбора (JSON массив ID)',
+  `player_specialists` text DEFAULT NULL COMMENT 'Карты сотрудников подтвержденные (JSON массив ID)',
+  `it_project_bonuses` text DEFAULT NULL COMMENT 'Бонусы IT проектов (JSON массив)',
+  `game_goals` text DEFAULT NULL COMMENT 'Цели игры (JSON массив)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `player_id` (`player_id`),
+  KEY `player_id_idx` (`player_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+

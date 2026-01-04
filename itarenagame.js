@@ -323,24 +323,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                         .fill(0)
                                         .map((_, i) => {
                                           const columnNum = i + 1
-                                          if (columnNum === 1) {
-                                            // Первая колонка: 6 ячеек от 1 до 6 сверху вниз
-                                            const rowsHtml = Array(6)
-                                              .fill(0)
-                                              .map((_, j) => {
-                                                const rowNum = 6 - j // Нумерация от 1 до 6 снизу вверх (row-6 сверху, row-1 снизу)
-                                                const isBottomRow = rowNum === 1 // Нижняя ячейка (row-1)
-                                                return `<div id="player-department-back-office-evolution-column-1-row-${rowNum}" class="player-department-back-office-evolution__row" data-row-index="${rowNum}">${
-                                                  isBottomRow ? '<div class="player-department-back-office-evolution__token"></div>' : ''
-                                                }</div>`
-                                              })
-                                              .join('')
-                                            return `<div id="player-department-back-office-evolution-column-${columnNum}" class="player-department-back-office-evolution__column">
-                                              <div class="player-department-back-office-evolution-column-1__rows-wrapper">${rowsHtml}</div>
-                                            </div>`
-                                          } else {
-                                            return `<div id="player-department-back-office-evolution-column-${columnNum}" class="player-department-back-office-evolution__column"></div>`
-                                          }
+                                          // Все три колонки имеют одинаковую структуру: 6 ячеек от 1 до 6 сверху вниз
+                                          const rowsHtml = Array(6)
+                                            .fill(0)
+                                            .map((_, j) => {
+                                              const rowNum = 6 - j // Нумерация от 1 до 6 снизу вверх (row-6 сверху, row-1 снизу)
+                                              const isBottomRow = rowNum === 1 // Нижняя ячейка (row-1)
+                                              // Жетон создается только в колонке 1
+                                              const shouldHaveToken = isBottomRow && columnNum === 1
+                                              return `<div id="player-department-back-office-evolution-column-${columnNum}-row-${rowNum}" class="player-department-back-office-evolution__row" data-row-index="${rowNum}">${
+                                                shouldHaveToken ? '<div class="player-department-back-office-evolution__token"></div>' : ''
+                                              }</div>`
+                                            })
+                                            .join('')
+                                          return `<div id="player-department-back-office-evolution-column-${columnNum}" class="player-department-back-office-evolution__column">
+                                            <div class="player-department-back-office-evolution-column-${columnNum}__rows-wrapper">${rowsHtml}</div>
+                                          </div>`
                                         })
                                         .join('')}
                                     </div>
@@ -487,13 +485,43 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       // Проверяем баджерсы игроков (проверка без логирования)
       if (gamedatas.players) {
+        console.log('💰 Setup: Checking badgers for all players:')
         Object.values(gamedatas.players).forEach((player) => {
           const badgers = player.badgers || 0
+          console.log('💰 Setup: Player', player.id, 'badgers:', badgers)
           if (badgers !== 5) {
             // Только предупреждение об ошибке, без обычных логов
             console.warn('WARNING: Player ' + player.id + ' has incorrect badgers count! Expected: 5, Got: ' + badgers)
           }
         })
+      }
+      
+      // ВЫВОДИМ НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ИЗ getAllDatas
+      // getAllDatas() вызывается автоматически BGA фреймворком при загрузке страницы
+      // и передает все данные в setup(gamedatas)
+      console.log('🔵🔵🔵 setup() - Checking for initialPlayerValues in gamedatas...')
+      console.log('🔵 gamedatas keys:', Object.keys(gamedatas))
+      if (gamedatas.initialPlayerValues) {
+        console.log('=== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ИЗ getAllDatas ===')
+        console.log('🔵 initialPlayerValues keys:', Object.keys(gamedatas.initialPlayerValues))
+        Object.keys(gamedatas.initialPlayerValues).forEach((playerId) => {
+          const values = gamedatas.initialPlayerValues[playerId]
+          console.log(`Игрок ${playerId}:`)
+          console.log(`  - badgers=${values.badgers}`)
+          console.log(`  - incomeTrack=${values.incomeTrack}`)
+          console.log(`  - taskTokens: всего=${values.taskTokens.total}, по локациям=`, values.taskTokens.byLocation)
+          console.log(`  - projectTokens: всего=${values.projectTokens}`)
+          console.log(`  - specialistHand (на руке): всего=${values.specialistHand.count}, IDs=`, values.specialistHand.ids)
+          console.log(`  - playerSpecialists (подтвержденные): всего=${values.playerSpecialists.count}, IDs=`, values.playerSpecialists.ids)
+          console.log(`  - backOfficeCol1=${values.backOfficeCol1 ?? 'null'}, backOfficeCol2=${values.backOfficeCol2 ?? 'null'}, backOfficeCol3=${values.backOfficeCol3 ?? 'null'}`)
+          console.log(`  - techDevCol1=${values.techDevCol1 ?? 'null'}, techDevCol2=${values.techDevCol2 ?? 'null'}, techDevCol3=${values.techDevCol3 ?? 'null'}, techDevCol4=${values.techDevCol4 ?? 'null'}`)
+          console.log(`  - skillToken=${values.skillToken ?? 'null'}`)
+        })
+        console.log('=== КОНЕЦ НАЧАЛЬНЫХ ЗНАЧЕНИЙ ИЗ getAllDatas ===')
+      } else {
+        console.error('🔴🔴🔴 ERROR: initialPlayerValues NOT FOUND in gamedatas!')
+        console.error('🔴 gamedatas structure:', Object.keys(gamedatas))
+        console.error('🔴 This means getAllDatas() did not add initialPlayerValues to result!')
       }
 
       // Проверяем карты основателей (без логирования)
@@ -1341,8 +1369,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('visualTrackChanged', this, 'notif_visualTrackChanged')
       dojo.subscribe('technicalDevelopmentMovesRequired', this, 'notif_technicalDevelopmentMovesRequired')
       dojo.subscribe('technicalDevelopmentMovesCompleted', this, 'notif_technicalDevelopmentMovesCompleted')
+      dojo.subscribe('initialPlayerValues', this, 'notif_initialPlayerValues')
       
-      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted')
+      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -1422,6 +1451,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._toggleActivePlayerHand(activeId)
         this._updateHandHighlight(activeId)
       }
+    },
+
+    notif_initialPlayerValues: async function (notif) {
+      console.log('🔵🔵🔵 notif_initialPlayerValues CALLED!', notif)
+      const args = notif.args || notif
+      const initialValues = args.initialValues || {}
+      
+      console.log('=== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ПОСЛЕ ИНИЦИАЛИЗАЦИИ ===')
+      console.log('🔵 initialValues keys:', Object.keys(initialValues))
+      Object.keys(initialValues).forEach((playerId) => {
+        const values = initialValues[playerId]
+        console.log(`Игрок ${playerId}:`)
+        console.log(`  - badgers=${values.badgers}`)
+        console.log(`  - incomeTrack=${values.incomeTrack}`)
+        console.log(`  - taskTokens: всего=${values.taskTokens.total}, по локациям=`, values.taskTokens.byLocation)
+        console.log(`  - projectTokens: всего=${values.projectTokens}`)
+        console.log(`  - specialistHand (на руке): всего=${values.specialistHand.count}, IDs=`, values.specialistHand.ids)
+        console.log(`  - playerSpecialists (подтвержденные): всего=${values.playerSpecialists.count}, IDs=`, values.playerSpecialists.ids)
+        console.log(`  - backOfficeCol1=${values.backOfficeCol1 ?? 'null'}, backOfficeCol2=${values.backOfficeCol2 ?? 'null'}, backOfficeCol3=${values.backOfficeCol3 ?? 'null'}`)
+        console.log(`  - techDevCol1=${values.techDevCol1 ?? 'null'}, techDevCol2=${values.techDevCol2 ?? 'null'}, techDevCol3=${values.techDevCol3 ?? 'null'}, techDevCol4=${values.techDevCol4 ?? 'null'}`)
+        console.log(`  - skillToken=${values.skillToken ?? 'null'}`)
+      })
+      console.log('=== КОНЕЦ НАЧАЛЬНЫХ ЗНАЧЕНИЙ ===')
     },
 
     notif_gameSetupStart: async function (args) {
@@ -1668,12 +1720,37 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const amount = Number(args.amount || 0)
       const founderName = args.founder_name || 'Основатель'
       const newValue = Number(args.newValue || 0)
+      const oldValue = Number(args.oldValue || 0)
       
-      console.log('💰 Badgers changed:', { playerId, newValue, amount, founderName })
+      console.log('💰 Badgers changed:', { playerId, oldValue, newValue, amount, founderName })
+      console.log('💰 Current player:', this.player_id, 'Target player:', playerId)
       
-      // Обновляем данные в gamedatas
+      // ВАЖНО: Обновляем данные в gamedatas только для указанного игрока
+      // НО: Только если oldValue совпадает с текущим значением (данные не были изменены getAllDatas())
       if (playerId > 0 && this.gamedatas.players[playerId]) {
+        const currentValue = this.gamedatas.players[playerId].badgers || 0
+        
+        // ВАЖНО: Если oldValue не совпадает с currentValue, это означает, что данные были изменены getAllDatas()
+        // В этом случае мы должны использовать newValue из уведомления, так как это актуальное значение с сервера
+        if (oldValue !== currentValue) {
+          // Данные были изменены getAllDatas() или другим уведомлением
+          // Используем newValue из уведомления, так как это актуальное значение с сервера
+          this.gamedatas.players[playerId].badgers = newValue
+          return
+        }
+        
+        // ВАЖНО: Если currentValue уже равен newValue, значит данные уже актуальны
+        // Это может произойти, если уведомление приходит несколько раз (через notify->all)
+        if (currentValue === newValue) {
+          // Данные уже актуальны, пропускаем обновление
+          return
+        }
+        
+        // ВАЖНО: Используем newValue из уведомления, так как oldValue совпадает с currentValue
+        // Это означает, что данные не были изменены getAllDatas()
         this.gamedatas.players[playerId].badgers = newValue
+      } else {
+        console.error('🔴🔴🔴 ERROR: Cannot update badgers for player', playerId, '- player not found in gamedatas.players')
       }
       
       // Обновляем банк баджерсов, если данные пришли с сервера
@@ -1682,6 +1759,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this.gamedatas.badgers = args.badgersSupply
         this._renderBadgers(args.badgersSupply)
       }
+      
+      // ВАЖНО: Проверяем, что данные обновлены только для указанного игрока
+      console.log('💰 Verifying badgers for all players after update:')
+      Object.keys(this.gamedatas.players).forEach((pid) => {
+        const pBadgers = this.gamedatas.players[pid].badgers || 0
+        console.log('💰 Player', pid, 'badgers:', pBadgers, pid == playerId ? '(UPDATED)' : '(unchanged)')
+      })
       
       // Обновляем отображение денег игрока (передаём оба аргумента!)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
@@ -1733,6 +1817,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _updateIncomeTrackPosition: function (playerId, energyValue) {
       console.log('📈 _updateIncomeTrackPosition called:', { playerId, energyValue })
       
+      // ВАЖНО: Обновляем данные в gamedatas для правильного игрока
+      if (playerId > 0 && this.gamedatas.players[playerId]) {
+        this.gamedatas.players[playerId].energy = energyValue
+        console.log('📈 Updated gamedatas.players[' + playerId + '].energy to', energyValue)
+      } else {
+        console.warn('📈 WARNING: Cannot update energy for player', playerId, '- player not found in gamedatas')
+      }
+      
+      // ВАЖНО: Обновляем визуально только если это трек текущего игрока
+      // На странице отображается только трек текущего игрока
+      const currentPlayerId = Number(this.player_id)
+      if (Number(playerId) !== currentPlayerId) {
+        console.log('📈 Skipping visual update - track belongs to player', playerId, 'but current player is', currentPlayerId)
+        return
+      }
+      
       // Ограничиваем значение от 1 до 20
       const position = Math.max(1, Math.min(20, energyValue || 1))
       console.log('📈 Target position:', position)
@@ -1747,9 +1847,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
       
-      // Если трек один, используем его (для текущего игрока)
-      // Если треков несколько, нужно найти правильный по playerId
-      // Пока используем первый найденный трек (для текущего игрока)
+      // Используем первый найденный трек (для текущего игрока)
       const playerBoard = allIncomeTracks[0]
       
       if (!playerBoard) {
@@ -1822,10 +1920,25 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       console.log('🎯 Visual track changed:', { playerId, trackId, amount, newValue })
       
-      // Обрабатываем трек эволюции бэк-офиса
+      // Обрабатываем трек эволюции бэк-офиса (только колонка 1 имеет визуальный жетон)
       if (trackId === 'player-department-back-office-evolution-column-1') {
-        console.log('🎯 Processing back-office evolution column-1')
-        this._updateBackOfficeEvolutionColumn1(playerId, newValue, amount)
+        console.log('🎯 Processing back-office evolution column 1:', trackId, 'for player:', playerId, 'amount:', amount)
+        this._updateBackOfficeEvolutionColumn(playerId, trackId, newValue, amount)
+      } else if (trackId === 'player-department-back-office-evolution-column-2' || 
+                 trackId === 'player-department-back-office-evolution-column-3') {
+        // Колонки 2 и 3 - только сохраняем данные, без визуального обновления
+        console.log('🎯 Processing back-office evolution column (no visual):', trackId, 'for player:', playerId, 'amount:', amount)
+        const columnMatch = trackId.match(/column-(\d+)/)
+        const columnNum = columnMatch ? columnMatch[1] : '1'
+        const columnKey = 'column' + columnNum
+        if (playerId > 0 && this.gamedatas.players[playerId]) {
+          if (!this.gamedatas.players[playerId].backOfficeEvolution) {
+            this.gamedatas.players[playerId].backOfficeEvolution = {}
+          }
+          this.gamedatas.players[playerId].backOfficeEvolution[columnKey] = newValue || (1 + amount)
+        }
+      } else {
+        console.log('🎯 Track', trackId, 'is not a back-office evolution column, skipping')
       }
       
       // Визуальная анимация изменения
@@ -1836,33 +1949,121 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     /**
-     * Обновляет позицию жетона в колонке эволюции бэк-офиса
+     * Универсальная функция для обновления позиции жетона в колонке эволюции бэк-офиса
      * @param {number} playerId ID игрока
+     * @param {string} trackId ID трека (например, 'player-department-back-office-evolution-column-1')
      * @param {number} newValue Новое значение (не используется, вычисляется из текущей позиции + amount)
      * @param {number} amount Изменение (относительное, прибавляется к текущей позиции)
      */
-    _updateBackOfficeEvolutionColumn1: function (playerId, newValue, amount) {
-      console.log('🎯 _updateBackOfficeEvolutionColumn1 called:', { playerId, newValue, amount })
+    _updateBackOfficeEvolutionColumn: function (playerId, trackId, newValue, amount) {
+      // Извлекаем номер колонки из trackId
+      const columnMatch = trackId.match(/column-(\d+)/)
+      const columnNum = columnMatch ? columnMatch[1] : '1'
+      const columnKey = 'column' + columnNum
+      
+      // ВАЖНО: Жетон есть только в колонке 1! Для колонок 2 и 3 только сохраняем данные
+      if (columnNum !== '1') {
+        // Для колонок 2 и 3 только сохраняем данные в gamedatas, без визуального обновления
+        if (playerId > 0 && this.gamedatas.players[playerId]) {
+          if (!this.gamedatas.players[playerId].backOfficeEvolution) {
+            this.gamedatas.players[playerId].backOfficeEvolution = {}
+          }
+          this.gamedatas.players[playerId].backOfficeEvolution[columnKey] = newValue || (1 + amount)
+        }
+        return
+      }
+      
+      // ВАЖНО: Обновляем визуально только если это трек текущего игрока
+      const currentPlayerId = Number(this.player_id)
+      if (Number(playerId) !== currentPlayerId) {
+        // Сохраняем данные в gamedatas для правильного игрока
+        if (playerId > 0 && this.gamedatas.players[playerId]) {
+          if (!this.gamedatas.players[playerId].backOfficeEvolution) {
+            this.gamedatas.players[playerId].backOfficeEvolution = {}
+          }
+          this.gamedatas.players[playerId].backOfficeEvolution[columnKey] = newValue
+        }
+        return
+      }
       
       // Находим контейнер колонки для текущего игрока
-      const columnElement = document.getElementById('player-department-back-office-evolution-column-1')
+      const columnElement = document.getElementById(trackId)
       if (!columnElement) {
-        console.log('🎯 Column element not found')
+        console.log('🎯 Column element not found for trackId:', trackId)
         return
       }
       
-      // Находим все строки в колонке
-      const rows = columnElement.querySelectorAll('.player-department-back-office-evolution__row')
-      console.log('🎯 Found rows:', rows.length)
+      console.log('🎯 Column element found:', columnElement, 'for trackId:', trackId)
+      console.log('🎯 Column element innerHTML length:', columnElement.innerHTML.length)
       
+      // Находим wrapper со строками (может быть с классом column-1__rows-wrapper, column-2__rows-wrapper и т.д.)
+      const wrapperClass = `player-department-back-office-evolution-column-${columnNum}__rows-wrapper`
+      let wrapper = columnElement.querySelector(`.${wrapperClass}`)
+      
+      if (!wrapper) {
+        console.log('🎯 Wrapper not found with class:', wrapperClass, 'trying fallback')
+        // Fallback: пробуем найти любой wrapper или используем сам columnElement
+        wrapper = columnElement.querySelector('[class*="rows-wrapper"]') || columnElement
+        console.log('🎯 Fallback wrapper:', wrapper)
+      } else {
+        console.log('🎯 Wrapper found with class:', wrapperClass)
+      }
+      
+      // Находим все строки в колонке - пробуем несколько способов
+      let rows = wrapper.querySelectorAll('.player-department-back-office-evolution__row')
+      console.log('🎯 Found rows in wrapper:', rows.length, 'in column', columnNum, 'for trackId:', trackId)
+      
+      // Если строки не найдены в wrapper, пробуем найти их напрямую в columnElement
       if (rows.length === 0) {
-        console.log('🎯 No rows found')
+        console.log('🎯 No rows found in wrapper, trying direct search in columnElement')
+        rows = columnElement.querySelectorAll('.player-department-back-office-evolution__row')
+        console.log('🎯 Direct rows found in columnElement:', rows.length)
+        
+        // Если все еще не найдены, пробуем найти по ID
+        if (rows.length === 0) {
+          console.log('🎯 No rows found by querySelector, trying to find by ID')
+          const rowElements = []
+          for (let i = 1; i <= 6; i++) {
+            const rowId = `player-department-back-office-evolution-column-${columnNum}-row-${i}`
+            const row = document.getElementById(rowId)
+            if (row) {
+              rowElements.push(row)
+              console.log('🎯 Found row by ID:', rowId)
+            } else {
+              console.log('🎯 Row not found by ID:', rowId)
+            }
+          }
+          if (rowElements.length > 0) {
+            console.log('🎯 Found', rowElements.length, 'rows by ID, converting to NodeList-like structure')
+            // Создаем объект, похожий на NodeList
+            rows = {
+              length: rowElements.length,
+              forEach: (callback) => rowElements.forEach(callback),
+              [Symbol.iterator]: function* () {
+                for (let i = 0; i < rowElements.length; i++) {
+                  yield rowElements[i]
+                }
+              }
+            }
+            // Также сохраняем массив для доступа по индексу
+            rows._array = rowElements
+          }
+        }
+      }
+      
+      if (!rows || rows.length === 0) {
         return
       }
+      
+      console.log('🎯 Successfully found', rows.length, 'rows for column', columnNum)
+      
+      // Преобразуем rows в массив для единообразной обработки
+      const rowsArray = Array.isArray(rows) ? rows : (rows._array || Array.from(rows))
+      console.log('🎯 rowsArray length:', rowsArray.length)
       
       // Находим текущую позицию жетона (где он сейчас находится)
       let currentPosition = 1 // По умолчанию позиция 1 (нижняя ячейка)
-      rows.forEach(row => {
+      rowsArray.forEach(row => {
         const token = row.querySelector('.player-department-back-office-evolution__token')
         if (token) {
           const rowIndex = parseInt(row.dataset.rowIndex, 10)
@@ -1879,7 +2080,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       // Удаляем жетон из всех строк
       let removedCount = 0
-      rows.forEach(row => {
+      rowsArray.forEach(row => {
         const token = row.querySelector('.player-department-back-office-evolution__token')
         if (token) {
           token.remove()
@@ -1891,7 +2092,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       // Находим строку с нужной позицией (row-1 снизу, row-6 сверху)
       // newPosition = 1 означает нижнюю ячейку (row-1), newPosition = 6 означает верхнюю ячейку (row-6)
-      const targetRow = Array.from(rows).find(row => {
+      const targetRow = rowsArray.find(row => {
         const rowIndex = parseInt(row.dataset.rowIndex, 10)
         const matches = rowIndex === newPosition
         if (matches) {
@@ -1906,11 +2107,31 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const token = document.createElement('div')
         token.className = 'player-department-back-office-evolution__token'
         targetRow.appendChild(token)
-        console.log('✅ Added token to row:', newPosition)
+        console.log('✅ Added token to row:', newPosition, 'in column:', columnNum)
+        
+        // Сохраняем данные в gamedatas
+        if (playerId > 0 && this.gamedatas.players[playerId]) {
+          if (!this.gamedatas.players[playerId].backOfficeEvolution) {
+            this.gamedatas.players[playerId].backOfficeEvolution = {}
+          }
+          this.gamedatas.players[playerId].backOfficeEvolution[columnKey] = newPosition
+          console.log('🎯 Saved back office evolution data for player', playerId, 'column:', columnKey, 'position:', newPosition)
+        }
       } else {
-        console.log('❌ Target row not found for position:', newPosition)
+        console.log('❌ _updateBackOfficeEvolutionColumn - Target row not found for position:', newPosition, 'in column:', columnNum)
         console.log('🎯 Available row indices:', Array.from(rows).map(r => r.dataset.rowIndex).join(', '))
       }
+    },
+
+    /**
+     * Обновляет позицию жетона в колонке 1 эволюции бэк-офиса (для обратной совместимости)
+     * @param {number} playerId ID игрока
+     * @param {number} newValue Новое значение (не используется, вычисляется из текущей позиции + amount)
+     * @param {number} amount Изменение (относительное, прибавляется к текущей позиции)
+     */
+    _updateBackOfficeEvolutionColumn1: function (playerId, newValue, amount) {
+      // Вызываем универсальную функцию для колонки 1
+      this._updateBackOfficeEvolutionColumn(playerId, 'player-department-back-office-evolution-column-1', newValue, amount)
     },
 
     // Очищает отделы от карт других игроков при переходе хода
@@ -1947,6 +2168,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           })
         }
       }
+      
+      // ВАЖНО: Обновляем деньги нового игрока при переходе
+      // Данные должны быть уже обновлены в gamedatas.players через getAllDatas()
+      // Используем setTimeout, чтобы убедиться, что данные обновлены после всех уведомлений
+      setTimeout(() => {
+        if (this.gamedatas && this.gamedatas.players && this.gamedatas.players[activePlayerId]) {
+          const badgers = this.gamedatas.players[activePlayerId].badgers ?? 0
+          console.log('💰 _clearDepartmentsForNewPlayer: Updating money for new player:', activePlayerId, 'badgers:', badgers)
+          this._renderPlayerMoney(this.gamedatas.players, activePlayerId)
+        } else {
+          console.warn('⚠️ _clearDepartmentsForNewPlayer: Player data not found in gamedatas.players for player:', activePlayerId)
+        }
+      }, 100)
     },
 
     // Прямая отрисовка карты в конкретном отделе
@@ -3434,24 +3668,40 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _renderPlayerMoney: function (players, targetPlayerId) {
       // Обновляем деньги игрока
       const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
-      if (!panelBody) return
+      if (!panelBody) {
+        console.warn('⚠️ _renderPlayerMoney: panelBody not found')
+        return
+      }
 
       const fallbackId = this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
       const playerId = targetPlayerId ?? fallbackId // Идентификатор игрока
       if (!playerId) {
         // Если игрок не найден, очищаем панель
+        console.warn('⚠️ _renderPlayerMoney: playerId not found, clearing panel')
         panelBody.innerHTML = '' // Очищаем панель
         return
       }
 
-      const playerData = this._findPlayerData(players, playerId) // Получаем данные игрока
+      // ВАЖНО: Обновляем данные из gamedatas.players, если они есть
+      // Это гарантирует, что мы используем актуальные данные
+      let playerData = this._findPlayerData(players, playerId) // Получаем данные игрока
+      
+      // Если данных нет в переданном объекте players, пробуем взять из gamedatas
+      if (!playerData && this.gamedatas && this.gamedatas.players && this.gamedatas.players[playerId]) {
+        playerData = this.gamedatas.players[playerId]
+        console.log('💰 _renderPlayerMoney: Using data from gamedatas.players for player:', playerId)
+      }
+      
       if (!playerData) {
         // Если игрок не найден, очищаем панель
+        console.warn('⚠️ _renderPlayerMoney: playerData not found for player:', playerId)
         panelBody.innerHTML = ''
         return
       }
 
       const amount = Number(playerData.badgers ?? 0) || 0 // Количество баджерсов
+      console.log('💰 _renderPlayerMoney: Rendering money for player:', playerId, 'amount:', amount)
+      
       const coinData = this._getBestCoinForAmount(amount)
       const imageUrl = coinData?.image_url ? (coinData.image_url.startsWith('http') ? coinData.image_url : `${g_gamethemeurl}${coinData.image_url}`) : `${g_gamethemeurl}img/money/1.png`
       let color = String(playerData.color || '').trim()
@@ -3474,12 +3724,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
       this._updatePlayerBoardImage(color)
 
+      // ВАЖНО: Полностью заменяем содержимое, чтобы убрать старые данные
       panelBody.innerHTML = `
         <div class="player-money-panel__balance">
           <img src="${imageUrl}" alt="${coinData?.name || _('Баджерсы')}" class="player-money-panel__icon" />
           <span class="player-money-panel__amount">${amount}</span>
         </div>
       `
+      console.log('✅ _renderPlayerMoney: Updated balance to', amount, 'for player', playerId)
       // УБРАНО: _renderFounderCard теперь вызывается отдельно, не из _renderPlayerMoney
       // Это исправляет баг, когда карта другого игрока появлялась при обновлении денег
     },

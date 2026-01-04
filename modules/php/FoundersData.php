@@ -145,9 +145,9 @@ class FoundersData
             'speciality' => 'Основатель', // Специальность основателя
             'effect' => [
                 'updateTrack' => [
-                    ['track' => 'income-track', 'amount' => '+ 2'],
-                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 2'],
-                    ['track' => 'player-department-technical-development', 'amount' => '+ 2', 'column' => 'any']
+                    ['track' => 'income-track', 'amount' => '+ 2'], // Трек дохода
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 2'], // Трек эволюции в бэк офисе
+                    ['track' => 'player-department-technical-development', 'amount' => '+ 2', 'column' => 'any'], // Трек технического развития в любом отделе
                 ]
             ], // Эффект
             'department' => 'universal', // Отдел
@@ -189,7 +189,7 @@ class FoundersData
             'speciality' => 'Основатель', // Специальность основателя
             'effect' => null, // Эффект
             'department' => 'back-office', // Отдел
-            'activationStage' => null, // Этап активации эффекта
+            'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Комбинатор. Бонус IT проектов для вас приносит 7 ресурса', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'A', // Управление
@@ -206,9 +206,14 @@ class FoundersData
             'name' => 'Лидия', // Имя основателя
             'color' => '#800000', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'income-track', 'amount' => '+ 1'], // Трек дохода в отделе продаж
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
-            'activationStage' => null, // Этап активации эффекта
+            'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Отличник. Улучшите на 1 трек дохода в отделе продаж и на 1 трек найма и 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'E', // Управление

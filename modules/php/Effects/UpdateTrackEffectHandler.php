@@ -42,6 +42,8 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
         return match ($trackId) {
             'income-track' => 'трек дохода',
             'player-department-back-office-evolution-column-1' => 'колонка эволюции бэк-офиса',
+            'player-department-back-office-evolution-column-2' => 'трек найма в бэк-офисе',
+            'player-department-back-office-evolution-column-3' => 'трек задач в бэк-офисе',
             'player-department-technical-development' => 'развитие техотдела',
             // В будущем можно добавить другие треки:
             // 'sprint-track' => 'трек спринта',
@@ -192,15 +194,39 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
                 
                 // Для других визуальных треков (например, 'player-department-back-office-evolution-column-1')
                 // это визуальный трек, который обрабатывается на клиенте
-                // Добавляем его в updatedTracks без изменения значения на сервере
-                error_log("UpdateTrackEffectHandler::apply - Track $trackId is a visual track (no PlayerCounter), adding to updatedTracks for client processing");
+                // НО теперь мы сохраняем его в БД в таблице player_game_data
+                error_log("UpdateTrackEffectHandler::apply - Track $trackId is a visual track (no PlayerCounter), updating in player_game_data table");
+                
+                // Определяем тип трека и колонку
+                $oldValue = 0;
+                $newValue = 0;
+                
+                if (preg_match('/player-department-back-office-evolution-column-(\d+)/', $trackId, $matches)) {
+                    $column = (int)$matches[1];
+                    $gameData = $this->game->getPlayerGameData($playerId);
+                    $oldValue = $gameData ? ($gameData['backOfficeCol' . $column] ?? 0) : 0;
+                    $newValue = $oldValue + $amount;
+                    $this->game->setBackOfficeColumn($playerId, $column, $newValue);
+                    error_log("UpdateTrackEffectHandler::apply - Updated backOfficeCol$column: $oldValue -> $newValue (amount: $amount)");
+                } elseif (preg_match('/player-department-technical-development-column-(\d+)/', $trackId, $matches)) {
+                    $column = (int)$matches[1];
+                    $gameData = $this->game->getPlayerGameData($playerId);
+                    $oldValue = $gameData ? ($gameData['techDevCol' . $column] ?? 0) : 0;
+                    $newValue = $oldValue + $amount;
+                    $this->game->setTechDevColumn($playerId, $column, $newValue);
+                    error_log("UpdateTrackEffectHandler::apply - Updated techDevCol$column: $oldValue -> $newValue (amount: $amount)");
+                } else {
+                    // Для других визуальных треков просто добавляем в updatedTracks
+                    $oldValue = 0;
+                    $newValue = $amount;
+                }
                 
                 $updatedTracks[] = [
                     'trackId' => $trackId,
                     'trackName' => $this->getTrackName($trackId),
                     'amount' => $amount,
-                    'oldValue' => 0, // Визуальный трек, значение не хранится на сервере
-                    'newValue' => $amount, // Для визуальных треков newValue = amount (относительное изменение)
+                    'oldValue' => $oldValue,
+                    'newValue' => $newValue,
                 ];
                 
                 $totalAmount += abs($amount);
@@ -221,6 +247,7 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
             }
             
             // Увеличиваем/уменьшаем позицию трека
+            // ВАЖНО: Защита от двойного применения уже есть через $processedTracks в начале метода
             if ($amount > 0) {
                 error_log("UpdateTrackEffectHandler::apply - Calling inc($playerId, $amount) for track $trackId");
                 $trackCounter->inc($playerId, $amount);

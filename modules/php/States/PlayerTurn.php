@@ -131,6 +131,9 @@ class PlayerTurn extends GameState
             throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));
         }
 
+        // ВАЖНО: Сохраняем все данные игрока в таблицу player_game_data перед завершением хода
+        $this->game->savePlayerGameDataOnTurnEnd($activePlayerId);
+        
         $this->notify->all('turnFinished', clienttranslate('${player_name} завершает ход'), [
             'player_id' => $activePlayerId,
             'player_name' => $this->game->getPlayerNameById($activePlayerId),
