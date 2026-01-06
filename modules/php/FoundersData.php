@@ -269,9 +269,12 @@ class FoundersData
             'name' => 'Елена', // Имя основателя
             'color' => '#008000', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'income-track', 'amount' => '+ 3'], // Трек дохода в отделе продаж, // Эффект
+                ]],
             'department' => 'sales-department', // Отдел
-            'activationStage' => null, // Этап активации эффекта
+            'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Финансист. Улучшите на 3 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'E', // Управление
