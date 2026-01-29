@@ -116,13 +116,85 @@ class Game extends \Bga\GameFramework\Table
         };
     }
 
+    /**
+     * Массив фаз раунда (ЭТАП 2: Игра)
+     * Каждая фаза имеет:
+     * - key: ключ фазы (используется в коде)
+     * - name: название фазы (для отображения)
+     * - number: номер фазы в раунде (1, 2, 3...)
+     * - state: класс состояния, соответствующего фазе
+     * 
+     * @return array Массив фаз раунда
+     */
+    public function getRoundPhases(): array
+    {
+        return [
+            [
+                'key' => 'event',
+                'number' => 1,
+                'name' => clienttranslate('Событие'),
+                'state' => \Bga\Games\itarenagame\States\RoundEvent::class,
+            ],
+            [
+                'key' => 'player_turns',
+                'number' => 2,
+                'name' => clienttranslate('Ход игрока'),
+                'state' => \Bga\Games\itarenagame\States\PlayerTurn::class,
+            ],
+        ];
+    }
+
+    /**
+     * Возвращает фазу по ключу
+     * 
+     * @param string $phaseKey Ключ фазы
+     * @return array|null Данные фазы или null если не найдена
+     */
+    public function getPhaseByKey(string $phaseKey): ?array
+    {
+        $phases = $this->getRoundPhases();
+        foreach ($phases as $phase) {
+            if ($phase['key'] === $phaseKey) {
+                return $phase;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Возвращает фазу по номеру
+     * 
+     * @param int $phaseNumber Номер фазы (1, 2, 3...)
+     * @return array|null Данные фазы или null если не найдена
+     */
+    public function getPhaseByNumber(int $phaseNumber): ?array
+    {
+        $phases = $this->getRoundPhases();
+        foreach ($phases as $phase) {
+            if ($phase['number'] === $phaseNumber) {
+                return $phase;
+            }
+        }
+        return null;
+    }
+
     /** Возвращает название фазы по ключу */
     public function getPhaseName(string $phaseKey): string
     {
-        return match ($phaseKey) {
-            'event' => clienttranslate('Событие'),
-            default => '',
-        };
+        $phase = $this->getPhaseByKey($phaseKey);
+        return $phase ? $phase['name'] : '';
+    }
+
+    /**
+     * Возвращает номер фазы по ключу
+     * 
+     * @param string $phaseKey Ключ фазы
+     * @return int|null Номер фазы или null если не найдена
+     */
+    public function getPhaseNumber(string $phaseKey): ?int
+    {
+        $phase = $this->getPhaseByKey($phaseKey);
+        return $phase ? $phase['number'] : null;
     }
 
     /** Возвращает список граней кубика (20 значений) */
@@ -161,6 +233,10 @@ class Game extends \Bga\GameFramework\Table
             'players_left_in_round' => 11, // Количество игроков в раунде
             'total_rounds' => 12, // Общее количество раундов
             'round_cube_face' => 13, // Индекс текущей грани кубика (0..19)
+            'last_cube_round' => 14, // Номер раунда, для которого был брошен кубик
+            'last_event_cards_round' => 15, // Номер раунда, для которого были подготовлены карты событий
+            'current_phase_index' => 16, // Индекс текущей фазы в массиве фаз (0, 1, 2...)
+            'players_completed_current_phase' => 17, // Количество игроков, завершивших текущую фазу
             'badgers_supply_1' => 20,
             'badgers_supply_2' => 21,
             'badgers_supply_3' => 22,
@@ -485,29 +561,6 @@ class Game extends \Bga\GameFramework\Table
                 $player['gameGoals'] = [];
             }
             
-            // ВЫВОДИМ ПОЛНУЮ ИНФОРМАЦИЮ О ВСЕХ СВОЙСТВАХ ИГРОКА В БД
-            error_log('========================================');
-            error_log('=== ПОЛНАЯ ИНФОРМАЦИЯ О ИГРОКЕ ' . $playerId . ' В БД ===');
-            error_log('========================================');
-            error_log('  id=' . var_export($player['id'], true));
-            error_log('  score=' . var_export($player['score'], true));
-            error_log('  color=' . var_export($player['color'], true));
-            error_log('  energy (incomeTrack)=' . var_export($player['energy'] ?? null, true));
-            error_log('  badgers=' . var_export($player['badgers'] ?? null, true));
-            error_log('  founder=' . json_encode($player['founder'] ?? null, JSON_UNESCAPED_UNICODE));
-            error_log('  penaltyTokens: всего=' . count($player['penaltyTokens'] ?? []) . ', данные=' . json_encode($player['penaltyTokens'] ?? [], JSON_UNESCAPED_UNICODE));
-            error_log('  taskTokens: всего=' . count($player['taskTokens'] ?? []) . ', данные=' . json_encode($player['taskTokens'] ?? [], JSON_UNESCAPED_UNICODE));
-            error_log('  sprintTrack: backlog=' . ($player['sprintTrack']['backlogCount'] ?? 0) . ', inProgress=' . ($player['sprintTrack']['inProgressCount'] ?? 0) . ', testing=' . ($player['sprintTrack']['testingCount'] ?? 0) . ', completed=' . ($player['sprintTrack']['completedCount'] ?? 0));
-            error_log('  sprintColumnTasksProgress=' . var_export($player['sprintColumnTasksProgress'] ?? null, true));
-            error_log('  projectTokens: всего=' . count($player['projectTokens'] ?? []) . ', данные=' . json_encode($player['projectTokens'] ?? [], JSON_UNESCAPED_UNICODE));
-            error_log('  backOfficeCol1=' . var_export($player['backOfficeCol1'] ?? null, true) . ', backOfficeCol2=' . var_export($player['backOfficeCol2'] ?? null, true) . ', backOfficeCol3=' . var_export($player['backOfficeCol3'] ?? null, true));
-            error_log('  techDevCol1=' . var_export($player['techDevCol1'] ?? null, true) . ', techDevCol2=' . var_export($player['techDevCol2'] ?? null, true) . ', techDevCol3=' . var_export($player['techDevCol3'] ?? null, true) . ', techDevCol4=' . var_export($player['techDevCol4'] ?? null, true));
-            error_log('  skillToken=' . var_export($player['skillToken'] ?? null, true));
-            error_log('  itProjectBonuses=' . json_encode($player['itProjectBonuses'] ?? [], JSON_UNESCAPED_UNICODE));
-            error_log('  gameGoals=' . json_encode($player['gameGoals'] ?? [], JSON_UNESCAPED_UNICODE));
-            error_log('  === Полный массив player для игрока ' . $playerId . ' ===');
-            error_log('  ' . json_encode($player, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-            error_log('========================================');
         }
         unset($player);
 
@@ -526,16 +579,62 @@ class Game extends \Bga\GameFramework\Table
         $result['roundName'] = $this->getRoundName($result['round']); // Название раунда
         $faces = $this->getCubeFaces(); // Значения граней кубика
         $faceIndex = (int)$this->getGameStateValue('round_cube_face'); // Индекс текущей грани кубика (0..19)
-        $result['cubeFace'] = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : ''; // Значение кубика на раунд
+        // ВАЖНО: Проверяем текущее состояние игры
+        $currentState = $this->gamestate->state()['name'] ?? '';
+        $round = (int)$this->getGameStateValue('round_number');
+        error_log('🎲 Game::getAllDatas() - currentState: ' . $currentState . ', round: ' . $round);
+        
+        // Если мы на этапе 2 (round > 0) и кубик еще не брошен, подготавливаем данные СЕЙЧАС
+        // Это гарантирует, что данные будут доступны даже если RoundEvent был пропущен
+        if ($round > 0 && ($faceIndex < 0 || $faceIndex >= count($faces))) {
+            error_log('🎲 Game::getAllDatas() - Round > 0 but cube not rolled! Rolling now...');
+            $cubeFace = $this->rollRoundCube();
+            $faceIndex = (int)$this->getGameStateValue('round_cube_face');
+            error_log('🎲 Game::getAllDatas() - Cube rolled in getAllDatas: ' . $cubeFace);
+        } else {
+            $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+        }
+        
+        $result['cubeFace'] = $cubeFace; // Значение кубика на раунд
         
         // Логирование для отладки
-        error_log('Game::getAllDatas() - cubeFace: ' . var_export($result['cubeFace'], true) . ', faceIndex: ' . $faceIndex);
+        error_log('🎲 Game::getAllDatas() - cubeFace: ' . var_export($result['cubeFace'], true) . ', faceIndex: ' . $faceIndex);
+        
         // Текущее имя фазы из глобальной переменной (переводим ключ в название)
+        // Получаем данные текущей фазы из массива фаз
         $phaseKey = $this->globals->get('current_phase_name', '');
-        $result['phaseName'] = $this->getPhaseName($phaseKey);
-        $result['eventCards'] = EventCardsData::getAllCards();
+        if (!empty($phaseKey)) {
+            $phase = $this->getPhaseByKey($phaseKey);
+            if ($phase) {
+                $result['phaseName'] = $phase['name'];
+                $result['phaseNumber'] = $phase['number'];
+                $result['phaseKey'] = $phase['key'];
+            } else {
+                $result['phaseName'] = '';
+                $result['phaseNumber'] = null;
+                $result['phaseKey'] = '';
+            }
+        } else {
+            $result['phaseName'] = '';
+            $result['phaseNumber'] = null;
+            $result['phaseKey'] = '';
+        }
+        
+        // Добавляем массив всех фаз для клиента
+        $result['roundPhases'] = $this->getRoundPhases();
+        // ВАЖНО: НЕ отправляем все карты событий в getAllDatas() - это слишком большой JSON
+        // Клиент получает только текущие карты раунда через roundEventCards
+        // $result['eventCards'] = EventCardsData::getAllCards();
         $result['specialists'] = SpecialistsData::getAllCards(); // Все карты специалистов для клиента
+        
+        // ВАЖНО: Если мы на этапе 2 и карты событий пустые, подготавливаем их СЕЙЧАС
         $roundEventCards = $this->getRoundEventCards();
+        if ($round > 0 && empty($roundEventCards)) {
+            error_log('🎲 Game::getAllDatas() - Round > 0 but event cards empty! Preparing now...');
+            $roundEventCards = $this->prepareRoundEventCard();
+            error_log('🎲 Game::getAllDatas() - Event cards prepared in getAllDatas: ' . count($roundEventCards));
+        }
+        
         $result['roundEventCards'] = $roundEventCards;
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
         $result['badgers'] = $this->getBadgersSupply();
@@ -855,9 +954,13 @@ class Game extends \Bga\GameFramework\Table
         //Мой код для инициализации глобальных значений
         // Init global values with their initial values.
         $this->setGameStateInitialValue('total_rounds', 6); // Общее количество раундов
-        $this->setGameStateInitialValue('round_number', 1); // Текущий раунд
+        $this->setGameStateInitialValue('round_number', 0); // Текущий раунд (0 = ЭТАП 1, >0 = ЭТАП 2)
         $this->setGameStateInitialValue('players_left_in_round', count($players)); // Количество игроков в раунде
         $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен
+        $this->setGameStateInitialValue('last_cube_round', 0); // Номер раунда, для которого был брошен кубик
+        $this->setGameStateInitialValue('last_event_cards_round', 0); // Номер раунда, для которого были подготовлены карты событий
+        $this->setGameStateInitialValue('current_phase_index', 0); // Индекс текущей фазы в массиве фаз (0, 1, 2...)
+        $this->setGameStateInitialValue('players_completed_current_phase', 0); // Количество игроков, завершивших текущую фазу
         // Устанавливаем начальное название фазы, так как сразу переходим в RoundEvent
         // Используем ключ для перевода на клиенте
         $this->globals->set('current_phase_name', 'event');

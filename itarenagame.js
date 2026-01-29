@@ -38,13 +38,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         */
 
     setup: function (gamedatas) {
-      console.log('🔴🔴🔴 FILE VERSION CHECK - 2024-12-12-v15 🔴🔴🔴')
 
       // Example to add a div on the game area
       // Мой код для баннера раунда
-      this.getGameAreaElement().insertAdjacentHTML(
-        'beforeend',
-        `
+      const gameArea = this.getGameAreaElement()
+      if (!gameArea) {
+        console.error('❌ getGameAreaElement() returned null! Cannot initialize game UI.')
+        return
+      }
+      
+      try {
+        gameArea.insertAdjacentHTML(
+          'beforeend',
+          `
                 <div class="game-layout">
                   <div class="main-column">
                     <div class="banner-container">
@@ -444,7 +450,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                   </div>
                 </div>
             `
-      )
+        )
+      } catch (error) {
+        console.error('❌ Error inserting game HTML:', error)
+        // Продолжаем выполнение, даже если произошла ошибка
+      }
+      
       // Мой код для баннера раунда
       // Setting up player boards
       Object.values(gamedatas.players).forEach((player) => {
@@ -483,63 +494,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       this._applyLocalFounders()
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
 
-      // Проверяем баджерсы игроков (проверка без логирования)
-      if (gamedatas.players) {
-        console.log('💰 Setup: Checking badgers for all players:')
-        Object.values(gamedatas.players).forEach((player) => {
-          const badgers = player.badgers || 0
-          console.log('💰 Setup: Player', player.id, 'badgers:', badgers)
-          if (badgers !== 5) {
-            // Только предупреждение об ошибке, без обычных логов
-            console.warn('WARNING: Player ' + player.id + ' has incorrect badgers count! Expected: 5, Got: ' + badgers)
-          }
-        })
-      }
-      
-      // ВЫВОДИМ НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ИЗ getAllDatas
-      // getAllDatas() вызывается автоматически BGA фреймворком при загрузке страницы
-      // и передает все данные в setup(gamedatas)
-      console.log('🔵🔵🔵 setup() - Checking for initialPlayerValues in gamedatas...')
-      console.log('🔵 gamedatas keys:', Object.keys(gamedatas))
-      if (gamedatas.initialPlayerValues) {
-        console.log('=== НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ВСЕХ ИГРОКОВ ИЗ getAllDatas ===')
-        console.log('🔵 initialPlayerValues keys:', Object.keys(gamedatas.initialPlayerValues))
-        Object.keys(gamedatas.initialPlayerValues).forEach((playerId) => {
-          const values = gamedatas.initialPlayerValues[playerId]
-          console.log(`Игрок ${playerId}:`)
-          console.log(`  - badgers=${values.badgers}`)
-          console.log(`  - incomeTrack=${values.incomeTrack}`)
-          console.log(`  - taskTokens: всего=${values.taskTokens.total}, по локациям=`, values.taskTokens.byLocation)
-          console.log(`  - projectTokens: всего=${values.projectTokens}`)
-          console.log(`  - specialistHand (на руке): всего=${values.specialistHand.count}, IDs=`, values.specialistHand.ids)
-          console.log(`  - playerSpecialists (подтвержденные): всего=${values.playerSpecialists.count}, IDs=`, values.playerSpecialists.ids)
-          console.log(`  - backOfficeCol1=${values.backOfficeCol1 ?? 'null'}, backOfficeCol2=${values.backOfficeCol2 ?? 'null'}, backOfficeCol3=${values.backOfficeCol3 ?? 'null'}`)
-          console.log(`  - techDevCol1=${values.techDevCol1 ?? 'null'}, techDevCol2=${values.techDevCol2 ?? 'null'}, techDevCol3=${values.techDevCol3 ?? 'null'}, techDevCol4=${values.techDevCol4 ?? 'null'}`)
-          console.log(`  - skillToken=${values.skillToken ?? 'null'}`)
-        })
-        console.log('=== КОНЕЦ НАЧАЛЬНЫХ ЗНАЧЕНИЙ ИЗ getAllDatas ===')
-      } else {
-        console.error('🔴🔴🔴 ERROR: initialPlayerValues NOT FOUND in gamedatas!')
-        console.error('🔴 gamedatas structure:', Object.keys(gamedatas))
-        console.error('🔴 This means getAllDatas() did not add initialPlayerValues to result!')
-      }
-
-      // Проверяем карты основателей (без логирования)
-      if (!gamedatas.isTutorialMode) {
-        // Проверяем, есть ли опции для текущего игрока
-        if (gamedatas.founderOptions && gamedatas.founderOptions.length > 0) {
-          if (gamedatas.founderOptions.length !== 3) {
-            console.warn('⚠️ WARNING: Current player should have 3 options, but got ' + gamedatas.founderOptions.length)
-          }
-        } else {
-          console.error('❌ ERROR: Current player has NO founder options! This should not happen in MAIN mode!')
-        }
-
-        // Проверяем активного игрока
-        if (!gamedatas.activeFounderOptions || gamedatas.activeFounderOptions.length === 0) {
-          console.warn('⚠️ Active player has NO founder options')
-        }
-      }
 
       // Режим игры (1 - Обучающий, 2 - Основной)
       this.gameMode = gamedatas.gameMode || 1
@@ -563,11 +517,29 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
       }, 200)
 
-      // Обновляем отображение кубика
-      this._updateCubeFace(gamedatas.cubeFace)
-      const initialEventCards = gamedatas.roundEventCards || []
-      this._renderEventCards(initialEventCards)
-      this._renderRoundEventCards(initialEventCards)
+      // ВАЖНО: Кубик и карты событий НЕ отрисовываются в setup()
+      // Они отрисовываются только в RoundEvent (этап 2, round > 0)
+      // Сохраняем данные из getAllDatas() в gamedatas для будущего использования
+      const currentRound = gamedatas.round || 0
+      if (currentRound > 0) {
+        // Только если мы уже на этапе 2, сохраняем данные
+        if (gamedatas.cubeFace) {
+          this.gamedatas.cubeFace = gamedatas.cubeFace
+          console.log('🎲 setup: Saved cubeFace to gamedatas (Stage 2):', gamedatas.cubeFace)
+        }
+        if (gamedatas.roundEventCards && gamedatas.roundEventCards.length > 0) {
+          this.gamedatas.roundEventCards = gamedatas.roundEventCards
+          this.gamedatas.roundEventCard = gamedatas.roundEventCards[0] || null
+          console.log('🎴 setup: Saved roundEventCards to gamedatas (Stage 2):', gamedatas.roundEventCards.length)
+        }
+      } else {
+        // Этап 1 - очищаем данные кубика и карт событий
+        this.gamedatas.cubeFace = ''
+        this.gamedatas.roundEventCards = []
+        this.gamedatas.roundEventCard = null
+        console.log('🎲 setup: Stage 1 - Clearing cube and event cards data')
+      }
+      
       this._renderBadgers(gamedatas.badgers || [])
       const initialActiveId = this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
@@ -781,6 +753,80 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           }
           const activeId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
           this.gamedatas.gamestate.active_player = activeId
+
+          // ВАЖНО: Проверяем и обновляем кубик и карты событий ТОЛЬКО на этапе 2 (round > 0)
+          // Это нужно на случай, если RoundEvent быстро перешел в PlayerTurn
+          const currentRound = this.gamedatas?.round || args?.args?.round || 0
+          
+          if (currentRound > 0) {
+            // ПРИОРИТЕТ: сначала args (из getArgs()), потом gamedatas (из getAllDatas()), потом уведомление
+            const cubeFaceFromPlayerTurnArgs = args?.args?.cubeFace
+            const cubeFaceFromPlayerTurnGamedatas = this.gamedatas?.cubeFace || ''
+            const cubeFaceForPlayerTurn = cubeFaceFromPlayerTurnArgs || cubeFaceFromPlayerTurnGamedatas || ''
+            
+            const eventCardsFromPlayerTurnArgs = args?.args?.roundEventCards || []
+            const eventCardsFromPlayerTurnGamedatas = this.gamedatas?.roundEventCards || []
+            const eventCardsForPlayerTurn = eventCardsFromPlayerTurnArgs.length > 0 ? eventCardsFromPlayerTurnArgs : eventCardsFromPlayerTurnGamedatas
+            
+            console.log('🎲 PlayerTurn (Stage 2) - cubeFace sources:', {
+              fromArgs: cubeFaceFromPlayerTurnArgs,
+              fromGamedatas: cubeFaceFromPlayerTurnGamedatas,
+              final: cubeFaceForPlayerTurn
+            })
+            console.log('🎴 PlayerTurn (Stage 2) - eventCards sources:', {
+              fromArgs: eventCardsFromPlayerTurnArgs.length,
+              fromGamedatas: eventCardsFromPlayerTurnGamedatas.length,
+              final: eventCardsForPlayerTurn.length
+            })
+            
+            // Обновляем gamedatas из args, если они есть
+            if (cubeFaceFromPlayerTurnArgs) {
+              this.gamedatas.cubeFace = cubeFaceFromPlayerTurnArgs
+            }
+            if (eventCardsFromPlayerTurnArgs.length > 0) {
+              this.gamedatas.roundEventCards = eventCardsFromPlayerTurnArgs
+              this.gamedatas.roundEventCard = eventCardsFromPlayerTurnArgs[0] || null
+            }
+            
+            if (cubeFaceForPlayerTurn) {
+              console.log('🎲 PlayerTurn: Updating cube face:', cubeFaceForPlayerTurn)
+              this._updateCubeFace(cubeFaceForPlayerTurn)
+            } else {
+              // Если кубик еще не установлен, ждем уведомление
+              console.log('🎲 PlayerTurn: cubeFace is empty, waiting for roundStart notification...')
+              setTimeout(() => {
+                const updatedCubeFace = this.gamedatas?.cubeFace || ''
+                if (updatedCubeFace) {
+                  console.log('🎲 PlayerTurn: Updating cube face from notification:', updatedCubeFace)
+                  this._updateCubeFace(updatedCubeFace)
+                } else {
+                  console.warn('🎲 PlayerTurn: cubeFace STILL empty after timeout!')
+                }
+              }, 500)
+            }
+            
+            if (eventCardsForPlayerTurn.length > 0) {
+              console.log('🎴 PlayerTurn: Rendering event cards:', eventCardsForPlayerTurn)
+              this._renderEventCards(eventCardsForPlayerTurn)
+              this._renderRoundEventCards(eventCardsForPlayerTurn)
+            } else {
+              // Если карты еще не установлены, ждем уведомление
+              console.log('🎴 PlayerTurn: event cards are empty, waiting for roundStart notification...')
+              setTimeout(() => {
+                const updatedCards = this.gamedatas?.roundEventCards || []
+                if (updatedCards.length > 0) {
+                  console.log('🎴 PlayerTurn: Rendering event cards from notification:', updatedCards)
+                  this._renderEventCards(updatedCards)
+                  this._renderRoundEventCards(updatedCards)
+                } else {
+                  console.warn('🎴 PlayerTurn: event cards STILL empty after timeout!')
+                }
+              }, 500)
+            }
+          } else {
+            // Этап 1 - не отрисовываем кубик и карты событий
+            console.log('🎲 PlayerTurn: Stage 1 - skipping cube and event cards rendering')
+          }
 
           // ВАЖНО: Очищаем опции выбора карт при входе в PlayerTurn
           // Это состояние наступает после выбора карты, поэтому карты выбора больше не нужны
@@ -1011,31 +1057,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // TutorialFounderPlacement удалён - используем FounderSelection с той же логикой
         case 'RoundEvent':
           // Состояние события раунда - обновляем данные кубика и карты событий
-          // Приоритет: сначала args (данные из getArgs()), потом gamedatas
-          console.log('Entering RoundEvent state, args:', args)
+          // ВАЖНО: СНАЧАЛА обновляем кубик и карты событий, ПОТОМ все остальное
+          console.log('🎲 Entering RoundEvent state, args:', args)
           
-          // ВАЖНО: Определяем активного игрока и отрисовываем его карты
-          const roundEventActiveId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
-          
-          // ВАЖНО: Очищаем отделы от карт предыдущего игрока и отрисовываем карты активного игрока
-          // Карты всегда берутся из gamedatas.players[roundEventActiveId]
-          this._clearDepartmentsForNewPlayer(roundEventActiveId)
-          
-          // Отрисовываем карту основателя активного игрока
-          if (this.gamedatas.players && this.gamedatas.players[roundEventActiveId]?.founder) {
-            this._renderFounderCard(this.gamedatas.players, Number(roundEventActiveId))
-          }
-          
-          // ВАЖНО: Рендерим сохранённые карты сотрудников на руке
-          this._renderPlayerSpecialists()
-          
-          // Рендерим жетоны задач в панели спринта
-          this._renderTaskTokens(this.gamedatas.players)
-
           // Получаем данные из args или gamedatas
+          // ВАЖНО: Приоритет - сначала args (из getArgs()), потом gamedatas (из уведомления roundStart)
           const cubeFaceFromArgs = args?.args?.cubeFace
           const cubeFaceFromGamedatas = this.gamedatas?.cubeFace
-          const cubeFace = cubeFaceFromArgs || cubeFaceFromGamedatas || ''
+          // Используем значение из args, если оно есть, иначе из gamedatas (может быть обновлено уведомлением)
+          let cubeFace = cubeFaceFromArgs || cubeFaceFromGamedatas || ''
+          console.log('🎲 RoundEvent onEnteringState - cubeFace sources:', {
+            cubeFaceFromArgs,
+            cubeFaceFromGamedatas,
+            finalCubeFace: cubeFace
+          })
 
           const roundEventCardsFromArgs = args?.args?.roundEventCards || []
           const roundEventCardsFromGamedatas = this.gamedatas?.roundEventCards || []
@@ -1053,9 +1088,21 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           const phaseNameFromGamedatas = this.gamedatas?.phaseName
           const phaseName = phaseNameFromArgs || phaseNameFromGamedatas || ''
 
+          // ВАЖНО: Проверяем, что мы на этапе 2 (round > 0)
+          // RoundEvent должен вызываться только на этапе 2
+          if (round <= 0) {
+            console.warn('🎲 RoundEvent: round <= 0, skipping cube and event cards rendering')
+            break
+          }
+
           // Обновляем данные в gamedatas для последующих обновлений
-          if (cubeFaceFromArgs) {
+          // ВАЖНО: Обновляем cubeFace в gamedatas, даже если оно из args (может быть пустым, но обновится уведомлением)
+          if (cubeFaceFromArgs !== undefined) {
             this.gamedatas.cubeFace = cubeFaceFromArgs
+          } else if (cubeFaceFromGamedatas) {
+            // Если в args нет, но есть в gamedatas (из уведомления), используем его
+            this.gamedatas.cubeFace = cubeFaceFromGamedatas
+            cubeFace = cubeFaceFromGamedatas
           }
           if (roundEventCardsFromArgs.length > 0) {
             this.gamedatas.roundEventCards = roundEventCardsFromArgs
@@ -1071,24 +1118,70 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             this.gamedatas.phaseName = phaseNameFromArgs
           }
 
-          // Обновляем отображение
+          // ВАЖНО: ВСЕГДА обновляем кубик и карты событий в RoundEvent (это фаза событий раунда)
+          // Если данные есть в args - используем их сразу
+          // Если нет - ждем уведомление roundStart с небольшой задержкой
           if (cubeFace) {
-            console.log('Updating cube face from RoundEvent state:', cubeFace)
+            console.log('🎲 RoundEvent: Updating cube face from args:', cubeFace)
             this._updateCubeFace(cubeFace)
+          } else {
+            console.log('🎲 RoundEvent: cubeFace is empty in args, waiting for roundStart notification...')
+            // Ждем уведомление с увеличенной задержкой (может прийти после перехода в PlayerTurn)
+            setTimeout(() => {
+              const updatedCubeFace = this.gamedatas?.cubeFace || ''
+              if (updatedCubeFace) {
+                console.log('🎲 RoundEvent: Updating cube face from notification:', updatedCubeFace)
+                this._updateCubeFace(updatedCubeFace)
+              } else {
+                console.warn('🎲 RoundEvent: cubeFace still empty after timeout!')
+              }
+            }, 500)
           }
-
+          
           if (roundEventCards.length > 0) {
-            console.log('Rendering round event cards from RoundEvent state:', roundEventCards)
+            console.log('🎴 RoundEvent: Rendering round event cards from args:', roundEventCards)
             this._renderEventCards(roundEventCards)
             this._renderRoundEventCards(roundEventCards)
+          } else {
+            console.log('🎴 RoundEvent: No event cards in args, waiting for roundStart notification...')
+            // Ждем уведомление с увеличенной задержкой (может прийти после перехода в PlayerTurn)
+            setTimeout(() => {
+              const updatedCards = this.gamedatas?.roundEventCards || []
+              if (updatedCards.length > 0) {
+                console.log('🎴 RoundEvent: Rendering event cards from notification:', updatedCards)
+                this._renderEventCards(updatedCards)
+                this._renderRoundEventCards(updatedCards)
+              } else {
+                console.warn('🎴 RoundEvent: event cards still empty after timeout!')
+              }
+            }, 500)
           }
 
           if (round && roundName) {
-            this._renderRoundBanner(round, this.totalRounds, roundName, cubeFace, phaseName)
+            this._renderRoundBanner(round, this.totalRounds, roundName, cubeFace || this.gamedatas?.cubeFace || '', phaseName)
           } else {
             // Обновляем баннер - ЭТАП 2
             this._updateStageBanner()
           }
+          
+          // ПОТОМ обновляем остальные элементы (карты игроков, жетоны и т.д.)
+          // ВАЖНО: Определяем активного игрока и отрисовываем его карты
+          const roundEventActiveId = this._extractActivePlayerId(args) ?? this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
+          
+          // ВАЖНО: Очищаем отделы от карт предыдущего игрока и отрисовываем карты активного игрока
+          // Карты всегда берутся из gamedatas.players[roundEventActiveId]
+          this._clearDepartmentsForNewPlayer(roundEventActiveId)
+          
+          // Отрисовываем карту основателя активного игрока
+          if (this.gamedatas.players && this.gamedatas.players[roundEventActiveId]?.founder) {
+            this._renderFounderCard(this.gamedatas.players, Number(roundEventActiveId))
+          }
+          
+          // ВАЖНО: Рендерим сохранённые карты сотрудников на руке
+          this._renderPlayerSpecialists()
+          
+          // Рендерим жетоны задач в панели спринта
+          this._renderTaskTokens(this.gamedatas.players)
           break
       }
     },
@@ -1132,9 +1225,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
 
-      // Для FounderSelection проверяем активного игрока из args, а не только текущего
+      // FounderSelection, NextPlayer (при pendingRoundEvent), RoundEvent — не только активный игрок.
       const isFounderSelection = stateName === 'FounderSelection'
-      const shouldProcessActions = this.isCurrentPlayerActive() || isFounderSelection
+      const a = args?.args || args || {}
+      const isNextPlayerWithPending = stateName === 'NextPlayer' && a.pendingRoundEvent
+      const shouldProcessActions = this.isCurrentPlayerActive() || isFounderSelection || isNextPlayerWithPending
       
       if (shouldProcessActions) {
         switch (stateName) {
@@ -1291,6 +1386,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             
             // Кнопка "Применить" теперь в модальном окне, не в статус-баре
             break
+
+          case 'NextPlayer':
+            if (a.pendingRoundEvent) {
+              this.statusBar.addActionButton(_('Продолжить'), () => this.bgaPerformAction('actStartRoundEvent'), { primary: true })
+            }
+            break
         }
       }
     },
@@ -1324,12 +1425,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     onCardClick: function (card_id) {
       console.log('onCardClick', card_id)
 
-      this.bgaPerformAction('actPlayCard', {
+      const actionPromise = this.bgaPerformAction('actPlayCard', {
         card_id,
-      }).then(() => {
-        // What to do after the server call if it succeeded
-        // (most of the time, nothing, as the game will react to notifs / change of state instead)
       })
+      if (actionPromise) {
+        actionPromise.then(() => {
+          // What to do after the server call if it succeeded
+          // (most of the time, nothing, as the game will react to notifs / change of state instead)
+        })
+      }
     },
 
     ///////////////////////////////////////////////////
@@ -1378,15 +1482,33 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
     // Round updates
     notif_roundStart: async function (notif) {
-      console.log('notif_roundStart called with notif:', notif)
+      console.log('🎲🎲🎲 notif_roundStart CALLED!', notif)
+      console.log('🎲 Current state:', this.gamedatas?.gamestate?.name)
       
       // BGA передаёт объект notif, данные в notif.args
       const args = notif.args || notif
-      console.log('cubeFace from notification:', args.cubeFace, 'type:', typeof args.cubeFace)
+      console.log('🎲 cubeFace from notification:', args.cubeFace, 'type:', typeof args.cubeFace)
+      console.log('🎲 roundEventCards from notification:', args.roundEventCards)
+      console.log('🎲 phaseNumber from notification:', args.phaseNumber)
+      console.log('🎲 phaseKey from notification:', args.phaseKey)
+      
+      // ВАЖНО: Сохраняем номер фазы и ключ фазы в gamedatas
+      if (args.phaseNumber !== undefined) {
+        this.gamedatas.phaseNumber = args.phaseNumber
+        console.log('🎲 Saved phaseNumber to gamedatas:', args.phaseNumber)
+      }
+      if (args.phaseKey !== undefined) {
+        this.gamedatas.phaseKey = args.phaseKey
+        console.log('🎲 Saved phaseKey to gamedatas:', args.phaseKey)
+      }
 
-      // Обновляем данные в gamedatas
-      if (args.cubeFace !== undefined && args.cubeFace !== null) {
+      // ВАЖНО: Обновляем данные в gamedatas ПЕРЕД обновлением отображения
+      // Это гарантирует, что значение будет доступно для последующих вызовов
+      if (args.cubeFace !== undefined && args.cubeFace !== null && args.cubeFace !== '') {
         this.gamedatas.cubeFace = args.cubeFace
+        console.log('🎲 Updated gamedatas.cubeFace to:', args.cubeFace)
+      } else {
+        console.warn('🎲 WARNING: cubeFace is empty in roundStart notification!', args.cubeFace)
       }
 
       // Обновляем данные о раунде
@@ -1399,6 +1521,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       if (args.phaseName !== undefined) {
         this.gamedatas.phaseName = args.phaseName
       }
+      if (args.phaseNumber !== undefined) {
+        this.gamedatas.phaseNumber = args.phaseNumber
+        console.log('🎲 Saved phaseNumber to gamedatas:', args.phaseNumber)
+      }
+      if (args.phaseKey !== undefined) {
+        this.gamedatas.phaseKey = args.phaseKey
+        console.log('🎲 Saved phaseKey to gamedatas:', args.phaseKey)
+      }
 
       // Обновляем карты событий в gamedatas
       const eventCards = args.roundEventCards || (args.eventCard ? [args.eventCard] : [])
@@ -1408,11 +1538,27 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       console.log('roundStart eventCards', eventCards)
 
-      this._renderRoundBanner(args.round, this.totalRounds, args.roundName, args.cubeFace, args.phaseName)
-      // Обновляем отображение кубика
-      this._updateCubeFace(args.cubeFace)
-      this._renderEventCards(eventCards)
-      this._renderRoundEventCards(eventCards)
+      // ВАЖНО: Обновляем кубик и карты событий ТОЛЬКО на этапе 2 (round > 0)
+      const currentRound = args.round || this.gamedatas?.round || 0
+      if (currentRound > 0) {
+        // ВАЖНО: СНАЧАЛА обновляем кубик и карты событий СИНХРОННО
+        // Это гарантирует, что они отобразятся сразу при получении уведомления
+        console.log('🎲 notif_roundStart: Updating cube face (Stage 2):', args.cubeFace)
+        if (args.cubeFace) {
+          this._updateCubeFace(args.cubeFace)
+        }
+        
+        if (eventCards.length > 0) {
+          console.log('🎴 notif_roundStart: Rendering event cards (Stage 2):', eventCards)
+          this._renderEventCards(eventCards)
+          this._renderRoundEventCards(eventCards)
+        }
+      } else {
+        console.log('🎲 notif_roundStart: Stage 1 - skipping cube and event cards rendering')
+      }
+      
+      // ПОТОМ обновляем баннер
+      this._renderRoundBanner(args.round, this.totalRounds, args.roundName, args.cubeFace || '', args.phaseName)
       if (args.players) {
         // Обновляем деньги игрока
         Object.entries(args.players).forEach(([playerId, data]) => {
@@ -2433,6 +2579,11 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         
         // Рендерим все карты на руке (от эффекта + выбранные)
         this._renderPlayerSpecialists()
+        
+        // ВАЖНО: Дополнительная отрисовка через небольшую задержку, чтобы убедиться, что DOM обновлён
+        setTimeout(() => {
+          this._renderPlayerSpecialists()
+        }, 100)
       }
     },
 
@@ -2507,8 +2658,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Рендерим закреплённые карты на руке
         this._renderPlayerSpecialists()
         
+        // ВАЖНО: Дополнительная отрисовка через небольшую задержку, чтобы убедиться, что DOM обновлён
+        setTimeout(() => {
+          this._renderPlayerSpecialists()
+        }, 100)
+        
         // Показываем сообщение
-        const founderName = args.founder_name || 'Основатель'
+        const founderName = args.founder_name || args.specialist_name || 'Карта'
         const amount = args.amount || 0
         this.showMessage(`${founderName}: +${amount} карт специалистов`, 'info')
       } else {
@@ -2965,8 +3121,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         // Рендерим карты в блоке руки
         this._renderPlayerSpecialists()
         
+        // ВАЖНО: Дополнительная отрисовка через небольшую задержку, чтобы убедиться, что DOM обновлён
+        setTimeout(() => {
+          this._renderPlayerSpecialists()
+        }, 100)
+        
         // Показываем сообщение
-        const founderName = args.founder_name || 'Основатель'
+        const founderName = args.founder_name || args.specialist_name || 'Карта'
         const amount = args.amount || 0
         this.showMessage(`${founderName}: +${amount} карт специалистов`, 'info')
       }
@@ -3090,10 +3251,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       })
       
       // Отправляем действие на сервер
-      this.bgaPerformAction('actToggleSpecialist', { cardId: numericCardId })
-        .catch((error) => {
+      const actionPromise = this.bgaPerformAction('actToggleSpecialist', { cardId: numericCardId })
+      if (actionPromise) {
+        actionPromise.catch((error) => {
           console.error('❌ Error toggling specialist:', error)
         })
+      }
     },
 
     _updateSpecialistCardSelection: function (cardId, isSelected) {
@@ -3127,10 +3290,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const newBtn = confirmBtn.cloneNode(true)
         confirmBtn.parentNode.replaceChild(newBtn, confirmBtn)
         newBtn.addEventListener('click', () => {
-          this.bgaPerformAction('actConfirmSpecialists')
-            .catch((error) => {
-              console.error('Error confirming specialists:', error)
+          newBtn.disabled = true
+          const actionPromise = this.bgaPerformAction('actConfirmSpecialists')
+          if (actionPromise) {
+            actionPromise.catch((error) => {
+              const msg = (error && (error.message || error.responseText || error.status)) || error
+              console.error('Error confirming specialists:', msg)
+              newBtn.disabled = false
             })
+          } else {
+            newBtn.disabled = false
+          }
         })
       } else {
         // Нельзя подтвердить
@@ -3229,11 +3399,61 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       //
       const el = document.getElementById('round-banner')
       if (!el) return
-      const title = _('Раунд ${round}/${total}').replace('${round}', String(round)).replace('${total}', String(total))
-      const name = roundName || '' // Название раунда
-      const phase = phaseName ? ` — ${_('Фаза')}: ${phaseName}` : ''
-      const cube = cubeFace ? ` — ${_('Кубик')}: ${cubeFace}` : ''
-      const text = (name ? `${title} — ${name}` : title) + phase + cube
+      
+      // ВАЖНО: Получаем номер фазы из gamedatas (приходит с сервера)
+      // Сервер отправляет phaseNumber в уведомлениях и в getAllDatas
+      const currentState = this.gamedatas?.gamestate?.name
+      let phaseNumber = this.gamedatas?.phaseNumber || null
+      
+      // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
+      if (phaseNumber === null) {
+        const phaseKey = this.gamedatas?.phaseKey || ''
+        const roundPhases = this.gamedatas?.roundPhases || []
+        
+        // Ищем фазу по ключу в массиве фаз
+        if (phaseKey && roundPhases.length > 0) {
+          const phase = roundPhases.find(p => p.key === phaseKey)
+          if (phase) {
+            phaseNumber = phase.number
+          }
+        }
+        
+        // Если не нашли, определяем по состоянию (fallback)
+        if (phaseNumber === null && currentState === 'RoundEvent') {
+          phaseNumber = 1
+        }
+      }
+      
+      // Преобразуем в строку для отображения
+      phaseNumber = phaseNumber !== null ? String(phaseNumber) : null
+      
+      console.log('🎴 _renderRoundBanner - Phase data:', {
+        phaseNumber,
+        phaseName,
+        phaseKey: this.gamedatas?.phaseKey,
+        roundPhases: this.gamedatas?.roundPhases,
+        currentState
+      })
+      
+      // Формируем текст в формате: ЭТАП 2: РАУНД X — Название раунда — ФАЗА№ : Название фазы
+      let parts = []
+      parts.push('🎮 ЭТАП 2: РАУНД ' + round)
+      
+      if (roundName) {
+        parts.push(roundName)
+      }
+      
+      if (phaseName) {
+        // Формат: ФАЗА№ : Название фазы
+        if (phaseNumber) {
+          parts.push('ФАЗА№' + phaseNumber + ' : ' + phaseName)
+        } else {
+          parts.push('ФАЗА : ' + phaseName)
+        }
+      }
+      
+      const text = parts.join(' — ')
+      
       const content = el.querySelector('.round-banner__content')
       if (content) {
         content.textContent = text
@@ -3273,8 +3493,43 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const currentState = this.gamedatas?.gamestate?.name
         const roundNumber = this.gamedatas?.round || this.gamedatas?.roundNumber || this.gamedatas?.round_number || 0
         const roundName = this.gamedatas?.roundName || ''
+        const phaseName = this.gamedatas?.phaseName || ''
         
-        console.log('🏷️ _updateStageBanner called:', { currentState, roundNumber, roundName })
+        // ВАЖНО: Получаем номер фазы из gamedatas (приходит с сервера)
+        // Сервер отправляет phaseNumber в уведомлениях и в getAllDatas
+        let phaseNumber = this.gamedatas?.phaseNumber || null
+        
+        // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
+        if (phaseNumber === null) {
+          const phaseKey = this.gamedatas?.phaseKey || ''
+          const roundPhases = this.gamedatas?.roundPhases || []
+          
+          // Ищем фазу по ключу в массиве фаз
+          if (phaseKey && roundPhases.length > 0) {
+            const phase = roundPhases.find(p => p.key === phaseKey)
+            if (phase) {
+              phaseNumber = phase.number
+            }
+          }
+          
+          // Если не нашли, определяем по состоянию (fallback)
+          if (phaseNumber === null && currentState === 'RoundEvent') {
+            phaseNumber = 1
+          }
+        }
+        
+        // Преобразуем в строку для отображения
+        phaseNumber = phaseNumber !== null ? String(phaseNumber) : null
+        
+        console.log('🏷️ _updateStageBanner called:', { 
+          currentState, 
+          roundNumber, 
+          roundName, 
+          phaseName, 
+          phaseNumber,
+          phaseKey: this.gamedatas?.phaseKey,
+          roundPhases: this.gamedatas?.roundPhases
+        })
         
         // Определяем текущий этап
         // ЭТАП 1: GameSetup, FounderSelection (выбор карт основателей), SpecialistSelection (выбор карт сотрудников)
@@ -3291,9 +3546,24 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             bgColor = '#FFA500' // Оранжевый
             bannerClass = 'round-banner round-banner--setup'
           } else if (roundNumber > 0) {
-            // ЭТАП 2 с номером раунда
-            const baseText = typeof _ !== 'undefined' ? _('🎮 ЭТАП 2: РАУНД ${round}') : '🎮 ЭТАП 2: РАУНД ${round}'
-            bannerText = baseText.replace('${round}', roundNumber)
+            // ЭТАП 2 с номером раунда, названием раунда и названием фазы с номером
+            let parts = []
+            parts.push('🎮 ЭТАП 2: РАУНД ' + roundNumber)
+            
+            if (roundName) {
+              parts.push(roundName)
+            }
+            
+            if (phaseName) {
+              // Формат: ФАЗА№ : Название фазы
+              if (phaseNumber) {
+                parts.push('ФАЗА№' + phaseNumber + ' : ' + phaseName)
+              } else {
+                parts.push('ФАЗА : ' + phaseName)
+              }
+            }
+            
+            bannerText = parts.join(' — ')
             bgColor = '#2196F3' // Синий
             bannerClass = 'round-banner round-banner--game-start'
           } else {
@@ -3508,11 +3778,183 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _updateCubeFace: function (cubeFace) {
       const display = document.getElementById('cube-face-display')
       if (!display) {
-        console.warn('cube-face-display element not found')
+        console.warn('⚠️ _updateCubeFace: cube-face-display element not found')
         return
       }
       const value = cubeFace ? String(cubeFace).trim() : ''
       display.textContent = value
+      console.log('✅ _updateCubeFace: Updated cube-face-display with value:', value)
+      
+      // Визуальная индикация обновления (для отладки)
+      if (value) {
+        display.style.opacity = '1'
+      } else {
+        display.style.opacity = '0.5'
+      }
+    },
+
+    _updateDebugCubeDisplay: function () {
+      try {
+        const debugBlock = document.getElementById('debug-cube-display')
+        if (!debugBlock) {
+          // Элемент еще не создан, это нормально на ранних этапах
+          return
+        }
+        
+        // Определяем, на каком этапе мы находимся
+        const currentState = this.gamedatas?.gamestate?.name || ''
+        const currentRound = this.gamedatas?.round || 0
+        
+        // ЭТАП 1: Подготовка к игре - FounderSelection, SpecialistSelection, GameSetup, NextPlayer (когда round === 0)
+        // ЭТАП 2: Игра - RoundEvent, PlayerTurn (когда round > 0)
+        const isStage1 = currentState === 'FounderSelection' || 
+                        currentState === 'SpecialistSelection' || 
+                        currentState === 'GameSetup' ||
+                        (currentState === 'NextPlayer' && currentRound === 0) ||
+                        currentRound === 0
+        
+        // ВАЖНО: На этапе 1 полностью скрываем debug панель и НЕ обновляем её
+        // На этапе 1 НЕТ раундов и фаз - это подготовка к игре!
+        if (isStage1) {
+          if (debugBlock && debugBlock.style) {
+            debugBlock.style.display = 'none'
+          }
+          // ВАЖНО: Выходим ДО обновления любых полей - на этапе 1 нет раундов и фаз!
+          return
+        }
+        
+        // ЭТАП 2: Показываем debug панель только если round > 0
+        // Дополнительная проверка - если round === 0, но мы не в этапе 1 - что-то не так
+        if (currentRound <= 0) {
+          if (debugBlock && debugBlock.style) {
+            debugBlock.style.display = 'none'
+          }
+          return
+        }
+        
+        // ЭТАП 2: round > 0 - показываем debug панель
+        if (debugBlock && debugBlock.style) {
+          debugBlock.style.display = 'block'
+        }
+        
+        const roundEl = document.getElementById('debug-round')
+        const roundNameEl = document.getElementById('debug-round-name')
+        const phaseEl = document.getElementById('debug-phase')
+        const cubeFaceEl = document.getElementById('debug-cube-face')
+        const eventCardsEl = document.getElementById('debug-event-cards')
+        const roundStartCalledEl = document.getElementById('debug-roundstart-called')
+        const currentStateEl = document.getElementById('debug-current-state')
+        const gamedatasCubeFaceEl = document.getElementById('debug-gamedatas-cubeface')
+        const gamedatasCardsEl = document.getElementById('debug-gamedatas-cards')
+        
+        // Обновляем данные о раунде
+        if (roundEl) {
+          const round = this.gamedatas?.round || 0
+          roundEl.textContent = round > 0 ? round : '(этап 1)'
+          if (roundEl.style) {
+            roundEl.style.color = round > 0 ? '#0f0' : '#ff0'
+          }
+        }
+        
+        if (roundNameEl) {
+          // Берем название раунда из gamedatas (устанавливается из args или уведомлений)
+          const roundName = this.gamedatas?.roundName || ''
+          roundNameEl.textContent = roundName || '(не установлено)'
+          if (roundNameEl.style) {
+            roundNameEl.style.color = roundName ? '#0f0' : '#f00'
+          }
+        }
+        
+        // ВАЖНО: Определяем фазу ТОЛЬКО для ЭТАПА 2 (round > 0)
+        // На этапе 1 (round === 0) фазы нет вообще!
+        // RoundEvent = Фаза 1 (Событие), PlayerTurn = Фаза 2 (Ход игрока)
+        let phaseNumber = '-'
+        let phaseName = this.gamedatas?.phaseName || ''
+        
+        // Логируем для отладки
+        console.log('🔍 _updateDebugCubeDisplay - ЭТАП 2: currentState:', currentState, 'round:', currentRound, 'phaseName from gamedatas:', phaseName)
+        
+        // Определяем фазу только для состояний этапа 2
+        if (currentState === 'RoundEvent') {
+          // ФАЗА 1: Событие раунда (первая фаза каждого раунда)
+          phaseNumber = '1'
+          if (!phaseName) {
+            phaseName = 'Событие'
+          }
+          console.log('🔍 RoundEvent detected - ФАЗА 1: Событие')
+        } else if (currentState === 'PlayerTurn') {
+          // ФАЗА 2: Ход игрока (вторая фаза каждого раунда)
+          phaseNumber = '2'
+          if (!phaseName) {
+            phaseName = 'Ход игрока'
+          }
+          console.log('🔍 PlayerTurn detected - ФАЗА 2: Ход игрока')
+        } else {
+          // Другие состояния этапа 2 (NextPlayer и т.д.) - не определяем фазу
+          console.log('🔍 ЭТАП 2, но не RoundEvent/PlayerTurn:', currentState, '- фаза не определена')
+        }
+        
+        // Объединяем номер и название фазы в формат "Фаза №{номер}: {название}"
+        if (phaseEl) {
+          let phaseText = '-'
+          if (phaseNumber !== '-') {
+            if (phaseName) {
+              phaseText = `Фаза №${phaseNumber}: ${phaseName}`
+            } else {
+              phaseText = `Фаза №${phaseNumber}`
+            }
+          } else if (phaseName) {
+            phaseText = phaseName
+          }
+          
+          phaseEl.textContent = phaseText
+          if (phaseEl.style) {
+            phaseEl.style.color = phaseNumber !== '-' || phaseName ? '#0f0' : '#f00'
+          }
+        }
+        
+        if (cubeFaceEl && cubeFaceEl.style) {
+          const cubeFace = this.gamedatas?.cubeFace || ''
+          cubeFaceEl.textContent = cubeFace || '(пусто)'
+          cubeFaceEl.style.color = cubeFace ? '#0f0' : '#f00'
+        }
+        
+        if (eventCardsEl && eventCardsEl.style) {
+          const cards = this.gamedatas?.roundEventCards || []
+          eventCardsEl.textContent = cards.length > 0 ? `${cards.length} карт: ${JSON.stringify(cards.map(c => c.card_id || c.card_type_arg || '?'))}` : '(пусто)'
+          eventCardsEl.style.color = cards.length > 0 ? '#0f0' : '#f00'
+        }
+        
+        if (gamedatasCubeFaceEl && gamedatasCubeFaceEl.style) {
+          const cubeFace = this.gamedatas?.cubeFace || ''
+          gamedatasCubeFaceEl.textContent = cubeFace || '(пусто)'
+          gamedatasCubeFaceEl.style.color = cubeFace ? '#0f0' : '#f00'
+        }
+        
+        if (gamedatasCardsEl && gamedatasCardsEl.style) {
+          const cards = this.gamedatas?.roundEventCards || []
+          gamedatasCardsEl.textContent = cards.length > 0 ? `${cards.length} карт` : '(пусто)'
+          gamedatasCardsEl.style.color = cards.length > 0 ? '#0f0' : '#f00'
+        }
+        
+        if (currentStateEl) {
+          currentStateEl.textContent = currentState
+        }
+        
+        if (roundStartCalledEl) {
+          // Обновляем статус вызова roundStart (устанавливается в notif_roundStart)
+          const wasCalled = roundStartCalledEl.textContent === 'ДА ✅'
+          if (!wasCalled) {
+            roundStartCalledEl.textContent = 'нет'
+            if (roundStartCalledEl.style) {
+              roundStartCalledEl.style.color = '#f00'
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in _updateDebugCubeDisplay:', error)
+        // Игнорируем ошибки в debug функции, чтобы не ломать игру
+      }
     },
 
     _renderRoundTrack: function (totalRounds) {
@@ -7590,16 +8032,19 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           this._placingFounder = true
           
           // Вызываем серверное действие для размещения карты
-          this.bgaPerformAction('actPlaceFounder', {
-              department: department,
-          }).then(() => {
-            // Кнопка "Завершить ход" разблокируется через уведомление founderEffectsApplied
-            // после применения всех эффектов карты основателя
+          const promise = this.bgaPerformAction('actPlaceFounder', { department: department })
+          if (promise) {
+            promise.then(() => {
+              // Кнопка "Завершить ход" разблокируется через уведомление founderEffectsApplied
+              this._placingFounder = false
+            }).catch((error) => {
+              console.error('❌ Error placing founder card:', error)
+              this._placingFounder = false
+            })
+          } else {
+            // checkAction не прошёл (например, "An action is already in progress") — сбрасываем флаг
             this._placingFounder = false
-          }).catch((error) => {
-            console.error('❌ Error placing founder card:', error)
-            this._placingFounder = false
-          })
+          }
         }
 
         // Сохраняем ссылку на обработчик для возможности удаления

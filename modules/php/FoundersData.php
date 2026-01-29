@@ -143,13 +143,7 @@ class FoundersData
             'name' => 'Эмиль', // Имя основателя
             'color' => '#FFFF00', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => [
-                'updateTrack' => [
-                    ['track' => 'income-track', 'amount' => '+ 2'], // Трек дохода
-                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 2'], // Трек эволюции в бэк офисе
-                    ['track' => 'player-department-technical-development', 'amount' => '+ 2', 'column' => 'any'], // Трек технического развития в любом отделе
-                ]
-            ], // Эффект
+            'effect' => null, // Эффект
             'department' => 'universal', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Оптимизатор. Улучшение отделов для вас, бонус трека x2', // Описание эффекта

@@ -349,7 +349,7 @@ class SpecialistsData
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 1, // Очки победы
-            'img' => 'img/specialists/back-office/18.png', // Изображение
+            'img' => 'img/specialists/back-office/18.jpg', // Изображение
         ],
         19 => [
             'id' => 19,

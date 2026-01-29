@@ -109,7 +109,7 @@ class PlayerTurn extends GameState
         $departmentNames = [
             'sales-department' => clienttranslate('Отдел продаж'),
             'back-office' => clienttranslate('Бэк-офис'),
-            'technical-department' => clienttranslate('Техотдел'),
+            'technical-department' => clienttranslate('Техотдел'), //
         ];
         $departmentName = $departmentNames[$department] ?? $department;
 
@@ -121,11 +121,25 @@ class PlayerTurn extends GameState
             'founder' => $founder,
             'i18n' => ['department_name'],
         ]);
+
+        // ВАЖНО: Разблокируем кнопку «Завершить ход» на клиенте. В PlayerTurn эффекты основателя
+        // уже применены на этапе FounderSelection, поэтому только уведомляем.
+        $this->notify->player($activePlayerId, 'founderEffectsApplied', '', [
+            'player_id' => $activePlayerId,
+        ]);
     }
 
     #[PossibleAction]
     public function actFinishTurn(int $activePlayerId) // конец хода игрока
     {
+        error_log('🎮🎮🎮 PlayerTurn::actFinishTurn() CALLED! activePlayerId: ' . $activePlayerId);
+        
+        $currentRound = (int)$this->game->getGameStateValue('round_number');
+        $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
+        $playersCount = count($this->game->loadPlayersBasicInfos());
+        
+        error_log('🎮 PlayerTurn::actFinishTurn() - currentRound: ' . $currentRound . ', players_left_in_round: ' . $playersLeftInRound . ', playersCount: ' . $playersCount);
+        
         // Проверяем, есть ли у игрока неразмещенная универсальная карта основателя
         if ($this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));
@@ -140,6 +154,8 @@ class PlayerTurn extends GameState
         ]);
 
         $this->game->giveExtraTime($activePlayerId);
+        
+        error_log('🎮 PlayerTurn::actFinishTurn() - Returning NextPlayer::class');
 
         return NextPlayer::class;
     }
