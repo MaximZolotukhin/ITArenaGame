@@ -135,13 +135,39 @@ class Game extends \Bga\GameFramework\Table
                 'name' => clienttranslate('Событие'),
                 'state' => \Bga\Games\itarenagame\States\RoundEvent::class,
             ],
-            [
-                'key' => 'player_turns',
-                'number' => 2,
-                'name' => clienttranslate('Ход игрока'),
-                'state' => \Bga\Games\itarenagame\States\PlayerTurn::class,
-            ],
         ];
+    }
+
+    /**
+     * Количество фаз раунда (длина массива getRoundPhases()).
+     * Номер текущей фазы (current_phase_index) увеличивается только после того,
+     * как походил последний игрок за текущую фазу. Если номер текущей фазы
+     * равен количеству фаз — переход на следующий раунд.
+     */
+    public function getNumberOfPhases(): int
+    {
+        return count($this->getRoundPhases());
+    }
+
+    /**
+     * Определяет следующее состояние после фазы раунда (ЭТАП 2).
+     * Вызывается из NextPlayer при каждой фазе; ходы игроков не являются отдельной фазой —
+     * счёт ведётся через players_left_in_round.
+     *
+     * @param bool $eventPhaseJustFinished true, если только что завершилась фаза «Событие» (RoundEvent)
+     * @param int $playersLeftInRound сколько игроков ещё должны сделать ход в этом раунде (после декремента, если пришли из PlayerTurn)
+     * @param int $playersCount всего игроков
+     * @return string|null класс состояния (PlayerTurn::class) или null (переход к следующему раунду, остаёмся в NextPlayer)
+     */
+    public function getNextStateForRoundPhase(bool $eventPhaseJustFinished, int $playersLeftInRound, int $playersCount): ?string
+    {
+        if ($eventPhaseJustFinished) {
+            return PlayerTurn::class;
+        }
+        if ($playersLeftInRound > 0) {
+            return PlayerTurn::class;
+        }
+        return null;
     }
 
     /**
