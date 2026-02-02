@@ -89,15 +89,6 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                             </div>
                           </div>
                           <div class="round-panel__skills-track">
-                            <div class="round-panel__skills-track-row round-panel__skills-track-row--tokens">
-                              <div class="round-panel__skills-track-row-inner">
-                                <div class="round-panel__skill-token-column"></div>
-                                <div class="round-panel__skill-token-column"></div>
-                                <div class="round-panel__skill-token-column round-panel__skill-token-column--large"></div>
-                                <div class="round-panel__skill-token-column"></div>
-                                <div class="round-panel__skill-token-column"></div>
-                              </div>
-                            </div>
                             <div class="round-panel__skills-track-row round-panel__skills-track-row--skills">
                               <div class="round-panel__skills-track-row-inner">
                                 <div class="round-panel__skill-column" data-skill="eloquence"></div>
@@ -106,7 +97,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                                 <div class="round-panel__skill-column" data-skill="frugality"></div>
                               </div>
                             </div>
-                          <div class="round-panel__skill-indicators"></div>
+                            <div class="round-panel__skills-track-row round-panel__skills-track-row--tokens">
+                              <div class="round-panel__skills-track-row-inner">
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                                <div class="round-panel__skill-token-column"></div>
+                              </div>
+                            </div>
+                          <!-- <div class="round-panel__skill-indicators"></div> -->
                           </div>
                           <div class="round-panel__goals-track">
                             <div class="round-panel__goals-track-row">
@@ -3655,21 +3654,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
 
       const tokenColumns = tokensRow.querySelectorAll('.round-panel__skill-token-column')
-      if (tokenColumns.length < 5) {
+      if (tokenColumns.length < 4) {
         console.error('Not enough token columns found:', tokenColumns.length)
         return
       }
 
-      // Маппинг игроков на колонки (блоки 1, 2, 4, 5):
-      // Игрок 0 -> блок 1 (индекс 0)
-      // Игрок 1 -> блок 2 (индекс 1)
-      // Игрок 2 -> блок 4 (индекс 3)
-      // Игрок 3 -> блок 5 (индекс 4)
+      // Маппинг игроков на колонки (4 колонки по центру, прижаты друг к другу):
       const playerColumnMapping = {
-        0: 0, // Первый игрок -> блок 1
-        1: 1, // Второй игрок -> блок 2
-        2: 3, // Третий игрок -> блок 4
-        3: 4, // Четвертый игрок -> блок 5
+        0: 0,
+        1: 1,
+        2: 2,
+        3: 3,
       }
 
       // Очищаем все слоты из колонок

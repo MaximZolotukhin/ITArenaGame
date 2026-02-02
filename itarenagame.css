@@ -2212,8 +2212,8 @@
 }
 
 .round-panel__skills-track-row--tokens {
-  flex: 0 0 45%;
-  height: 45%;
+  flex: 0 0 35%;
+  height: 30%;
 }
 
 .round-panel__skills-track-row--skills {
@@ -2232,7 +2232,12 @@
 }
 
 .round-panel__skills-track-row--tokens .round-panel__skills-track-row-inner {
-  width: 82.5%;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  width: 22%;
   margin: 0 auto;
 }
 
@@ -2241,18 +2246,20 @@
   margin: 0 auto;
 }
 
-.round-panel__skill-token-column {
-  flex: 0 0 12.5%;
-  min-width: 12.5%;
+.round-panel__skills-track-row--tokens .round-panel__skill-token-column {
+  flex: 0 0 25%;
+  min-width: 0;
   min-height: 100%;
   position: relative;
   border: 1px solid rgba(0, 255, 0, 1);
   box-sizing: border-box;
 }
 
-.round-panel__skill-token-column--large {
-  flex: 0 0 50%;
-  min-width: 50%;
+.round-panel__skill-token-column {
+  min-height: 100%;
+  position: relative;
+  border: 1px solid rgba(0, 255, 0, 1);
+  box-sizing: border-box;
 }
 
 .round-panel__skill-column {
@@ -2280,10 +2287,10 @@
 }
 
 .round-panel__goals-track {
-  top: 70.333%;
+  top: 68%;
   left: 0;
   right: 0;
-  height: 29.667%;
+  height: 32%;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -2390,7 +2397,7 @@
   left: 0;
   right: 0;
   top: 0;
-  bottom: 0;
+  height: 90%;
   pointer-events: none;
   z-index: 10;
 }
