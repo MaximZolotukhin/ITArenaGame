@@ -117,14 +117,15 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
-     * Массив фаз раунда (ЭТАП 2: Игра)
-     * Каждая фаза имеет:
-     * - key: ключ фазы (используется в коде)
-     * - name: название фазы (для отображения)
-     * - number: номер фазы в раунде (1, 2, 3...)
-     * - state: класс состояния, соответствующего фазе
-     * 
-     * @return array Массив фаз раунда
+     * Массив фаз раунда (ЭТАП 2: Игра).
+     * Логика: считываем текущую фазу по current_phase_index, выполняем фазу, ждём "все игроки закончили",
+     * затем смотрим в массив — есть ли следующая фаза; если да — загружаем её, если нет — следующий раунд.
+     * Каждая фаза:
+     * - key: ключ фазы (event, skills, ...)
+     * - name: название для отображения
+     * - number: номер в раунде (1, 2, 3...)
+     * - state: класс состояния фазы
+     * - transition: имя перехода из NextPlayer в это состояние (toRoundEvent, toRoundSkills, ...)
      */
     public function getRoundPhases(): array
     {
@@ -134,6 +135,14 @@ class Game extends \Bga\GameFramework\Table
                 'number' => 1,
                 'name' => clienttranslate('Событие'),
                 'state' => \Bga\Games\itarenagame\States\RoundEvent::class,
+                'transition' => 'toRoundEvent',
+            ],
+            [
+                'key' => 'skills',
+                'number' => 2,
+                'name' => clienttranslate('Навыки'),
+                'state' => \Bga\Games\itarenagame\States\RoundSkills::class,
+                'transition' => 'toRoundSkills',
             ],
         ];
     }

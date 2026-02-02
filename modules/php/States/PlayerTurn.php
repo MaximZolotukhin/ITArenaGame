@@ -20,6 +20,9 @@ class PlayerTurn extends GameState
             type: StateType::ACTIVE_PLAYER,
             description: clienttranslate('${actplayer} must play a card or pass'),
             descriptionMyTurn: clienttranslate('${you} must play a card or pass'),
+            transitions: [
+                'toNextPlayer' => 90, // NextPlayer
+            ],
         );
     }
 
@@ -75,7 +78,7 @@ class PlayerTurn extends GameState
         $this->playerScore->inc($activePlayerId, 1);
 
         // at the end of the action, move to the next state
-        return NextPlayer::class;
+        return 'toNextPlayer';
     }
 
     /**
@@ -97,7 +100,7 @@ class PlayerTurn extends GameState
         $this->game->playerEnergy->inc($activePlayerId, 1);
 
         // at the end of the action, move to the next state
-        return NextPlayer::class;
+        return 'toNextPlayer';
     }
 
     #[PossibleAction]
@@ -154,10 +157,15 @@ class PlayerTurn extends GameState
         ]);
 
         $this->game->giveExtraTime($activePlayerId);
-        
-        error_log('🎮 PlayerTurn::actFinishTurn() - Returning NextPlayer::class');
 
-        return NextPlayer::class;
+        // Уменьшаем счётчик игроков, которым ещё нужно сделать ход в этом раунде
+        $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
+        if ($playersLeftInRound > 0) {
+            $this->game->setGameStateValue('players_left_in_round', $playersLeftInRound - 1);
+        }
+        error_log('🎮 PlayerTurn::actFinishTurn() - players_left_in_round: ' . ($playersLeftInRound - 1) . ', Returning toNextPlayer');
+
+        return 'toNextPlayer';
     }
 
     /**

@@ -21,6 +21,14 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             id: 90,
             type: StateType::GAME,
             updateGameProgression: true,
+            transitions: [
+                'toFounderSelection' => 20,
+                'toSpecialistSelection' => 25,
+                'toRoundEvent' => 15,
+                'toPlayerTurn' => 11,
+                'toEndScore' => 98,
+                'toRoundSkills' => 16,
+            ],
         );
     }
 
@@ -72,7 +80,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
                 if ($nextPlayerFounder === null) {
                     error_log('NextPlayer - TUTORIAL: Player ' . $nextPlayerId . ' needs to select founder');
-                    return FounderSelection::class;
+                    return 'toFounderSelection';
                 }
                 
                 // Ищем любого игрока, который ещё не выбрал карту
@@ -82,7 +90,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     if ($founder === null) {
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
                         error_log('NextPlayer - TUTORIAL: Found player ' . $playerId . ' who needs to select founder');
-                        return FounderSelection::class;
+                        return 'toFounderSelection';
                     }
                 }
             }
@@ -99,7 +107,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 // Проверяем, есть ли у следующего игрока неразмещённая универсальная карта
                 if ($this->game->hasUnplacedUniversalFounder((int)$nextPlayerId)) {
                     error_log('NextPlayer - TUTORIAL: Player ' . $nextPlayerId . ' needs to place founder');
-                    return FounderSelection::class;
+                    return 'toFounderSelection';
                 }
                 
                 // Ищем любого игрока с неразмещённой картой
@@ -108,13 +116,13 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     if ($this->game->hasUnplacedUniversalFounder((int)$playerId)) {
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
                         error_log('NextPlayer - TUTORIAL: Found player ' . $playerId . ' with unplaced founder');
-                        return FounderSelection::class;
+                        return 'toFounderSelection';
                     }
                 }
                 
                 // Если дошли сюда, значит что-то не так - логируем и возвращаемся к FounderSelection для текущего игрока
                 error_log('NextPlayer - TUTORIAL: WARNING - allFoundersPlaced=false but no player found with unplaced founder!');
-                return FounderSelection::class;
+                return 'toFounderSelection';
             }
             
             // Все карты размещены в Tutorial - переход к ЭТАПУ 2
@@ -136,7 +144,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $this->game->setGameStateValue('players_left_in_round', $playersCount);
                 error_log('NextPlayer - TUTORIAL ЭТАП 1→2: Set round_number=1, players_left_in_round=' . $playersCount);
                 
-                return RoundEvent::class;
+                return 'toRoundEvent';
             }
         } else {
             // ----------------------------------------
@@ -154,7 +162,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 // Проверяем, выбрал ли следующий игрок карту
                 $nextPlayerFounder = $this->game->globals->get('founder_player_' . $nextPlayerId, null);
                 if ($nextPlayerFounder === null) {
-                    return FounderSelection::class;
+                    return 'toFounderSelection';
                 }
                 
                 // Ищем игрока, который ещё не выбрал карту
@@ -163,7 +171,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     $founder = $this->game->globals->get('founder_player_' . $playerId, null);
                     if ($founder === null) {
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
-                        return FounderSelection::class;
+                        return 'toFounderSelection';
                     }
                 }
             }
@@ -183,7 +191,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     if (!$done) {
                         error_log('NextPlayer - ЭТАП 1.2: Переход к SpecialistSelection для игрока: ' . $playerId);
                         $this->game->gamestate->changeActivePlayer((int)$playerId);
-                        return SpecialistSelection::class;
+                        return 'toSpecialistSelection';
                     }
                 }
             }
@@ -220,7 +228,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 
                 // Переходим к первому раунду (RoundEvent)
                 error_log('🎲🎲🎲 NextPlayer - Переход к RoundEvent (этап 2, раунд 1)');
-                return RoundEvent::class;
+                return 'toRoundEvent';
             }
             // Если currentRound > 0, значит ЭТАП 2 уже начался, продолжаем логику раундов ниже
         }
@@ -264,157 +272,172 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $this->game->setGameStateValue('players_completed_current_phase', 0);
                 
                 error_log('NextPlayer - Исправлено: round_number=1, players_left_in_round=' . $playersCount . ', current_phase_index=0');
-                return RoundEvent::class;
+                return 'toRoundEvent';
             } else {
                 // Не все игроки завершили выбор - возвращаемся к выбору специалистов
                 error_log('NextPlayer - Не все игроки завершили выбор, возвращаемся к SpecialistSelection');
-                return SpecialistSelection::class;
+                return 'toSpecialistSelection';
             }
         }
         
         // ========================================
-        // НОВАЯ ЛОГИКА: Фазы раунда
-        // Каждый игрок проходит все фазы по очереди
-        // После того как все игроки прошли все фазы, переходим к следующему раунду
+        // ФАЗЫ РАУНДА: единый проход по массиву getRoundPhases()
+        // 1) Сверяемся с массивом фаз — сколько фаз в раунде (фазы будут расширяться).
+        // 2) Считываем текущую фазу по current_phase_index.
+        // 3) Выполняем логику фазы, ждём команды «все игроки закончили ход».
+        // 4) Смотрим в массив: есть ли следующая фаза? Если да — загружаем её. Если нет — следующий раунд.
+        // 5) Сбрасываем счётчик фаз при переходе на новый раунд, повторяем цикл до последнего раунда.
         // ========================================
         
         $playersCount = count($this->game->loadPlayersBasicInfos());
         $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
-        $eventPhaseJustFinished = $this->game->globals->get('event_phase_just_finished', '') === '1';
+        $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+
+        // Берём массив фаз и количество фаз из getRoundPhases() — единственный источник правды
         $phases = $this->game->getRoundPhases();
-        $numberOfPhases = $this->game->getNumberOfPhases(); // количество фаз (длина массива фаз)
-        $currentPhaseIndex = (int)$this->game->getGameStateValue('current_phase_index', 0); // номер текущей фазы (0-based)
-        $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase', 0);
-        
-        error_log('NextPlayer - ETAP 2: currentRound=' . $currentRound . ', currentPhaseIndex=' . $currentPhaseIndex . ', numberOfPhases=' . $numberOfPhases);
-        error_log('🎯 NextPlayer - playersCompletedCurrentPhase=' . $playersCompletedCurrentPhase . ', playersCount=' . $playersCount);
-        
-        // Номер текущей фазы >= количество фаз → все фазы пройдены, переход на следующий раунд
+        $numberOfPhases = count($phases);
+        $currentPhaseIndex = (int)$this->game->getGameStateValue('current_phase_index');
+
+        error_log('NextPlayer - ETAP 2: round=' . $currentRound . ', phaseIndex=' . $currentPhaseIndex . '/' . $numberOfPhases . ', playersLeft=' . $playersLeftInRound . ', completedPhase=' . $playersCompletedCurrentPhase . '/' . $playersCount);
+
+        // Все фазы раунда пройдены — смотрим в массив: следующей фазы нет → следующий раунд
         if ($currentPhaseIndex >= $numberOfPhases) {
-            error_log('NextPlayer - All phases done (currentPhaseIndex >= numberOfPhases), transition to next round');
-            
+            error_log('NextPlayer - Все фазы раунда пройдены (индекс >= кол-ва фаз) → следующий раунд или конец игры');
             $totalRounds = (int)$this->game->getGameStateValue('total_rounds');
             $nextRound = $currentRound + 1;
-            
             if ($totalRounds <= 0) {
                 throw new \Exception("ROUND TRANSITION ERROR: total_rounds is not set! currentRound=$currentRound, nextRound=$nextRound, totalRounds=$totalRounds");
             }
-            
             if ($nextRound > $totalRounds) {
-                $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), [
-                    'rounds' => $totalRounds,
-                ]);
-                return EndScore::class;
+                $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), ['rounds' => $totalRounds]);
+                return 'toEndScore';
             }
-            
+            // Следующий раунд: сбрасываем счётчик массива фаз и всё для нового раунда
             $this->game->setGameStateValue('round_number', $nextRound);
             $this->game->setGameStateValue('current_phase_index', 0);
             $this->game->setGameStateValue('players_completed_current_phase', 0);
             $this->game->setGameStateValue('players_left_in_round', $playersCount);
             $this->game->setGameStateValue('last_cube_round', 0);
             $this->game->setGameStateValue('last_event_cards_round', 0);
-            // Переходим в RoundEvent следующего раунда (далее RoundEvent вернёт NextPlayer → PlayerTurn), чтобы не оставаться в NextPlayer (ошибка "Unexpected final game state (90)")
-            return RoundEvent::class;
+            error_log('NextPlayer - Новый раунд ' . $nextRound . ', current_phase_index=0');
+            return 'toRoundEvent';
         }
-        
-        // Получаем текущую фазу
+
+        // Текущая фаза из массива — по current_phase_index
         $currentPhase = $phases[$currentPhaseIndex];
-        
-        error_log('🎯 NextPlayer - Current phase: ' . $currentPhase['key'] . ' (index: ' . $currentPhaseIndex . ', state: ' . $currentPhase['state'] . ')');
-        error_log('🎯 NextPlayer - playersCompletedCurrentPhase: ' . $playersCompletedCurrentPhase . ' / ' . $playersCount);
-        
-        $cameFromPhaseStartBlock = false;
-        // Проверяем, начало ли это фазы (когда счетчик равен 0)
-        if ($playersCompletedCurrentPhase === 0) {
-            $phaseState = $currentPhase['state'];
-            // Фаза «Событие» (RoundEvent): мы только что вышли из RoundEvent (он отправил
-            // roundStart и вернул NextPlayer). Не уходим в RoundEvent снова — считаем фазу
-            // завершённой и идём в блок «все сделали».
-            if ($phaseState === RoundEvent::class && $this->game->globals->get('event_phase_just_finished', '') === '1') {
+        $phaseKey = $currentPhase['key'];
+        $phaseState = $currentPhase['state'];
+        $phaseTransition = $currentPhase['transition'] ?? null;
+
+        // --- Фаза «Событие» (event): первый игрок → остальные → последний (здесь потом: штрафы, логика кости) ---
+        if ($phaseKey === 'event') {
+            // Только что вышли из RoundEvent — запускаем ходы: первый игрок в PlayerTurn
+            if ($this->game->globals->get('event_phase_just_finished', '') === '1') {
                 $this->game->globals->delete('event_phase_just_finished');
-                // После «События» сразу ходы игроков (без отдельной фазы). Переходим в PlayerTurn.
-                error_log('🎯 NextPlayer - Back from RoundEvent, going to PlayerTurn (first player)');
-                $this->game->setGameStateValue('players_completed_current_phase', 0);
+                error_log('NextPlayer - Фаза Событие: старт ходов, первый игрок → PlayerTurn');
                 $this->game->activeNextPlayer();
-                return \Bga\Games\itarenagame\States\PlayerTurn::class;
+                return 'toPlayerTurn';
             }
-            if ($phaseState === RoundEvent::class && $this->game->globals->get('event_phase_just_finished', '') !== '1') {
-                // Пришли из PlayerTurn (игрок нажал «Завершить ход»). Счётчик 0 = первый завершивший в раунде.
-                error_log('🎯 NextPlayer - Back from PlayerTurn (first completion), setting players_completed_current_phase=1');
-                $this->game->setGameStateValue('players_completed_current_phase', 1);
-                $playersCompletedCurrentPhase = 1;
-                $cameFromPhaseStartBlock = true;
-            } else {
-                // Первый заход в фазу — переходим в неё
-                error_log('🎯 NextPlayer - Phase start! Activating first player for phase: ' . $currentPhase['key']);
-                $this->game->activeNextPlayer();
-                return $phaseState;
-            }
-        }
-        
-        // Игрок завершил текущую фазу - увеличиваем счетчик (кроме случая, когда только что выставили его выше)
-        if (!$cameFromPhaseStartBlock && $playersCompletedCurrentPhase < $playersCount) {
-            $playersCompletedCurrentPhase++;
-            $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
-        }
-        
-        error_log('🎯 NextPlayer - Player completed phase! playersCompletedCurrentPhase: ' . $playersCompletedCurrentPhase . ' / ' . $playersCount);
-        
-        // Проверяем, все ли игроки завершили текущую фазу
-        if ($playersCompletedCurrentPhase >= $playersCount) {
-            // Все игроки завершили текущую фазу - переходим к следующей фазе
-            error_log('🎯🎯🎯 NextPlayer - All players completed phase ' . $currentPhase['key'] . '! Moving to next phase...');
-            
-            $nextPhaseIndex = $currentPhaseIndex + 1;
-            $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
-            $this->game->setGameStateValue('players_completed_current_phase', 0);
-            
-            // Номер текущей фазы после увеличения равен количеству фаз → переход на следующий раунд
-            if ($nextPhaseIndex >= $numberOfPhases) {
-                error_log('NextPlayer - All players completed phase, numberOfPhases reached, transition to next round');
-                
-                $totalRounds = (int)$this->game->getGameStateValue('total_rounds');
-                $nextRound = $currentRound + 1;
-                
-                if ($totalRounds <= 0) {
-                    throw new \Exception("ROUND TRANSITION ERROR: total_rounds is not set! currentRound=$currentRound, nextRound=$nextRound, totalRounds=$totalRounds");
-                }
-                
-                if ($nextRound > $totalRounds) {
-                    $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), [
-                        'rounds' => $totalRounds,
-                    ]);
-                    return EndScore::class;
-                }
-                
-                $this->game->setGameStateValue('round_number', $nextRound);
-                $this->game->setGameStateValue('current_phase_index', 0);
-                $this->game->setGameStateValue('players_completed_current_phase', 0);
+            // Пришли из PlayerTurn — проверяем: все ли закончили ход (players_left_in_round <= 0)
+            if ($playersLeftInRound <= 0) {
+                // Все игроки закончили ход в фазе Событие. Смотрим в массив: есть ли следующая фаза?
+                $nextPhaseIndex = $currentPhaseIndex + 1;
+                $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
                 $this->game->setGameStateValue('players_left_in_round', $playersCount);
-                $this->game->setGameStateValue('last_cube_round', 0);
-                $this->game->setGameStateValue('last_event_cards_round', 0);
-                return RoundEvent::class;
-            } else {
-                // Переходим к следующей фазе
+                $this->game->setGameStateValue('players_completed_current_phase', 0);
+                if ($nextPhaseIndex >= $numberOfPhases) {
+                    // Следующей фазы нет — переход к следующему раунду (выполнен выше по current_phase_index >= numberOfPhases при следующем заходе)
+                    // Но мы уже установили current_phase_index = nextPhaseIndex, поэтому при следующем вызове NextPlayer сработает блок «все фазы пройдены»
+                    error_log('NextPlayer - Фаза Событие завершена, следующей фазы в массиве нет → следующий раунд');
+                    return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+                }
+                // Есть следующая фаза — загружаем её (первый игрок)
                 $nextPhase = $phases[$nextPhaseIndex];
-                error_log('🎯🎯🎯 NextPlayer - Transitioning to next phase: ' . $nextPhase['key'] . ' (index: ' . $nextPhaseIndex . ')');
-                
-                // Активируем первого игрока для новой фазы
+                $nextTransition = $nextPhase['transition'] ?? null;
+                error_log('NextPlayer - Фаза Событие завершена, загружаем следующую фазу: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
                 $this->game->activeNextPlayer();
-                $firstPlayerId = $this->game->getActivePlayerId();
-                error_log('🎯 NextPlayer - First player activated for new phase: ' . $firstPlayerId);
-                
-                return $nextPhase['state'];
+                return (string)($nextTransition ?: 'toRoundSkills');
             }
+            // Ещё не все закончили ход — следующий игрок в PlayerTurn
+            error_log('NextPlayer - Фаза Событие: следующий игрок PlayerTurn, playersLeft=' . $playersLeftInRound);
+            $this->game->activeNextPlayer();
+            return 'toPlayerTurn';
         }
-        
-        // Переход к следующему игроку (этап 2: ходы без отдельной фазы — всегда возвращаем PlayerTurn)
-        error_log('🎯 NextPlayer - Moving to next player (completed: ' . $playersCompletedCurrentPhase . ' / ' . $playersCount . ')');
+
+        // --- Фаза «Навыки» (skills) и любые будущие фазы: ждём, пока все игроки закончат ход в фазе ---
+        if ($phaseKey === 'skills' || $phaseTransition !== null) {
+            // Только что вышли из состояния фазы (например RoundSkills) — один игрок «закончил ход» в этой фазе
+            if ($this->game->globals->get('skills_phase_just_finished', '') === '1') {
+                $this->game->globals->delete('skills_phase_just_finished');
+                $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+                $playersCompletedCurrentPhase++;
+                $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
+                error_log('NextPlayer - Фаза ' . $phaseKey . ': закончили ход ' . $playersCompletedCurrentPhase . '/' . $playersCount);
+                if ($playersCompletedCurrentPhase < $playersCount) {
+                    // Не все закончили — следующий игрок в эту же фазу
+                    $this->game->activeNextPlayer();
+                    return (string)($phaseTransition ?: 'toRoundSkills');
+                }
+                // Все игроки закончили ход в этой фазе. Смотрим в массив: есть ли следующая фаза?
+                $nextPhaseIndex = $currentPhaseIndex + 1;
+                $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+                $this->game->setGameStateValue('players_completed_current_phase', 0);
+                if ($nextPhaseIndex >= $numberOfPhases) {
+                    error_log('NextPlayer - Фаза ' . $phaseKey . ' завершена, следующей фазы нет → следующий раунд');
+                    return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+                }
+                // Есть следующая фаза — загружаем её
+                $nextPhase = $phases[$nextPhaseIndex];
+                $nextTransition = $nextPhase['transition'] ?? null;
+                error_log('NextPlayer - Фаза ' . $phaseKey . ' завершена, загружаем следующую: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
+                $this->game->activeNextPlayer();
+                return (string)($nextTransition ?: 'toRoundSkills');
+            }
+            // Первый заход в эту фазу в раунде — переходим в состояние фазы (например RoundSkills)
+            error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . ($phaseTransition ?? 'state'));
+            $this->game->activeNextPlayer();
+            return (string)($phaseTransition ?: 'toRoundSkills');
+        }
+
+        // Запасной выход: следующая фаза по transition из массива (всегда имя перехода, не state id)
         $this->game->activeNextPlayer();
-        $nextPlayerId = $this->game->getActivePlayerId();
-        error_log('🎯 NextPlayer - Next player activated: ' . $nextPlayerId);
-        
-        return \Bga\Games\itarenagame\States\PlayerTurn::class;
+        return (string)($phaseTransition ?? 'toPlayerTurn');
+    }
+
+    /**
+     * Переход к следующему раунду или к следующей фазе.
+     * Вызывается, когда текущая фаза завершена: смотрим в массив фаз — есть ли следующая фаза.
+     * Если нет (current_phase_index >= numberOfPhases) — следующий раунд, сброс счётчика фаз.
+     */
+    private function goToNextRoundOrNextPhase(int $currentRound, int $nextPhaseIndex, int $numberOfPhases, int $playersCount): string
+    {
+        if ($nextPhaseIndex >= $numberOfPhases) {
+            $totalRounds = (int)$this->game->getGameStateValue('total_rounds');
+            $nextRound = $currentRound + 1;
+            if ($totalRounds <= 0) {
+                throw new \Exception("ROUND TRANSITION ERROR: total_rounds is not set!");
+            }
+            if ($nextRound > $totalRounds) {
+                $this->notify->all('gameEnd', clienttranslate('Игра окончена после ${rounds} раундов'), ['rounds' => $totalRounds]);
+                return 'toEndScore';
+            }
+            $this->game->setGameStateValue('round_number', $nextRound);
+            $this->game->setGameStateValue('current_phase_index', 0);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
+            $this->game->setGameStateValue('players_left_in_round', $playersCount);
+            $this->game->setGameStateValue('last_cube_round', 0);
+            $this->game->setGameStateValue('last_event_cards_round', 0);
+            return 'toRoundEvent';
+        }
+        $phases = $this->game->getRoundPhases();
+        $nextPhase = $phases[$nextPhaseIndex];
+        // Всегда возвращаем имя перехода (строка), никогда state id — иначе BGA даёт "transition (16) impossible"
+        $key = $nextPhase['key'] ?? '';
+        return match ($key) {
+            'event' => 'toRoundEvent',
+            'skills' => 'toRoundSkills',
+            default => 'toRoundSkills',
+        };
     }
 
     /**
@@ -429,6 +452,6 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             throw new UserException(clienttranslate('Нет ожидающего события раунда'));
         }
         $this->game->globals->delete('pending_round_event');
-        return RoundEvent::class;
+        return 'toRoundEvent';
     }
 }

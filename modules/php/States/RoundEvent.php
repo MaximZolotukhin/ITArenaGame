@@ -28,6 +28,9 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
             id: 15, // ID состояния
             type: StateType::GAME, // Тип состояния
             updateGameProgression: true, // Обновление прогрессии игры
+            transitions: [
+                'toNextPlayer' => 90, // NextPlayer
+            ],
         ); // Родительский конструктор
     }
 
@@ -97,7 +100,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
             error_log('🎲❌ RoundEvent::onEnteringState() - ОШИБКА: Попытка выполнить RoundEvent при round=0 (ЭТАП 1)!');
             error_log('🎲❌ RoundEvent не должен вызываться на ЭТАПЕ 1. Это критическая ошибка.');
             // Возвращаемся к NextPlayer, который должен обработать переход к ЭТАПУ 2
-            return NextPlayer::class;
+            return 'toNextPlayer';
         }
         
         $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
@@ -200,8 +203,8 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
         // NextPlayer при повторном заходе не уйдёт в цикл RoundEvent↔NextPlayer.
         $this->game->globals->set('event_phase_just_finished', '1');
         error_log('🎲 RoundEvent::onEnteringState() - Set event_phase_just_finished, transitioning to NextPlayer');
-        // Всегда возвращаем NextPlayer — BGA не допускает «финальное» состояние RoundEvent (15).
-        return NextPlayer::class;
+        // Всегда возвращаем переход к NextPlayer по имени перехода (не классу).
+        return 'toNextPlayer';
     }
 }
 

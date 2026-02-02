@@ -1183,6 +1183,13 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           // Рендерим жетоны задач в панели спринта
           this._renderTaskTokens(this.gamedatas.players)
           break
+
+        case 'RoundSkills':
+          if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
+          if (args?.args?.phaseName) this.gamedatas.phaseName = args.args.phaseName
+          this.gamedatas.phaseNumber = 2
+          this._updateStageBanner()
+          break
       }
     },
 
@@ -1225,6 +1232,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
 
+      // Фаза навыков: явный заголовок для всех игроков (активный видит «ваш ход», остальные — «ожидание»)
+      if (stateName === 'RoundSkills') {
+        const phaseNameSkills = (args?.args?.phaseName) || (typeof _ !== 'undefined' ? _('Навыки') : 'Навыки')
+        if (this.isCurrentPlayerActive()) {
+          this.statusBar.setTitle((typeof _ !== 'undefined' ? _('Фаза «${phase}» — ваш ход') : 'Фаза «' + phaseNameSkills + '» — ваш ход').replace('${phase}', phaseNameSkills))
+        } else {
+          const activeId = this.gamedatas?.gamestate?.active_player
+          const activeName = activeId && this.gamedatas?.players?.[activeId]?.name ? this.gamedatas.players[activeId].name : (typeof _ !== 'undefined' ? _('Игрок') : 'Игрок')
+          this.statusBar.setTitle((typeof _ !== 'undefined' ? _('Фаза «${phase}» — ожидание ${player}') : 'Фаза «' + phaseNameSkills + '» — ожидание ' + activeName).replace('${phase}', phaseNameSkills).replace('${player}', activeName))
+        }
+      }
+
       // FounderSelection, NextPlayer (при pendingRoundEvent), RoundEvent — не только активный игрок.
       const isFounderSelection = stateName === 'FounderSelection'
       const a = args?.args || args || {}
@@ -1256,6 +1275,12 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
 
             // Сохраняем ссылку на кнопку для обновления состояния после размещения карты
             this.finishTurnButton = finishTurnButton
+            break
+          case 'RoundSkills':
+            this._updateStageBanner()
+            if (this.isCurrentPlayerActive()) {
+              this.statusBar.addActionButton(_('Завершить фазу навыков'), () => this.bgaPerformAction('actCompleteSkillsPhase'), { primary: true })
+            }
             break
           case 'FounderSelection':
             // В состоянии выбора карты основателя
@@ -3493,26 +3518,31 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         const currentState = this.gamedatas?.gamestate?.name
         const roundNumber = this.gamedatas?.round || this.gamedatas?.roundNumber || this.gamedatas?.round_number || 0
         const roundName = this.gamedatas?.roundName || ''
-        const phaseName = this.gamedatas?.phaseName || ''
         
         // ВАЖНО: Получаем номер фазы из gamedatas (приходит с сервера)
         // Сервер отправляет phaseNumber в уведомлениях и в getAllDatas
-        let phaseNumber = this.gamedatas?.phaseNumber || null
+        const roundPhases = this.gamedatas?.roundPhases || []
+        let phaseNumber = this.gamedatas?.phaseNumber ?? null
+        let phaseKey = this.gamedatas?.phaseKey || ''
+        let phaseNameFromState = this.gamedatas?.phaseName || ''
+        
+        // В состоянии RoundSkills баннер должен показывать фазу «Навыки», а не «Событие»
+        if (currentState === 'RoundSkills') {
+          phaseKey = 'skills'
+          const skillsPhase = roundPhases.find(p => p.key === 'skills')
+          phaseNumber = skillsPhase ? skillsPhase.number : 2
+          phaseNameFromState = skillsPhase ? (skillsPhase.name || (typeof _ !== 'undefined' ? _('Навыки') : 'Навыки')) : (typeof _ !== 'undefined' ? _('Навыки') : 'Навыки')
+        }
         
         // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
         if (phaseNumber === null) {
-          const phaseKey = this.gamedatas?.phaseKey || ''
-          const roundPhases = this.gamedatas?.roundPhases || []
-          
-          // Ищем фазу по ключу в массиве фаз
           if (phaseKey && roundPhases.length > 0) {
             const phase = roundPhases.find(p => p.key === phaseKey)
             if (phase) {
               phaseNumber = phase.number
+              if (!phaseNameFromState) phaseNameFromState = phase.name || ''
             }
           }
-          
-          // Если не нашли, определяем по состоянию (fallback)
           if (phaseNumber === null && currentState === 'RoundEvent') {
             phaseNumber = 1
           }
@@ -3520,6 +3550,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         
         // Преобразуем в строку для отображения
         phaseNumber = phaseNumber !== null ? String(phaseNumber) : null
+        const phaseName = phaseNameFromState
         
         console.log('🏷️ _updateStageBanner called:', { 
           currentState, 
