@@ -8,9 +8,17 @@ use Bga\GameFramework\StateType; // Тип состояния
 use Bga\Games\itarenagame\Game; // Класс игры
 
 /**
- * Фаза 1 раунда: "Событие" — бросок кубика и объявление начала раунда
+ * Фаза «Событие» (Event) раунда.
+ *
+ * В этой фазе выполняются два действия:
+ * 1) Получаем карту(ы) событий текущего раунда — выбираются из колоды и кладутся на стол (location 'table').
+ * 2) Бросаем кость и сохраняем выпавшее значение в переменные раунда:
+ *    - round_cube_face — индекс грани кубика;
+ *    - round_cube_paei_count — количество символов PAEI на грани (1 или 2).
+ *
+ * Значение кости и карты событий сохраняются и используются в течение всего раунда при срабатывании эффектов.
  */
-class RoundEvent extends \Bga\GameFramework\States\GameState // Класс состояния "Событие"
+class RoundEvent extends \Bga\GameFramework\States\GameState
 {
     function __construct( // Конструктор состояния "Событие"
         protected Game $game, // Класс игры
@@ -33,20 +41,19 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
         
         error_log('🎲 RoundEvent::getArgs() - round: ' . $round . ', faceIndex: ' . $faceIndex . ', lastCubeRound: ' . $lastCubeRound);
         
-        // ВАЖНО: Бросаем новый кубик только если он еще не был брошен для этого раунда
+        // Действие 2: Бросок кости — сохраняем значение в round_cube_face и round_cube_paei_count
         if ($lastCubeRound !== $round || $faceIndex < 0 || $faceIndex >= count($this->game->getCubeFaces())) {
             error_log('🎲 RoundEvent::getArgs() - Rolling NEW cube for round ' . $round);
             $cubeFace = $this->game->rollRoundCube();
             $this->game->setGameStateValue('last_cube_round', $round);
             error_log('🎲 RoundEvent::getArgs() - Cube rolled: ' . $cubeFace);
         } else {
-            // Кубик уже брошен для этого раунда - используем существующее значение
             $faces = $this->game->getCubeFaces();
             $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
             error_log('🎲 RoundEvent::getArgs() - Using existing cube face for round ' . $round . ': ' . $cubeFace);
         }
         
-        // ВАЖНО: Подготавливаем новые карты событий только если они еще не были подготовлены для этого раунда
+        // Действие 1: Карта событий раунда — выбираем из колоды и кладём на стол
         $lastEventCardsRound = (int)$this->game->getGameStateValue('last_event_cards_round', 0);
         if ($lastEventCardsRound !== $round) {
             error_log('🎲 RoundEvent::getArgs() - Preparing NEW event cards for round ' . $round);
@@ -54,7 +61,6 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             $this->game->setGameStateValue('last_event_cards_round', $round);
             error_log('🎲 RoundEvent::getArgs() - Event cards prepared: ' . count($roundEventCards));
         } else {
-            // Карты уже подготовлены для этого раунда - используем существующие
             $roundEventCards = $this->game->getRoundEventCards();
             error_log('🎲 RoundEvent::getArgs() - Using existing event cards for round ' . $round . ': ' . count($roundEventCards));
         }
@@ -69,6 +75,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
         
         return [
             'cubeFace' => $cubeFace,
+            'cubeFacePaeiCount' => $this->game->getRoundCubePaeiCount(), // Количество символов PAEI на грани (1 или 2) для расчёта эффекта карты события
             'round' => $round,
             'roundName' => $this->game->getRoundName($round),
             'phaseName' => $phaseName,
@@ -116,22 +123,20 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             error_log('🎲 RoundEvent - players_left_in_round (' . $playersLeftInRound . ') < playersCount (' . $playersCount . ') - round in progress');
         }
 
-        // ВАЖНО: Бросаем новый кубик только если он еще не был брошен для этого раунда
-        // (getArgs() мог уже бросить кубик, но на всякий случай проверяем здесь тоже)
+        // Действие 2: бросок кости (значение сохраняется в round_cube_face, round_cube_paei_count)
         if ($lastCubeRound !== $round) {
             error_log('🎲 RoundEvent::onEnteringState() - Rolling NEW cube for round ' . $round);
             $cubeFace = $this->game->rollRoundCube();
             $this->game->setGameStateValue('last_cube_round', $round);
             error_log('🎲 RoundEvent::onEnteringState() - Cube rolled: ' . $cubeFace);
         } else {
-            // Кубик уже брошен для этого раунда - используем существующее значение
             $faceIndex = (int)$this->game->getGameStateValue('round_cube_face');
             $faces = $this->game->getCubeFaces();
             $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
             error_log('🎲 RoundEvent::onEnteringState() - Using existing cube face for round ' . $round . ': ' . $cubeFace);
         }
         
-        // ВАЖНО: Подготавливаем новые карты событий только если они еще не были подготовлены для этого раунда
+        // Действие 1: карта событий раунда (берётся из колоды, кладётся на стол)
         $lastEventCardsRound = (int)$this->game->getGameStateValue('last_event_cards_round', 0);
         if ($lastEventCardsRound !== $round) {
             error_log('🎲 RoundEvent::onEnteringState() - Preparing NEW event cards for round ' . $round);
@@ -139,7 +144,6 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             $this->game->setGameStateValue('last_event_cards_round', $round);
             error_log('🎲 RoundEvent::onEnteringState() - Event cards prepared: ' . count($eventCards));
         } else {
-            // Карты уже подготовлены для этого раунда - используем существующие
             $eventCards = $this->game->getRoundEventCards();
             error_log('🎲 RoundEvent::onEnteringState() - Using existing event cards for round ' . $round . ': ' . count($eventCards));
         }
@@ -161,6 +165,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState // Класс со�
             'round' => $round, // Текущий раунд
             'roundName' => $this->game->getRoundName($round), // Название этапа
             'cubeFace' => $cubeFace, // Значение кубика на раунд
+            'cubeFacePaeiCount' => $this->game->getRoundCubePaeiCount(), // Количество символов PAEI (1 или 2) для эффекта карты события
             'phaseName' => $phaseName, // Название фазы
             'phaseNumber' => $phaseNumber, // Номер фазы
             'phaseKey' => 'event', // Ключ фазы

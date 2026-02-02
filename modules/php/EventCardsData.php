@@ -35,6 +35,7 @@ class EventCardsData
                 'penalty_second' => 'штрафа нет',
                 'penalty_third' => 'штрафа нет',
                 'type' => 'найм',
+                'activationStage' => null, // Этап активации эффекта
             ],
             2 => [
                 'card_type' => 'event',
@@ -51,6 +52,7 @@ class EventCardsData
                 'penalty_second' => '-1',
                 'penalty_third' => '-1',
                 'type' => 'итоги',
+                'activationStage' => null,
             ],
             3 => [
                 'card_type' => 'event',
@@ -67,6 +69,7 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'найм',
+                'activationStage' => null,
             ],
             4 => [
                 'card_type' => 'event',
@@ -76,6 +79,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/4.png',
                 'power_round' => 1,
                 'description' => 'Снижение количества открытых позиций заставляет компании проводить меньше собеседований',
+                'activationStage' => null,
             ],
             5 => [
                 'card_type' => 'event',
@@ -85,6 +89,14 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/5.png',
                 'power_round' => 1,
                 'description' => 'Благодаря обучению и труду вас ждет награда и успех',
+                'phase' => 'event',
+                'effect' => '-2 in players',
+                'effect_description' => 'Все игроки получают столько Б, сколько символов выпало на кости PAEI',
+                'penalty_first' => 'not',
+                'penalty_second' => 'not',
+                'penalty_third' => 'not',
+                'type' => 'event',
+                'activationStage' => null,
             ], 
             6 => [
                 'card_type' => 'event',
@@ -94,6 +106,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/6.png',
                 'power_round' => 1,
                 'description' => 'Сразу несколько крупных компаний пострадали от кибератаки, расходы на защиту неизбежны',
+                'activationStage' => null,
             ],
             7 => [
                 'card_type' => 'event',
@@ -103,6 +116,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/7.png',
                 'power_round' => 1,
                 'description' => 'Хорошая погода  позитивно повлияла на настроение сотрудников и продуктивность выросла',
+                'activationStage' => null,
             ],
             8 => [
                 'card_type' => 'event',
@@ -112,6 +126,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/8.png',
                 'power_round' => 2,
                 'description' => 'Повсеместный рост зарплат в сфере IT вынуждает компании сократить найм и пересмотреть приоритеты',
+                'activationStage' => null,
             ],
             9 => [
                 'card_type' => 'event',
@@ -121,6 +136,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/9.png',
                 'power_round' => 3,
                 'description' => 'Перемены в индустрии снизили приток кандидатов',
+                'activationStage' => null,
             ],
             10 => [
                 'card_type' => 'event',
@@ -130,6 +146,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/10.png',
                 'power_round' => 2,
                 'description' => 'Компании активно переманивают ценных сотрудников друг у друга',
+                'activationStage' => null,
             ],
             11 => [
                 'card_type' => 'event',
@@ -139,6 +156,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/11.png',
                 'power_round' => 2,
                 'description' => 'Компании массово пересматривают свои структуры, сокращая часть сотрудников из-за изменений на рынке',
+                'activationStage' => null,
             ],
             12 => [
                 'card_type' => 'event',
@@ -148,6 +166,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/12.png',
                 'power_round' => 2,
                 'description' => 'Повсеместное внедрение автоматизации сокращает потребность в персонале',
+                'activationStage' => null,
             ],
             13 => [
                 'card_type' => 'event',
@@ -157,6 +176,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/13.png',
                 'power_round' => 2,
                 'description' => 'Рынок меняется и компании вынужденны подстраиваться, направляя вектор задач в другое русло',
+                'activationStage' => null,
             ],
             14 => [
                 'card_type' => 'event',
@@ -166,6 +186,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/14.png',
                 'power_round' => 3,
                 'description' => 'Внезапный сбой накрыл все системы, что привело к финансовым потерям компаний',
+                'activationStage' => null,
             ],
             15 => [
                 'card_type' => 'event',
@@ -175,6 +196,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/15.png',
                 'power_round' => 3,
                 'description' => 'Нарушения в работе систем планирования заставляют компании временно отложить часть задач',
+                'activationStage' => null,
             ],
             16 => [
                 'card_type' => 'event',
@@ -184,6 +206,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/16.png',
                 'power_round' => 3,
                 'description' => 'Спад в экономике заставляет все компании урезать бюджеты и готовиться к трудным временам',
+                'activationStage' => null,
             ],
             17 => [
                 'card_type' => 'event',
@@ -193,6 +216,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/17.png',
                 'power_round' => 3,
                 'description' => 'Новые технологии внедряются в рынок, требуя от всех компаний обязательных инвестиций в обновления',
+                'activationStage' => null,
             ],
             18 => [
                 'card_type' => 'event',
@@ -202,6 +226,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/18.png',
                 'power_round' => 3,
                 'description' => 'Новые правила и нормативы требуют от IT-компаний серьезных вложений, чтобы соответствовать установленным стандартам',
+                'activationStage' => null,
             ],
             19 => [
                 'card_type' => 'event',
@@ -211,6 +236,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/19.png',
                 'power_round' => 2,
                 'description' => 'На время дополнительных проверок приостанавливаются все процессы продаж ',
+                'activationStage' => null,
             ],
             20 => [
                 'card_type' => 'event',
@@ -220,6 +246,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/20.png',
                 'power_round' => 3,
                 'description' => 'Крупный клиент неожиданно перенес сроки, и компании вынуждены временно отложить часть задач',
+                'activationStage' => null,
             ],
             21 => [
                 'card_type' => 'event',
@@ -229,6 +256,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/21.png',
                 'power_round' => 2,
                 'description' => 'Внезапная поломка парализовала работу компаний, вынуждая их быстро искать решения в условиях цифрового хаоса',
+                'activationStage' => null,
             ],
             22 => [
                 'card_type' => 'event',
@@ -238,6 +266,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/2/22.png',
                 'power_round' => 2,
                 'description' => 'Компания "Проект Гая" обратилась к всем компаниям за помощью в очистке океана.',
+                'activationStage' => null,
             ],
             23 => [ 
                 'card_type' => 'event',
@@ -247,6 +276,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/3/23.png',
                 'power_round' => 3,
                 'description' => 'Благодаря дисциплине, осознанности и спланированному отдыху вы становитесь энергичным и продуктивным.',
+                'activationStage' => null,
             ],
             24 => [
                 'card_type' => 'event',
@@ -256,6 +286,7 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/24.png',
                 'power_round' => 1,
                 'description' => 'Код — новая нефть, спрос бьёт все рекорды!',
+                'activationStage' => null,
             ],
         ];
     }

@@ -231,13 +231,56 @@ class Game extends \Bga\GameFramework\Table
         ];
     }
 
-    /** Бросает кубик текущего раунда, сохраняет индекс и возвращает строковое значение */
+    /**
+     * Количество символов PAEI на грани кубика (для расчёта эффекта карты события).
+     * Одна буква (P, A, E, I) = 1, комбинация (PA, PE, PI, AE, AI, EI) = 2, SF = 2.
+     */
+    public function getCubeFacePaeiCount(string $cubeFace): int
+    {
+        return strlen($cubeFace);
+    }
+
+    /**
+     * Возвращает количество символов PAEI на текущей грани кубика раунда.
+     * Используется в логике эффектов карт событий.
+     */
+    public function getRoundCubePaeiCount(): int
+    {
+        $faceIndex = (int)$this->getGameStateValue('round_cube_face');
+        $faces = $this->getCubeFaces();
+        if ($faceIndex < 0 || $faceIndex >= count($faces)) {
+            return 0;
+        }
+        return $this->getCubeFacePaeiCount($faces[$faceIndex]);
+    }
+
+    /** Бросает кубик текущего раунда, сохраняет индекс и количество PAEI, возвращает строковое значение */
     public function rollRoundCube(): string
     {
         $faces = $this->getCubeFaces();
         $index = bga_rand(0, count($faces) - 1);
         $this->setGameStateValue('round_cube_face', $index);
-        return $faces[$index];
+        $cubeFace = $faces[$index];
+        $this->setGameStateValue('round_cube_paei_count', $this->getCubeFacePaeiCount($cubeFace));
+        return $cubeFace;
+    }
+
+    /**
+     * Данные фазы «Событие» текущего раунда: значение кости и карты событий.
+     * Используется при срабатывании эффектов карт событий в течение раунда.
+     *
+     * @return array{cubeFace: string, cubeFacePaeiCount: int, roundEventCards: array}
+     */
+    public function getCurrentRoundEventData(): array
+    {
+        $faceIndex = (int)$this->getGameStateValue('round_cube_face');
+        $faces = $this->getCubeFaces();
+        $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+        return [
+            'cubeFace' => $cubeFace,
+            'cubeFacePaeiCount' => $this->getRoundCubePaeiCount(),
+            'roundEventCards' => $this->getRoundEventCards(),
+        ];
     }
 
     /**
@@ -258,7 +301,8 @@ class Game extends \Bga\GameFramework\Table
             'round_number' => 10, // Текущий раунд
             'players_left_in_round' => 11, // Количество игроков в раунде
             'total_rounds' => 12, // Общее количество раундов
-            'round_cube_face' => 13, // Индекс текущей грани кубика (0..19)
+            'round_cube_face' => 13, // Значение кости раунда: индекс грани (0..19), используется при срабатывании событий
+            'round_cube_paei_count' => 18, // Количество символов PAEI на грани (1 или 2), используется при срабатывании событий
             'last_cube_round' => 14, // Номер раунда, для которого был брошен кубик
             'last_event_cards_round' => 15, // Номер раунда, для которого были подготовлены карты событий
             'current_phase_index' => 16, // Индекс текущей фазы в массиве фаз (0, 1, 2...)
@@ -622,9 +666,10 @@ class Game extends \Bga\GameFramework\Table
         }
         
         $result['cubeFace'] = $cubeFace; // Значение кубика на раунд
+        $result['cubeFacePaeiCount'] = $this->getRoundCubePaeiCount(); // Количество символов PAEI (1 или 2) для расчёта эффекта карты события
         
         // Логирование для отладки
-        error_log('🎲 Game::getAllDatas() - cubeFace: ' . var_export($result['cubeFace'], true) . ', faceIndex: ' . $faceIndex);
+        error_log('🎲 Game::getAllDatas() - cubeFace: ' . var_export($result['cubeFace'], true) . ', faceIndex: ' . $faceIndex . ', paeiCount: ' . $result['cubeFacePaeiCount']);
         
         // Текущее имя фазы из глобальной переменной (переводим ключ в название)
         // Получаем данные текущей фазы из массива фаз
@@ -983,6 +1028,7 @@ class Game extends \Bga\GameFramework\Table
         $this->setGameStateInitialValue('round_number', 0); // Текущий раунд (0 = ЭТАП 1, >0 = ЭТАП 2)
         $this->setGameStateInitialValue('players_left_in_round', count($players)); // Количество игроков в раунде
         $this->setGameStateInitialValue('round_cube_face', -1); // Пока не брошен
+        $this->setGameStateInitialValue('round_cube_paei_count', 0); // Количество символов PAEI на грани кубика
         $this->setGameStateInitialValue('last_cube_round', 0); // Номер раунда, для которого был брошен кубик
         $this->setGameStateInitialValue('last_event_cards_round', 0); // Номер раунда, для которого были подготовлены карты событий
         $this->setGameStateInitialValue('current_phase_index', 0); // Индекс текущей фазы в массиве фаз (0, 1, 2...)
