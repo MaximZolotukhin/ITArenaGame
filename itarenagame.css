@@ -2276,6 +2276,13 @@
   padding: 8px;
 }
 
+.round-panel__skill-column.skill-column--clickable {
+  cursor: pointer;
+}
+.round-panel__skill-column.skill-column--clickable:hover {
+  background-color: rgba(0, 255, 0, 0.1);
+}
+
 .round-panel__skill-column__title {
   font-size: 14px;
   font-weight: 700;
@@ -2410,8 +2417,35 @@
   width: 42px;
   height: 42px;
   z-index: 11;
-  /* Позиционирование вычисляется динамически относительно позиций раундов на треке */
-  /* Фишки навыков (skill) игроков */
+}
+
+.round-panel__skill-slot.skill-slot--placed {
+  animation: skill-slot-placed 0.4s ease-out;
+}
+
+@keyframes skill-slot-placed {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+.round-panel__skill-slot.skill-slot--active-turn .round-panel__skill-circle {
+  box-shadow: 0 0 0 3px rgba(255, 255, 0, 0.9), 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.3);
+  animation: skill-slot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes skill-slot-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(255, 255, 0, 0.9), 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.3);
+  }
 }
 
 .round-panel__skill-circle {

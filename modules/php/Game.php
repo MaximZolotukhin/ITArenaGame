@@ -24,6 +24,7 @@ use Bga\GameFramework\Components\Counters\PlayerCounter; // Добавляем �
 use Bga\GameFramework\Components\Deck; // Добавляем класс Deck
 use Bga\Games\itarenagame\EventCardsData; // Добавляем класс EventCardsData для работы с картами событий
 use Bga\Games\itarenagame\FoundersData;
+use Bga\Games\itarenagame\SkillsData;
 use Bga\Games\itarenagame\SpecialistsData;
 use Bga\Games\itarenagame\TaskTokensData;
 use Bga\Games\itarenagame\ProjectTokensData;
@@ -1749,7 +1750,34 @@ class Game extends \Bga\GameFramework\Table
         
         return $result;
     }
-    
+
+    /**
+     * Применяет эффекты выбранного навыка к игроку (фаза «Навыки»).
+     * Сохраняет выбранный навык в player_game_data.skill_token и применяет эффекты через существующие обработчики.
+     *
+     * @param int $playerId ID игрока
+     * @param string $skillKey Ключ навыка (eloquence, discipline, intellect, frugality)
+     */
+    public function applySkillEffects(int $playerId, string $skillKey): void
+    {
+        if (!SkillsData::isValidKey($skillKey)) {
+            throw new \InvalidArgumentException("Invalid skill key: $skillKey");
+        }
+        $skill = SkillsData::getSkill($skillKey);
+        if ($skill === null || empty($skill['effects'])) {
+            return;
+        }
+        $this->setSkillToken($playerId, $skillKey);
+        $skillData = $skill;
+        foreach ($skill['effects'] as $effectType => $effectValue) {
+            $handler = $this->getEffectHandler($effectType);
+            if ($handler === null) {
+                continue;
+            }
+            $skillData['_effectKey'] = $effectType;
+            $handler->apply($playerId, (string)$effectValue, $skillData);
+        }
+    }
 
     /**
      * Проверяет, все ли игроки выбрали карты основателей
@@ -2698,6 +2726,14 @@ class Game extends \Bga\GameFramework\Table
             SET `skill_token` = $valueStr 
             WHERE `player_id` = $playerId
         ");
+    }
+
+    /**
+     * Сбрасывает жетоны навыков у всех игроков (в начале раунда, фаза «Событие»).
+     */
+    public function clearAllSkillTokens(): void
+    {
+        $this->DbQuery("UPDATE `player_game_data` SET `skill_token` = NULL");
     }
     
     /**

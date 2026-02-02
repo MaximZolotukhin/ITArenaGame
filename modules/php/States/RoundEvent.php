@@ -102,7 +102,10 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
             // Возвращаемся к NextPlayer, который должен обработать переход к ЭТАПУ 2
             return 'toNextPlayer';
         }
-        
+
+        // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции
+        $this->game->clearAllSkillTokens();
+
         $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
         $playersCount = count($this->game->loadPlayersBasicInfos());
         $lastCubeRound = (int)$this->game->getGameStateValue('last_cube_round', 0);

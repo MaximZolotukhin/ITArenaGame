@@ -6,11 +6,14 @@ namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\PossibleAction;
+use Bga\GameFramework\UserException;
 use Bga\Games\itarenagame\Game;
+use Bga\Games\itarenagame\SkillsData;
 
 /**
  * Фаза «Навыки» (Skills) раунда.
- * Активный игрок должен нажать «Завершить фазу навыков», после чего переход в NextPlayer.
+ * Игрок выбирает навык (жетон из round-panel__skill-token-column размещает в round-panel__skill-column).
+ * Навык сохраняется на раунд и применяется эффект.
  */
 class RoundSkills extends \Bga\GameFramework\States\GameState
 {
@@ -21,8 +24,8 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
             $game,
             id: 16,
             type: StateType::ACTIVE_PLAYER,
-            description: clienttranslate('${actplayer} must complete the skills phase'),
-            descriptionMyTurn: clienttranslate('${you} must complete the skills phase'),
+            description: clienttranslate('${actplayer} must choose a skill for this round'),
+            descriptionMyTurn: clienttranslate('${you} must choose a skill for this round'),
             updateGameProgression: true,
             transitions: [
                 'toNextPlayer' => 90,
@@ -35,6 +38,7 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
         return [
             'phaseKey' => 'skills',
             'phaseName' => $this->game->getPhaseName('skills'),
+            'skillOptions' => SkillsData::getSkillsForSelection(),
         ];
     }
 
@@ -48,7 +52,30 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
     }
 
     /**
-     * Игрок завершил фазу навыков (подтвердил переход).
+     * Игрок выбрал навык: сохраняем, применяем эффект. Ход не передаётся — игрок нажимает «Завершить фазу навыков».
+     */
+    #[PossibleAction]
+    public function actSelectSkill(string $skillKey): ?string
+    {
+        $this->game->checkAction('actSelectSkill');
+        if (!SkillsData::isValidKey($skillKey)) {
+            throw new UserException(clienttranslate('Invalid skill selected'));
+        }
+        $playerId = (int)$this->game->getActivePlayerId();
+        $this->game->applySkillEffects($playerId, $skillKey);
+        $skill = SkillsData::getSkill($skillKey);
+        $this->notify->all('skillSelected', clienttranslate('${player_name} chose skill: ${skill_name}'), [
+            'player_id' => $playerId,
+            'player_name' => $this->game->getPlayerNameById($playerId),
+            'skill_key' => $skillKey,
+            'skill_name' => $skill['name'] ?? $skillKey,
+            'i18n' => ['skill_name'],
+        ]);
+        return null; // остаёмся в RoundSkills до нажатия «Завершить фазу навыков»
+    }
+
+    /**
+     * Игрок завершил фазу навыков без выбора (пропуск).
      */
     #[PossibleAction]
     public function actCompleteSkillsPhase(): string

@@ -1188,6 +1188,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           if (args?.args?.phaseName) this.gamedatas.phaseName = args.args.phaseName
           this.gamedatas.phaseNumber = 2
           this._updateStageBanner()
+          {
+            const roundPanel = document.querySelector('.round-panel__wrapper')
+            if (roundPanel) this._renderPlayerIndicators(roundPanel)
+          }
           break
       }
     },
@@ -1200,16 +1204,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       console.log('Leaving state: ' + stateName)
 
       switch (stateName) {
-        /* Example:
-            
-            case 'myGameState':
-            
-                // Hide the HTML block we are displaying only during this game state
-                dojo.style( 'my_html_block_id', 'display', 'none' );
-                
-                break;
-           */
-
+        case 'RoundSkills':
+          this._bindSkillColumnClicks(false)
+          break
         case 'dummy':
           break
       }
@@ -1278,7 +1275,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           case 'RoundSkills':
             this._updateStageBanner()
             if (this.isCurrentPlayerActive()) {
-              this.statusBar.addActionButton(_('Завершить фазу навыков'), () => this.bgaPerformAction('actCompleteSkillsPhase'), { primary: true })
+              this._bindSkillColumnClicks(true)
+              this.statusBar.addActionButton(_('Завершить фазу навыков (пропустить)'), () => this.bgaPerformAction('actCompleteSkillsPhase'), { color: 'secondary' })
+            } else {
+              this._bindSkillColumnClicks(false)
             }
             break
           case 'FounderSelection':
@@ -1498,8 +1498,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('technicalDevelopmentMovesRequired', this, 'notif_technicalDevelopmentMovesRequired')
       dojo.subscribe('technicalDevelopmentMovesCompleted', this, 'notif_technicalDevelopmentMovesCompleted')
       dojo.subscribe('initialPlayerValues', this, 'notif_initialPlayerValues')
+      dojo.subscribe('skillSelected', this, 'notif_skillSelected')
       
-      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues')
+      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -1534,6 +1535,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       } else {
         console.warn('🎲 WARNING: cubeFace is empty in roundStart notification!', args.cubeFace)
       }
+
+      // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции
+      if (this.gamedatas.players) {
+        Object.keys(this.gamedatas.players).forEach((pid) => {
+          if (this.gamedatas.players[pid]) this.gamedatas.players[pid].skillToken = null
+        })
+      }
+      const roundPanel = document.querySelector('.round-panel__wrapper')
+      if (roundPanel) this._renderPlayerIndicators(roundPanel)
 
       // Обновляем данные о раунде
       if (args.round !== undefined) {
@@ -2611,6 +2621,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
     },
 
+    notif_skillSelected: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const skillKey = args.skill_key || ''
+      if (this.gamedatas.players && this.gamedatas.players[playerId]) {
+        this.gamedatas.players[playerId].skillToken = skillKey
+      }
+      const roundPanel = document.querySelector('.round-panel__wrapper')
+      if (roundPanel) this._renderPlayerIndicators(roundPanel)
+    },
+
     notif_specialistsDealtToHand: async function (notif) {
       console.log('🎴 notif_specialistsDealtToHand received:', notif)
       const args = notif.args || notif
@@ -3635,70 +3656,75 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
     },
 
-    _renderPlayerIndicators: function (container) {
-      console.log('_renderPlayerIndicators called', container)
+    _bindSkillColumnClicks: function (enable) {
+      const self = this
+      const columns = document.querySelectorAll('.round-panel__skill-column')
+      columns.forEach(function (col) {
+        if (enable) {
+          col.classList.add('skill-column--clickable')
+          col.onclick = function () {
+            const skillKey = col.getAttribute('data-skill')
+            if (skillKey) self.bgaPerformAction('actSelectSkill', { skillKey: skillKey })
+          }
+        } else {
+          col.classList.remove('skill-column--clickable')
+          col.onclick = null
+        }
+      })
+    },
 
-      // Получаем всех игроков
+    _renderPlayerIndicators: function (container) {
       const players = this.gamedatas?.players || {}
       const playerIds = Object.keys(players)
         .map((id) => parseInt(id))
         .sort((a, b) => a - b)
+      const currentState = this.gamedatas?.gamestate?.name || ''
+      const activePlayerId = this.gamedatas?.gamestate?.active_player
+        ? parseInt(this.gamedatas.gamestate.active_player, 10)
+        : null
 
-      console.log('Players:', players, 'PlayerIds:', playerIds)
-
-      // Получаем верхний блок трека навыков (жетоны)
       const tokensRow = container.querySelector('.round-panel__skills-track-row--tokens')
-      if (!tokensRow) {
-        console.error('tokensRow not found!')
-        return
-      }
+      const skillsRow = container.querySelector('.round-panel__skills-track-row--skills')
+      if (!tokensRow) return
 
       const tokenColumns = tokensRow.querySelectorAll('.round-panel__skill-token-column')
-      if (tokenColumns.length < 4) {
-        console.error('Not enough token columns found:', tokenColumns.length)
-        return
-      }
+      if (tokenColumns.length < 4) return
 
-      // Маппинг игроков на колонки (4 колонки по центру, прижаты друг к другу):
-      const playerColumnMapping = {
-        0: 0,
-        1: 1,
-        2: 2,
-        3: 3,
-      }
-
-      // Очищаем все слоты из колонок
-      tokenColumns.forEach((column) => {
-        const slots = column.querySelectorAll('.round-panel__skill-slot')
-        slots.forEach((slot) => {
-          slot.remove()
-        })
+      const skillColumns = skillsRow
+        ? skillsRow.querySelectorAll('.round-panel__skill-column')
+        : []
+      const skillColumnByKey = {}
+      skillColumns.forEach((col) => {
+        const key = col.getAttribute('data-skill')
+        if (key) skillColumnByKey[key] = col
       })
 
-      // Размещаем фишки навыков (skill) игроков в соответствующих колонках
+      const playerColumnMapping = { 0: 0, 1: 1, 2: 2, 3: 3 }
+
+      // Очищаем слоты из колонок токенов и из колонок навыков
+      tokenColumns.forEach((column) => {
+        column.querySelectorAll('.round-panel__skill-slot').forEach((slot) => slot.remove())
+      })
+      Object.keys(skillColumnByKey).forEach((key) => {
+        skillColumnByKey[key].querySelectorAll('.round-panel__skill-slot').forEach((slot) => slot.remove())
+      })
+
       playerIds.forEach((playerId, playerIndex) => {
-        if (playerIndex >= 4) return // Максимум 4 игрока
-
+        if (playerIndex >= 4) return
         const player = players[playerId]
-        if (!player) {
-          console.warn('Player not found:', playerId)
-          return
-        }
+        if (!player) return
 
-        const targetColumnIndex = playerColumnMapping[playerIndex]
-        if (targetColumnIndex === undefined || !tokenColumns[targetColumnIndex]) {
-          console.warn('Target column not found:', targetColumnIndex)
-          return
-        }
+        const skillToken = player.skillToken || null
+        const targetColumn = skillToken && skillColumnByKey[skillToken]
+          ? skillColumnByKey[skillToken]
+          : tokenColumns[playerColumnMapping[playerIndex]]
+        if (!targetColumn) return
 
-        const targetColumn = tokenColumns[targetColumnIndex]
-
-        // Создаем слот для навыка этого игрока
         const slot = document.createElement('div')
         slot.className = 'round-panel__skill-slot'
         slot.dataset.playerId = playerId
-        slot.dataset.columnIndex = targetColumnIndex
         slot.dataset.skillType = 'player-indicator'
+        if (skillToken) slot.dataset.skillKey = skillToken
         slot.style.position = 'absolute'
         slot.style.left = '50%'
         slot.style.top = '50%'
@@ -3710,18 +3736,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         slot.style.height = '42px'
         slot.style.zIndex = '11'
 
+        if (skillToken) slot.classList.add('skill-slot--placed')
+        if (currentState === 'RoundSkills' && activePlayerId === playerId) slot.classList.add('skill-slot--active-turn')
+
         const circle = document.createElement('div')
         circle.className = 'round-panel__skill-circle'
         circle.dataset.playerId = playerId
         let color = String(player.color || '').trim()
-        // Если цвет не начинается с #, добавляем его
-        if (color && !color.startsWith('#')) {
-          color = '#' + color
-        }
-        // Если цвет пустой, используем белый по умолчанию
-        if (!color || color === '#') {
-          color = '#ffffff'
-        }
+        if (color && !color.startsWith('#')) color = '#' + color
+        if (!color || color === '#') color = '#ffffff'
         circle.style.backgroundColor = color
         circle.style.width = '34px'
         circle.style.height = '34px'
@@ -3733,11 +3756,7 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         circle.style.zIndex = '12'
         slot.appendChild(circle)
         targetColumn.appendChild(slot)
-
-        console.log(`Created skill indicator for player ${playerId} in column ${targetColumnIndex}`, slot)
       })
-
-      console.log(`Total skill indicators created: ${playerIds.length}`)
     },
 
     _renderGameModeBanner: function () {
