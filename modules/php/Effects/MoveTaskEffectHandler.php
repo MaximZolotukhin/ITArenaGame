@@ -42,11 +42,16 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
             error_log("❌ MoveTaskEffectHandler::apply - effectValue is not array or string: " . gettype($effectValue));
         }
         
-        // Если не получилось, пытаемся получить из cardData
+        // Если не получилось, пытаемся получить из cardData (основатель: effect, навык: effects)
         if ($moveConfig === null && isset($cardData['effect']['move_task'])) {
             $moveConfig = $cardData['effect']['move_task'];
-            error_log("✅ MoveTaskEffectHandler::apply - Got move_task from cardData: " . json_encode($moveConfig));
-        } else {
+            error_log("✅ MoveTaskEffectHandler::apply - Got move_task from cardData[effect]: " . json_encode($moveConfig));
+        }
+        if ($moveConfig === null && isset($cardData['effects']['move_task'])) {
+            $moveConfig = $cardData['effects']['move_task'];
+            error_log("✅ MoveTaskEffectHandler::apply - Got move_task from cardData[effects] (skill): " . json_encode($moveConfig));
+        }
+        if ($moveConfig === null) {
             error_log("🔍 MoveTaskEffectHandler::apply - cardData effect keys: " . (isset($cardData['effect']) ? implode(', ', array_keys($cardData['effect'])) : 'NO EFFECT'));
         }
         

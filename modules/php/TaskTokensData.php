@@ -14,38 +14,43 @@ namespace Bga\Games\itarenagame;
 class TaskTokensData
 {
     /**
-     * Цвета жетонов задач
+     * Цвета жетонов задач (метод, а не const, чтобы можно было использовать clienttranslate).
+     *
+     * @return array<string, array<string, mixed>>
      */
-    private const COLORS = [
-        'cyan' => [
-            'id' => 'cyan',
-            'name' => clienttranslate('Голубой'),
-            'color_code' => '#00CED1',
-            'quantity' => 27,
-            'image_url' => 'img/task-tokens/cyan.png',
-        ],
-        'pink' => [
-            'id' => 'pink',
-            'name' => clienttranslate('Розовый'),
-            'color_code' => '#FF69B4',
-            'quantity' => 27,
-            'image_url' => 'img/task-tokens/pink.png',
-        ],
-        'orange' => [
-            'id' => 'orange',
-            'name' => clienttranslate('Оранжевый'),
-            'color_code' => '#FF8C00',
-            'quantity' => 27,
-            'image_url' => 'img/task-tokens/orange.png',
-        ],
-        'purple' => [
-            'id' => 'purple',
-            'name' => clienttranslate('Фиолетовый'),
-            'color_code' => '#9370DB',
-            'quantity' => 27,
-            'image_url' => 'img/task-tokens/purple.png',
-        ],
-    ];
+    private static function getColors(): array
+    {
+        return [
+            'cyan' => [
+                'id' => 'cyan',
+                'name' => clienttranslate('Голубой'),
+                'color_code' => '#00CED1',
+                'quantity' => 27,
+                'image_url' => 'img/task-tokens/cyan.png',
+            ],
+            'pink' => [
+                'id' => 'pink',
+                'name' => clienttranslate('Розовый'),
+                'color_code' => '#FF69B4',
+                'quantity' => 27,
+                'image_url' => 'img/task-tokens/pink.png',
+            ],
+            'orange' => [
+                'id' => 'orange',
+                'name' => clienttranslate('Оранжевый'),
+                'color_code' => '#FF8C00',
+                'quantity' => 27,
+                'image_url' => 'img/task-tokens/orange.png',
+            ],
+            'purple' => [
+                'id' => 'purple',
+                'name' => clienttranslate('Фиолетовый'),
+                'color_code' => '#9370DB',
+                'quantity' => 27,
+                'image_url' => 'img/task-tokens/purple.png',
+            ],
+        ];
+    }
 
     /**
      * Возвращает все цвета жетонов задач.
@@ -54,7 +59,7 @@ class TaskTokensData
      */
     public static function getAllColors(): array
     {
-        return self::COLORS;
+        return self::getColors();
     }
 
     /**
@@ -65,7 +70,8 @@ class TaskTokensData
      */
     public static function getColor(string $colorId): ?array
     {
-        return self::COLORS[$colorId] ?? null;
+        $colors = self::getColors();
+        return $colors[$colorId] ?? null;
     }
 
     /**
@@ -75,7 +81,7 @@ class TaskTokensData
      */
     public static function getColorIds(): array
     {
-        return array_keys(self::COLORS);
+        return array_keys(self::getColors());
     }
 
     /**
@@ -86,7 +92,7 @@ class TaskTokensData
     public static function getTotalQuantity(): int
     {
         $total = 0;
-        foreach (self::COLORS as $color) {
+        foreach (self::getColors() as $color) {
             $total += $color['quantity'];
         }
         return $total;

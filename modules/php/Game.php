@@ -1758,16 +1758,23 @@ class Game extends \Bga\GameFramework\Table
      * @param int $playerId ID игрока
      * @param string $skillKey Ключ навыка (eloquence, discipline, intellect, frugality)
      */
-    public function applySkillEffects(int $playerId, string $skillKey): void
+    /**
+     * @return array<int, array> Результаты применённых эффектов (для уведомлений)
+     */
+    public function applySkillEffects(int $playerId, string $skillKey): array
     {
         if (!SkillsData::isValidKey($skillKey)) {
             throw new \InvalidArgumentException("Invalid skill key: $skillKey");
         }
         $skill = SkillsData::getSkill($skillKey);
-        if ($skill === null || empty($skill['effects'])) {
-            return;
+        if ($skill === null) {
+            return [];
         }
         $this->setSkillToken($playerId, $skillKey);
+        if (empty($skill['effects'])) {
+            return [];
+        }
+        $results = [];
         $skillData = $skill;
         foreach ($skill['effects'] as $effectType => $effectValue) {
             $handler = $this->getEffectHandler($effectType);
@@ -1775,8 +1782,10 @@ class Game extends \Bga\GameFramework\Table
                 continue;
             }
             $skillData['_effectKey'] = $effectType;
-            $handler->apply($playerId, (string)$effectValue, $skillData);
+            $valueToPass = is_array($effectValue) ? $effectValue : (string)$effectValue;
+            $results[] = $handler->apply($playerId, $valueToPass, $skillData);
         }
+        return $results;
     }
 
     /**

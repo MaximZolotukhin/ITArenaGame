@@ -9,6 +9,7 @@ use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
 use Bga\Games\itarenagame\Game;
 use Bga\Games\itarenagame\SkillsData;
+use Bga\Games\itarenagame\TaskTokensData;
 
 /**
  * Фаза «Навыки» (Skills) раунда.
@@ -35,10 +36,18 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
 
     public function getArgs(): array
     {
+        $taskTokenColors = [];
+        foreach (TaskTokensData::getAllColors() as $id => $color) {
+            $taskTokenColors[] = [
+                'id' => $id,
+                'name' => $color['name'] ?? $id,
+            ];
+        }
         return [
             'phaseKey' => 'skills',
             'phaseName' => $this->game->getPhaseName('skills'),
             'skillOptions' => SkillsData::getSkillsForSelection(),
+            'taskTokenColors' => $taskTokenColors,
         ];
     }
 
@@ -53,17 +62,82 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
 
     /**
      * Игрок выбрал навык: сохраняем, применяем эффект. Ход не передаётся — игрок нажимает «Завершить фазу навыков».
+     * Для навыка «Дисциплина» обязателен параметр taskColor (cyan, pink, orange, purple).
      */
     #[PossibleAction]
-    public function actSelectSkill(string $skillKey): ?string
+    public function actSelectSkill(string $skillKey, ?string $taskColor = null): ?string
     {
         $this->game->checkAction('actSelectSkill');
         if (!SkillsData::isValidKey($skillKey)) {
             throw new UserException(clienttranslate('Invalid skill selected'));
         }
         $playerId = (int)$this->game->getActivePlayerId();
-        $this->game->applySkillEffects($playerId, $skillKey);
         $skill = SkillsData::getSkill($skillKey);
+
+        // Дисциплина: один жетон задачи в бэклог, игрок выбирает цвет
+        if ($skillKey === SkillsData::SKILL_DISCIPLINE) {
+            $validColors = TaskTokensData::getColorIds();
+            if ($taskColor === null || $taskColor === '' || !in_array($taskColor, $validColors, true)) {
+                throw new UserException(clienttranslate('Please choose a task color for the Discipline skill'));
+            }
+            $addedTokens = $this->game->addTaskTokens($playerId, [['color' => $taskColor, 'quantity' => 1]], 'backlog');
+            $this->notify->all('skillTaskTokenAdded', clienttranslate('${player_name} gets 1 task token (${color_name}) in backlog'), [
+                'player_id' => $playerId,
+                'player_name' => $this->game->getPlayerNameById($playerId),
+                'color' => $taskColor,
+                'color_name' => TaskTokensData::getColor($taskColor)['name'] ?? $taskColor,
+                'added_tokens' => $addedTokens,
+                'i18n' => ['color_name'],
+            ]);
+        }
+
+        $effectResults = $this->game->applySkillEffects($playerId, $skillKey);
+
+        // Уведомление о картах (Красноречие)
+        foreach ($effectResults as $result) {
+            if (isset($result['type']) && $result['type'] === 'card' && !empty($result['cardIds'])) {
+                $this->notify->all('specialistsDealtToHand', clienttranslate('${player_name} gets ${amount} specialist card(s) from skill'), [
+                    'player_id' => $playerId,
+                    'player_name' => $this->game->getPlayerNameById($playerId),
+                    'cardIds' => $result['cardIds'],
+                    'amount' => count($result['cardIds']),
+                ]);
+                break;
+            }
+        }
+
+        // Уведомление о перемещении задач (Интеллект) — та же механика, что у карт основателей
+        foreach ($effectResults as $result) {
+            if (isset($result['type']) && $result['type'] === 'move_task' && ($result['move_count'] ?? 0) > 0) {
+                $this->notify->player($playerId, 'taskMovesRequired', '', [
+                    'player_id' => $playerId,
+                    'move_count' => (int)$result['move_count'],
+                    'move_color' => $result['move_color'] ?? 'any',
+                    'founder_name' => $skill['name'] ?? clienttranslate('Интеллект'),
+                ]);
+                break;
+            }
+        }
+
+        // Уведомление о баджерсах (Бережливость) — та же механика, что у карт основателей
+        foreach ($effectResults as $result) {
+            if (isset($result['type']) && $result['type'] === 'badger' && ($result['amount'] ?? 0) !== 0) {
+                $badgersSupply = $this->game->getBadgersSupply();
+                $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря навыку «${skill_name}»'), [
+                    'player_id' => $playerId,
+                    'player_name' => $this->game->getPlayerNameById($playerId),
+                    'action_text' => ($result['amount'] ?? 0) > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
+                    'amount' => abs($result['amount'] ?? 0),
+                    'skill_name' => $skill['name'] ?? clienttranslate('Бережливость'),
+                    'oldValue' => $result['oldValue'] ?? 0,
+                    'newValue' => $result['newValue'] ?? 0,
+                    'badgersSupply' => $badgersSupply,
+                    'i18n' => ['action_text', 'skill_name'],
+                ]);
+                break;
+            }
+        }
+
         $this->notify->all('skillSelected', clienttranslate('${player_name} chose skill: ${skill_name}'), [
             'player_id' => $playerId,
             'player_name' => $this->game->getPlayerNameById($playerId),
@@ -83,6 +157,100 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
         $this->game->checkAction('actCompleteSkillsPhase');
         $this->game->globals->set('skills_phase_just_finished', '1');
         return 'toNextPlayer';
+    }
+
+    /**
+     * Подтверждение перемещений задач (навык «Интеллект») — та же механика, что у карт основателей.
+     *
+     * @param int $activePlayerId ID активного игрока
+     * @param string $movesJson JSON строка с массивом перемещений
+     */
+    #[PossibleAction]
+    public function actConfirmTaskMoves(int $activePlayerId, string $movesJson): ?string
+    {
+        $this->game->checkAction('actConfirmTaskMoves');
+
+        $globalsKey = 'pending_task_moves_' . $activePlayerId;
+        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
+
+        if ($pendingMovesJson === null) {
+            $moves = json_decode($movesJson, true);
+            if (is_array($moves) && count($moves) > 0) {
+                $totalBlocks = 0;
+                foreach ($moves as $move) {
+                    if (is_array($move) && isset($move['blocks'])) {
+                        $totalBlocks += (int)$move['blocks'];
+                    }
+                }
+                if ($totalBlocks > 0) {
+                    $pendingMovesData = [
+                        'move_count' => $totalBlocks,
+                        'move_color' => 'any',
+                        'used_moves' => 0,
+                        'founder_id' => 0,
+                        'founder_name' => clienttranslate('Интеллект'),
+                    ];
+                    $pendingMovesJson = json_encode($pendingMovesData);
+                    $this->game->globals->set($globalsKey, $pendingMovesJson);
+                } else {
+                    throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+                }
+            } else {
+                throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+            }
+        }
+
+        $pendingMoves = json_decode($pendingMovesJson, true);
+        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающих перемещений'));
+        }
+
+        $requiredMoves = (int)$pendingMoves['move_count'];
+        $moves = json_decode($movesJson, true);
+        if (!is_array($moves)) {
+            throw new UserException(clienttranslate('Неверный формат данных перемещений'));
+        }
+
+        $totalBlocks = 0;
+        foreach ($moves as $move) {
+            if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
+                continue;
+            }
+            $totalBlocks += (int)($move['blocks'] ?? 0);
+        }
+
+        if ($totalBlocks !== $requiredMoves) {
+            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов', [
+                'amount' => $requiredMoves,
+            ]));
+        }
+
+        $movedTokens = [];
+        foreach ($moves as $move) {
+            $tokenId = (int)($move['tokenId'] ?? 0);
+            $toLocation = $move['toLocation'] ?? '';
+            if ($tokenId > 0 && $toLocation !== '') {
+                $success = $this->game->updateTaskTokenLocation($tokenId, $toLocation, null);
+                if ($success) {
+                    $movedTokens[] = $tokenId;
+                }
+            }
+        }
+
+        $this->game->globals->set($globalsKey, null);
+
+        $sourceName = $pendingMoves['founder_name'] ?? clienttranslate('Интеллект');
+        $this->notify->all('taskMovesCompleted', clienttranslate('${player_name} переместил задачи от навыка ${source_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'founder_name' => $sourceName,
+            'source_name' => $sourceName,
+            'moves' => $moves,
+            'moved_tokens' => $movedTokens,
+            'i18n' => ['founder_name', 'source_name'],
+        ]);
+
+        return null; // остаёмся в RoundSkills до «Завершить фазу навыков»
     }
 
     /**

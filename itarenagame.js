@@ -1206,6 +1206,10 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       switch (stateName) {
         case 'RoundSkills':
           this._bindSkillColumnClicks(false)
+          if (this.gamedatas.pendingSkillTaskSelection === 'discipline') {
+            this.gamedatas.pendingSkillTaskSelection = null
+            this._deactivateTaskSelection()
+          }
           break
         case 'dummy':
           break
@@ -1274,11 +1278,20 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
             break
           case 'RoundSkills':
             this._updateStageBanner()
+            this._skillPhaseTaskTokenColors = (args?.args?.taskTokenColors) || []
             if (this.isCurrentPlayerActive()) {
               this._bindSkillColumnClicks(true)
-              this.statusBar.addActionButton(_('Завершить фазу навыков (пропустить)'), () => this.bgaPerformAction('actCompleteSkillsPhase'), { color: 'secondary' })
+              const hasSkillSelected = !!this.gamedatas?.players?.[this.player_id]?.skillToken
+              const completeSkillsPhaseBtn = this.statusBar.addActionButton(_('Завершить фазу навыков'), () => this.bgaPerformAction('actCompleteSkillsPhase'), {
+                primary: true,
+                disabled: !hasSkillSelected,
+                id: 'complete-skills-phase-button',
+                tooltip: hasSkillSelected ? undefined : _('Сначала выберите навык (переместите жетон на колонку навыка)')
+              })
+              this.completeSkillsPhaseButton = completeSkillsPhaseBtn
             } else {
               this._bindSkillColumnClicks(false)
+              this.completeSkillsPhaseButton = null
             }
             break
           case 'FounderSelection':
@@ -1499,8 +1512,9 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       dojo.subscribe('technicalDevelopmentMovesCompleted', this, 'notif_technicalDevelopmentMovesCompleted')
       dojo.subscribe('initialPlayerValues', this, 'notif_initialPlayerValues')
       dojo.subscribe('skillSelected', this, 'notif_skillSelected')
+      dojo.subscribe('skillTaskTokenAdded', this, 'notif_skillTaskTokenAdded')
       
-      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected')
+      console.log('✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected, skillTaskTokenAdded')
     },
 
     // TODO: from this point and below, you can write your game notifications handling methods
@@ -2630,6 +2644,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       const roundPanel = document.querySelector('.round-panel__wrapper')
       if (roundPanel) this._renderPlayerIndicators(roundPanel)
+      if (Number(playerId) === Number(this.player_id) && this.completeSkillsPhaseButton) {
+        this.completeSkillsPhaseButton.disabled = false
+        if (this.completeSkillsPhaseButton.setAttribute) this.completeSkillsPhaseButton.setAttribute('title', '')
+      }
+    },
+
+    notif_skillTaskTokenAdded: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const addedTokens = args.added_tokens || []
+      if (this.gamedatas?.players?.[playerId]) {
+        if (!this.gamedatas.players[playerId].taskTokens) {
+          this.gamedatas.players[playerId].taskTokens = []
+        }
+        addedTokens.forEach(function (token) {
+          this.gamedatas.players[playerId].taskTokens.push({
+            token_id: token.token_id,
+            color: token.color,
+            location: 'backlog',
+            row_index: token.row_index ?? null
+          })
+        }, this)
+        this._renderTaskTokens(this.gamedatas.players)
+      }
     },
 
     notif_specialistsDealtToHand: async function (notif) {
@@ -3659,12 +3697,30 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     _bindSkillColumnClicks: function (enable) {
       const self = this
       const columns = document.querySelectorAll('.round-panel__skill-column')
+      const taskTokenColors = this._skillPhaseTaskTokenColors || []
       columns.forEach(function (col) {
         if (enable) {
           col.classList.add('skill-column--clickable')
           col.onclick = function () {
             const skillKey = col.getAttribute('data-skill')
-            if (skillKey) self.bgaPerformAction('actSelectSkill', { skillKey: skillKey })
+            if (!skillKey) return
+            if (skillKey === 'discipline') {
+              // Сразу перемещаем жетон в колонку «Дисциплина» (оптимистично), затем показываем выбор цвета задачи
+              const pid = self.player_id
+              if (self.gamedatas?.players?.[pid]) {
+                self.gamedatas.players[pid].skillToken = 'discipline'
+                const roundPanel = document.querySelector('.round-panel__wrapper')
+                if (roundPanel) self._renderPlayerIndicators(roundPanel)
+              }
+              if (self.completeSkillsPhaseButton) {
+                self.completeSkillsPhaseButton.disabled = false
+                if (self.completeSkillsPhaseButton.setAttribute) self.completeSkillsPhaseButton.setAttribute('title', '')
+              }
+              self.gamedatas.pendingSkillTaskSelection = 'discipline'
+              self._activateTaskSelectionForFounder(1)
+            } else {
+              self.bgaPerformAction('actSelectSkill', { skillKey: skillKey })
+            }
           }
         } else {
           col.classList.remove('skill-column--clickable')
@@ -7809,8 +7865,21 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       
       console.log('✅ Confirming task selection:', selectedTasks)
+
+      // Навык «Дисциплина»: выбор одной задачи в бэклог через ту же UI
+      if (this.gamedatas.pendingSkillTaskSelection === 'discipline') {
+        const taskColor = selectedTasks[0]?.color
+        if (!taskColor) {
+          this.showMessage(_('Выберите цвет задачи'), 'error')
+          return
+        }
+        this.gamedatas.pendingSkillTaskSelection = null
+        this._deactivateTaskSelection()
+        this.bgaPerformAction('actSelectSkill', { skillKey: 'discipline', taskColor: taskColor })
+        return
+      }
       
-      // Отправляем на сервер (преобразуем массив в JSON строку)
+      // Эффект карты основателя: отправляем на сервер
       this.bgaPerformAction('actConfirmTaskSelection', {
         selectedTasksJson: JSON.stringify(selectedTasks)
       }, (result) => {

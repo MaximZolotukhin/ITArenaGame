@@ -60,7 +60,8 @@ class SkillsData
 
     /**
      * Все навыки: ключ, название, описание, эффекты на раунд.
-     * Эффекты в формате, совместимом с существующими обработчиками (badger, incomeTrack и т.д.).
+     * description — единственное текстовое описание для отображения.
+     * effects — массив для применения через обработчики (badger, card, move_task и т.д.).
      *
      * @return array<string, array{key: string, name: string, description: string, effects: array}>
      */
@@ -70,34 +71,33 @@ class SkillsData
             self::SKILL_ELOQUENCE => [
                 'key' => self::SKILL_ELOQUENCE,
                 'name' => clienttranslate('Красноречие'),
-                'description' => clienttranslate('+2 к доходу в этом раунде'),
+                'description' => clienttranslate('Возьмите 1 карту из колоды найма'),
                 'effects' => [
-                    'incomeTrack' => 2,
+                    'card' => 1,
                 ],
             ],
             self::SKILL_DISCIPLINE => [
                 'key' => self::SKILL_DISCIPLINE,
                 'name' => clienttranslate('Дисциплина'),
-                'description' => clienttranslate('+1 баджер в этом раунде'),
+                'description' => clienttranslate('Получите одну задачу в бэклог (выбор цвета)'),
                 'effects' => [
-                    'badger' => 1,
-                ],
+                    'task' => 1
+                ], // Жетон добавляется в RoundSkills с выбором цвета
             ],
             self::SKILL_INTELLECT => [
                 'key' => self::SKILL_INTELLECT,
                 'name' => clienttranslate('Интеллект'),
-                'description' => clienttranslate('+1 к доходу и +1 баджер в этом раунде'),
+                'description' => clienttranslate('Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку'),
                 'effects' => [
-                    'incomeTrack' => 1,
-                    'badger' => 1,
+                    'move_task' => ['move_count' => 2, 'move_color' => 'any'],
                 ],
             ],
             self::SKILL_FRUGALITY => [
                 'key' => self::SKILL_FRUGALITY,
                 'name' => clienttranslate('Бережливость'),
-                'description' => clienttranslate('+2 баджера в этом раунде'),
+                'description' => clienttranslate('Получите 2 баджерса'),
                 'effects' => [
-                    'badger' => 2,
+                    'badger' => '+3',
                 ],
             ],
         ];
