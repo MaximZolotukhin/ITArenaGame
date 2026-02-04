@@ -1279,14 +1279,46 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           case 'RoundSkills':
             this._updateStageBanner()
             this._skillPhaseTaskTokenColors = (args?.args?.taskTokenColors) || []
+            this.gamedatas.skillOptionsForPhase = args?.args?.skillOptions || []
+            // Занятые ячейки: из args и из gamedatas.players (другие игроки уже выбранные навыки)
+            const fromArgs = args?.args?.occupiedSkillKeys || []
+            const fromPlayers = []
+            if (this.gamedatas?.players) {
+              Object.keys(this.gamedatas.players).forEach(function (pid) {
+                if (Number(pid) === Number(this.player_id)) return
+                const tok = this.gamedatas.players[pid].skillToken
+                if (tok) fromPlayers.push(tok)
+              }, this)
+            }
+            this.gamedatas.occupiedSkillKeys = [...new Set([].concat(fromArgs, fromPlayers))]
             if (this.isCurrentPlayerActive()) {
               this._bindSkillColumnClicks(true)
               const hasSkillSelected = !!this.gamedatas?.players?.[this.player_id]?.skillToken
+              const pendingDiscipline = this.gamedatas?.pendingSkillTaskSelection === 'discipline'
+              const skillEffectApplied = hasSkillSelected && !pendingDiscipline
+              const skillEffectPending = !!(args?.args?.skillEffectPending)
+              const skillEffectHint = args?.args?.skillEffectHint || ''
+              const skillOptions = this.gamedatas.skillOptionsForPhase || []
+              const selectedSkillKey = this.gamedatas?.players?.[this.player_id]?.skillToken || null
+              const selectedSkill = skillOptions.find(function (s) { return s.key === selectedSkillKey })
+              const skillDescriptionHint = selectedSkill && selectedSkill.description ? selectedSkill.description : ''
+              let completeBtnTooltip
+              if (!hasSkillSelected) {
+                completeBtnTooltip = _('Сначала выберите навык (переместите жетон на колонку навыка)')
+              } else if (pendingDiscipline) {
+                completeBtnTooltip = skillDescriptionHint || _('Получите одну задачу в бэклог (выберите цвет)')
+              } else if (skillEffectPending && skillEffectHint) {
+                completeBtnTooltip = skillEffectHint
+              } else if (skillDescriptionHint) {
+                completeBtnTooltip = _('Эффект навыка:') + ' ' + skillDescriptionHint
+              } else {
+                completeBtnTooltip = ''
+              }
               const completeSkillsPhaseBtn = this.statusBar.addActionButton(_('Завершить фазу навыков'), () => this.bgaPerformAction('actCompleteSkillsPhase'), {
                 primary: true,
-                disabled: !hasSkillSelected,
+                disabled: !skillEffectApplied || skillEffectPending,
                 id: 'complete-skills-phase-button',
-                tooltip: hasSkillSelected ? undefined : _('Сначала выберите навык (переместите жетон на колонку навыка)')
+                tooltip: completeBtnTooltip
               })
               this.completeSkillsPhaseButton = completeSkillsPhaseBtn
             } else {
@@ -1550,11 +1582,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         console.warn('🎲 WARNING: cubeFace is empty in roundStart notification!', args.cubeFace)
       }
 
-      // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции
-      if (this.gamedatas.players) {
+      // Жетоны навыков возвращаем только при смене раунда (фаза «Событие», начало раунда), не при смене хода
+      const isRoundStart = (args.phaseKey === 'event' && (args.round || 0) > 0)
+      const lastClearedRound = this.gamedatas._skillTokensClearedForRound
+      if (isRoundStart && lastClearedRound !== args.round && this.gamedatas.players) {
         Object.keys(this.gamedatas.players).forEach((pid) => {
           if (this.gamedatas.players[pid]) this.gamedatas.players[pid].skillToken = null
         })
+        this.gamedatas._skillTokensClearedForRound = args.round
       }
       const roundPanel = document.querySelector('.round-panel__wrapper')
       if (roundPanel) this._renderPlayerIndicators(roundPanel)
@@ -1912,11 +1947,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       
       const playerId = Number(args.player_id || 0)
       const amount = Number(args.amount || 0)
+      const isFromSkill = !!(args.skill_name || args.skill_description || args.skill_key === 'frugality')
       const founderName = args.founder_name || 'Основатель'
+      const skillName = args.skill_name || ''
+      const skillDescription = args.skill_description || (args.skill_key === 'frugality' ? _('Получите 3 баджерса') : '')
       const newValue = Number(args.newValue || 0)
       const oldValue = Number(args.oldValue || 0)
-      
-      console.log('💰 Badgers changed:', { playerId, oldValue, newValue, amount, founderName })
+
+      console.log('💰 Badgers changed:', { playerId, oldValue, newValue, amount, founderName, skillName, skillDescription, isFromSkill })
       console.log('💰 Current player:', this.player_id, 'Target player:', playerId)
       
       // ВАЖНО: Обновляем данные в gamedatas только для указанного игрока
@@ -1964,9 +2002,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       // Обновляем отображение денег игрока (передаём оба аргумента!)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       
-      // Визуальная анимация изменения
-      if (amount !== 0) {
-        const actionText = amount > 0 ? '+' : ''
+      // Визуальная анимация изменения: для навыка показываем описание из SkillsData, иначе — основатель
+      const actionText = amount > 0 ? '+' : ''
+      if (isFromSkill && (skillDescription || skillName)) {
+        if (skillDescription) {
+          this.showMessage(skillDescription, 'info')
+        } else {
+          this.showMessage(`${skillName}: ${actionText}${amount}Б`, 'info')
+        }
+      } else if (amount !== 0) {
         this.showMessage(`${founderName}: ${actionText}${amount}Б`, 'info')
       }
     },
@@ -2644,9 +2688,17 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       const roundPanel = document.querySelector('.round-panel__wrapper')
       if (roundPanel) this._renderPlayerIndicators(roundPanel)
-      if (Number(playerId) === Number(this.player_id) && this.completeSkillsPhaseButton) {
-        this.completeSkillsPhaseButton.disabled = false
-        if (this.completeSkillsPhaseButton.setAttribute) this.completeSkillsPhaseButton.setAttribute('title', '')
+      if (Number(playerId) === Number(this.player_id)) {
+        if (this.completeSkillsPhaseButton) {
+          this.completeSkillsPhaseButton.disabled = false
+          if (this.completeSkillsPhaseButton.setAttribute) this.completeSkillsPhaseButton.setAttribute('title', '')
+        }
+        // Блокируем перенос жетона на другие ячейки — навык уже выбран
+        const columns = document.querySelectorAll('.round-panel__skill-column')
+        columns.forEach(function (col) {
+          col.classList.remove('skill-column--clickable')
+          col.onclick = null
+        })
       }
     },
 
@@ -2897,6 +2949,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         console.log('✅ pendingTaskMoves set:', this.gamedatas.pendingTaskMoves)
         console.log('✅ pendingTaskMovesJson set:', this.gamedatas.pendingTaskMovesJson)
         
+        // В фазе навыков (Интеллект): блокируем кнопку «Завершить фазу навыков» до подтверждения перемещений
+        if (this.gamedatas?.gamestate?.name === 'RoundSkills' && this.completeSkillsPhaseButton) {
+          this.completeSkillsPhaseButton.disabled = true
+          if (this.completeSkillsPhaseButton.setAttribute) {
+            this.completeSkillsPhaseButton.setAttribute('title', _('Примените эффект: передвиньте задачи на треке и нажмите «Подтвердить»'))
+          }
+        }
+        
         // Проверяем, завершен ли выбор задач
         if (!this.gamedatas.pendingTaskSelection) {
           console.log('✅ No pending task selection, activating move mode immediately')
@@ -2934,6 +2994,18 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         
         // Убираем подсказку о последовательности действий
         this._hideFounderEffectSequenceHint()
+        
+        // В фазе навыков (Интеллект): разблокируем кнопку «Завершить фазу навыков» и ставим подсказку по эффекту
+        if (this.gamedatas?.gamestate?.name === 'RoundSkills' && this.completeSkillsPhaseButton) {
+          this.completeSkillsPhaseButton.disabled = false
+          const skillKey = this.gamedatas?.players?.[this.player_id]?.skillToken
+          const skillOptions = this.gamedatas?.skillOptionsForPhase || []
+          const skill = skillOptions.find(function (s) { return s.key === skillKey })
+          const hint = skill && skill.description ? (_('Эффект навыка:') + ' ' + skill.description) : ''
+          if (this.completeSkillsPhaseButton.setAttribute) {
+            this.completeSkillsPhaseButton.setAttribute('title', hint)
+          }
+        }
         
         // Теперь можно разблокировать кнопку "Завершить ход"
         const finishButton = document.getElementById('finish-turn-button')
@@ -3698,12 +3770,50 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       const self = this
       const columns = document.querySelectorAll('.round-panel__skill-column')
       const taskTokenColors = this._skillPhaseTaskTokenColors || []
+      // Если игрок уже выбрал навык — колонки не делаем кликабельными (нельзя переносить жетон на другую ячейку)
+      const hasSkillSelected = !!(self.gamedatas?.players?.[self.player_id]?.skillToken)
+      const occupiedSkillKeys = self.gamedatas?.occupiedSkillKeys || []
       columns.forEach(function (col) {
-        if (enable) {
+        const skillKey = col.getAttribute('data-skill')
+        const isOccupiedByOther = skillKey && occupiedSkillKeys.indexOf(skillKey) >= 0
+        col.classList.remove('skill-column--clickable', 'skill-column--occupied')
+        col.onclick = null
+        if (isOccupiedByOther) {
+          col.classList.add('skill-column--occupied')
+          col.title = typeof _ !== 'undefined' ? _('Ячейка занята другим игроком') : 'Ячейка занята другим игроком'
+        }
+        if (enable && !hasSkillSelected && !isOccupiedByOther) {
           col.classList.add('skill-column--clickable')
+          col.title = ''
           col.onclick = function () {
             const skillKey = col.getAttribute('data-skill')
             if (!skillKey) return
+            // Повторная проверка: если за время клика уже выбрали навык — блокируем смену ячейки
+            if (self.gamedatas?.players?.[self.player_id]?.skillToken) return
+            // Повторная проверка: ячейка не должна быть занята другим игроком (актуальные данные из gamedatas)
+            const occupiedNow = []
+            if (self.gamedatas?.players) {
+              Object.keys(self.gamedatas.players).forEach(function (pid) {
+                if (Number(pid) === Number(self.player_id)) return
+                const tok = self.gamedatas.players[pid].skillToken
+                if (tok) occupiedNow.push(tok)
+              })
+            }
+            if (occupiedNow.indexOf(skillKey) >= 0) {
+              self.showMessage(typeof _ !== 'undefined' ? _('Ячейка занята другим игроком') : 'Ячейка занята другим игроком', 'error')
+              return
+            }
+            const skillOptions = self.gamedatas?.skillOptionsForPhase || []
+            const skill = skillOptions.find(function (s) { return s.key === skillKey })
+            let description = skill && skill.description ? String(skill.description) : ''
+            if (!description && skillKey === 'discipline') {
+              description = typeof _ !== 'undefined' ? _('Получите одну задачу в бэклог (выбор цвета)') : 'Получите одну задачу в бэклог (выбор цвета)'
+            }
+            if (!description && skillKey === 'eloquence') description = typeof _ !== 'undefined' ? _('Возьмите 1 карту из колоды найма') : 'Возьмите 1 карту из колоды найма'
+            if (!description && skillKey === 'intellect') description = typeof _ !== 'undefined' ? _('Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку') : 'Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку'
+            if (!description && skillKey === 'frugality') description = typeof _ !== 'undefined' ? _('Получите 3 баджерса') : 'Получите 3 баджерса'
+            // Не показываем сообщение при клике по навыку — одно сообщение придёт из уведомления (badgersChanged и т.д.)
+            if (skillKey === 'discipline' && description) self.showMessage(description, 'info')
             if (skillKey === 'discipline') {
               // Сразу перемещаем жетон в колонку «Дисциплина» (оптимистично), затем показываем выбор цвета задачи
               const pid = self.player_id
@@ -3713,18 +3823,22 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
                 if (roundPanel) self._renderPlayerIndicators(roundPanel)
               }
               if (self.completeSkillsPhaseButton) {
-                self.completeSkillsPhaseButton.disabled = false
-                if (self.completeSkillsPhaseButton.setAttribute) self.completeSkillsPhaseButton.setAttribute('title', '')
+                self.completeSkillsPhaseButton.disabled = true
+                if (self.completeSkillsPhaseButton.setAttribute) {
+                  self.completeSkillsPhaseButton.setAttribute('title', description || _('Получите одну задачу в бэклог (выберите цвет)'))
+                }
               }
+              // Сразу блокируем другие колонки — нельзя переносить жетон пока выбираем цвет задачи
+              document.querySelectorAll('.round-panel__skill-column').forEach(function (c) {
+                c.classList.remove('skill-column--clickable')
+                c.onclick = null
+              })
               self.gamedatas.pendingSkillTaskSelection = 'discipline'
               self._activateTaskSelectionForFounder(1)
             } else {
               self.bgaPerformAction('actSelectSkill', { skillKey: skillKey })
             }
           }
-        } else {
-          col.classList.remove('skill-column--clickable')
-          col.onclick = null
         }
       })
     },
@@ -6324,12 +6438,15 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         this._clearColumnHighlight()
         console.log('✅ Cleared column highlight after move - ready for next token selection')
         
-        // Если все ходы использованы, показываем кнопку подтверждения
-        if (pendingMoves.usedMoves >= pendingMoves.moveCount) {
-          console.log('✅ All moves used, showing confirm button')
+        // Показываем кнопку подтверждения, если использованы все ходы ИЛИ на треке нет доступных задач для перемещения
+        const maxBlocksLeft = this._getMaxTaskMoveBlocksAvailable()
+        const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
+        const noMoreAvailable = maxBlocksLeft === 0
+        if (allUsed || noMoreAvailable) {
+          console.log('✅ Showing confirm button:', allUsed ? 'all moves used' : 'no more tasks to move', { usedMoves: pendingMoves.usedMoves, moveCount: pendingMoves.moveCount, maxBlocksLeft })
           this._showTaskMovesConfirmButton()
         } else {
-          console.log('✅ Moves remaining:', pendingMoves.moveCount - pendingMoves.usedMoves)
+          console.log('✅ Moves remaining:', pendingMoves.moveCount - pendingMoves.usedMoves, 'maxBlocksLeft:', maxBlocksLeft)
         }
       } else {
         // Обычный режим - сразу отправляем на сервер
@@ -6379,6 +6496,14 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
       }
       
       console.log('✅ pendingTaskMoves after activation:', this.gamedatas.pendingTaskMoves)
+      
+      // Если на треке нет задач (Бэклог, В работе, Тестирование пусты) — сразу показываем кнопку «Подтвердить», чтобы игрок мог продолжить
+      if (this._getMaxTaskMoveBlocksAvailable() === 0) {
+        console.log('🎯 No tasks on track — showing confirm button immediately so player can skip move phase')
+        this._showTaskMoveModeIndicator(moveCount, moveColor)
+        this._showTaskMovesConfirmButton()
+        return
+      }
       
       // Делаем все жетоны во всех колонках кликабельными (кроме completed)
       const columns = [
@@ -7200,6 +7325,23 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
     },
 
     /**
+     * Возвращает максимальное количество блоков, которые ещё можно переместить по треку задач
+     * (backlog → 3 блока до completed, in-progress → 2, testing → 1, completed → 0).
+     * Учитывает текущее состояние жетонов в gamedatas (в т.ч. после локальных перемещений в режиме move_task).
+     */
+    _getMaxTaskMoveBlocksAvailable: function () {
+      const player = this.gamedatas?.players?.[this.player_id]
+      const taskTokens = player?.taskTokens || []
+      const blocksByLocation = { backlog: 3, 'in-progress': 2, testing: 1, completed: 0 }
+      let total = 0
+      taskTokens.forEach(function (t) {
+        const loc = t.location || 'backlog'
+        total += blocksByLocation[loc] || 0
+      })
+      return total
+    },
+
+    /**
      * Обновляет UI режима перемещения задач
      */
     _updateTaskMoveModeUI: function () {
@@ -7270,21 +7412,24 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         return
       }
       
-      // Проверяем, что есть перемещения для отправки
-      if (!pendingMoves.moves || pendingMoves.moves.length === 0) {
+      // Проверяем, что есть перемещения для отправки (или на треке не осталось задач для перемещения)
+      const maxBlocksLeft = this._getMaxTaskMoveBlocksAvailable()
+      const noMoreAvailable = maxBlocksLeft === 0
+      if ((!pendingMoves.moves || pendingMoves.moves.length === 0) && !noMoreAvailable) {
         console.error('❌ No moves to confirm!', { pendingMoves })
         this.showMessage(_('Нет перемещений для подтверждения'), 'error')
         return
       }
       
-      // ВАЖНО: Требуем использования всех ходов
-      if (pendingMoves.usedMoves !== pendingMoves.moveCount) {
-        console.warn('❌ Not all moves used:', {
+      // Разрешаем подтверждение, если использованы все ходы ИЛИ на треке больше нет задач для перемещения
+      const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
+      if (!allUsed && !noMoreAvailable) {
+        console.warn('❌ Cannot confirm: moves remaining and tasks still available', {
           usedMoves: pendingMoves.usedMoves,
           moveCount: pendingMoves.moveCount,
-          remaining: pendingMoves.moveCount - pendingMoves.usedMoves
+          maxBlocksLeft
         })
-        this.showMessage(_('Вы должны использовать все доступные ходы (${used}/${total})', {
+        this.showMessage(_('Вы должны использовать все доступные ходы (${used}/${total}) или переместить все доступные задачи', {
           used: pendingMoves.usedMoves,
           total: pendingMoves.moveCount
         }), 'error')
@@ -7299,14 +7444,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
         movesJson: JSON.stringify(pendingMoves.moves)
       })
       
-      // Отправляем на сервер
-      // ВАЖНО: сервер ожидает параметр movesJson, а не moves
-      const movesJson = JSON.stringify(pendingMoves.moves)
-      if (!movesJson || movesJson === '[]') {
-        console.error('❌ Empty movesJson!')
-        this.showMessage(_('Нет перемещений для подтверждения'), 'error')
-        return
-      }
+      // Отправляем на сервер (допускается пустой массив, если на треке не осталось задач для перемещения)
+      const movesJson = JSON.stringify(pendingMoves.moves || [])
       
       // ВАЖНО: Блокируем кнопку, чтобы предотвратить повторные нажатия
       const confirmButton = document.getElementById('task-moves-confirm-button')
@@ -7333,6 +7472,8 @@ define(['dojo', 'dojo/_base/declare', 'ebg/core/gamegui', 'ebg/counter'], functi
           
           // Скрываем индикатор режима перемещения
           this._hideTaskMoveModeIndicator()
+          // Разблокируем кнопку «Завершить ход», т.к. перемещения задач завершены
+          this._updateFinishTurnButtonForTechnicalDevelopment()
           
           console.log('✅ Task move mode deactivated after confirmation')
         } else {

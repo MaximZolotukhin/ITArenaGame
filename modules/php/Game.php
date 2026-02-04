@@ -2568,6 +2568,23 @@ class Game extends \Bga\GameFramework\Table
      * @param string|null $location Локация (если указана, считает только из этой локации)
      * @return int Количество задач
      */
+    /**
+     * Возвращает максимальное количество блоков, которые игрок может переместить по треку задач
+     * в текущем состоянии (backlog → 3, in-progress → 2, testing → 1, completed → 0).
+     * Используется для проверки: если на треке меньше задач, чем требуется эффектом, принимаем меньше ходов.
+     */
+    public function getMaxTaskMoveBlocksForPlayer(int $playerId): int
+    {
+        $tokens = $this->getTaskTokensByPlayer($playerId);
+        $blocksByLocation = ['backlog' => 3, 'in-progress' => 2, 'testing' => 1, 'completed' => 0];
+        $total = 0;
+        foreach ($tokens as $token) {
+            $loc = $token['location'] ?? 'backlog';
+            $total += $blocksByLocation[$loc] ?? 0;
+        }
+        return $total;
+    }
+
     public function getTaskTokensCount(int $playerId, ?string $color = null, ?string $location = null): int
     {
         $whereConditions = ["`player_id` = $playerId"];
@@ -2743,6 +2760,128 @@ class Game extends \Bga\GameFramework\Table
     public function clearAllSkillTokens(): void
     {
         $this->DbQuery("UPDATE `player_game_data` SET `skill_token` = NULL");
+    }
+
+    /**
+     * Порядок навыков на треке (слева направо = раньше ход в следующем раунде).
+     * Используется для определения очереди хода в следующем раунде по положению на треке навыков.
+     */
+    private const SKILL_TRACK_ORDER = [
+        SkillsData::SKILL_ELOQUENCE,
+        SkillsData::SKILL_DISCIPLINE,
+        SkillsData::SKILL_INTELLECT,
+        SkillsData::SKILL_FRUGALITY,
+    ];
+
+    /**
+     * Вычисляет порядок игроков для следующего раунда по положению на треке навыков.
+     * Чем левее выбранный навык — тем раньше ход в следующем раунде.
+     * При одинаковом навыке сохраняется порядок стола (player_no).
+     *
+     * @return list<int> Массив player_id в порядке хода для следующего раунда
+     */
+    public function getSkillOrderForNextRound(): array
+    {
+        $rows = $this->getCollectionFromDb("SELECT `player_id`, `skill_token` FROM `player_game_data`");
+        $skillByPlayer = [];
+        foreach ($rows as $row) {
+            $skillByPlayer[(int) $row['player_id']] = $row['skill_token'] ?? null;
+        }
+        $basicInfos = $this->loadPlayersBasicInfos();
+        $tableOrder = array_map('intval', array_keys($basicInfos));
+
+        $withPosition = [];
+        foreach ($tableOrder as $tableIdx => $playerId) {
+            $skillToken = $skillByPlayer[$playerId] ?? null;
+            $pos = 999;
+            if ($skillToken !== null && $skillToken !== '') {
+                $idx = array_search($skillToken, self::SKILL_TRACK_ORDER, true);
+                if ($idx !== false) {
+                    $pos = $idx;
+                }
+            }
+            $withPosition[] = ['id' => $playerId, 'position' => $pos, 'tableIdx' => $tableIdx];
+        }
+        usort($withPosition, static fn ($a, $b) => ($a['position'] <=> $b['position']) ?: ($a['tableIdx'] <=> $b['tableIdx']));
+        return array_column($withPosition, 'id');
+    }
+
+    /**
+     * Сохраняет порядок игроков для следующего раунда (по треку навыков).
+     */
+    public function setNextRoundPlayerOrder(array $playerIds): void
+    {
+        $this->globals->set('next_round_player_order', json_encode(array_map('intval', $playerIds)));
+    }
+
+    /**
+     * Возвращает сохранённый порядок для следующего раунда и удаляет его из globals.
+     *
+     * @return list<int>|null Массив player_id или null
+     */
+    public function takeNextRoundPlayerOrder(): ?array
+    {
+        $json = $this->globals->get('next_round_player_order', '');
+        $this->globals->delete('next_round_player_order');
+        if ($json === '' || $json === null) {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? array_map('intval', $decoded) : null;
+    }
+
+    /**
+     * Устанавливает порядок хода для текущего раунда (используется в фазах раунда).
+     */
+    public function setCurrentRoundPlayerOrder(array $playerIds): void
+    {
+        $this->globals->set('current_round_player_order', json_encode(array_map('intval', $playerIds)));
+    }
+
+    /**
+     * Возвращает порядок хода для текущего раунда.
+     *
+     * @return list<int>|null Массив player_id или null (тогда используется порядок стола)
+     */
+    public function getCurrentRoundPlayerOrder(): ?array
+    {
+        $json = $this->globals->get('current_round_player_order', '');
+        if ($json === '' || $json === null) {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? array_map('intval', $decoded) : null;
+    }
+
+    /**
+     * Возвращает ID следующего игрока в порядке текущего раунда (по треку навыков).
+     * Если порядок не задан или текущий игрок последний — возвращает null (нужно использовать activeNextPlayer).
+     */
+    public function getNextPlayerIdInRoundOrder(): ?int
+    {
+        $order = $this->getCurrentRoundPlayerOrder();
+        if ($order === null || $order === []) {
+            return null;
+        }
+        $activeId = (int) $this->getActivePlayerId();
+        $idx = array_search($activeId, $order, true);
+        if ($idx === false || $idx + 1 >= count($order)) {
+            return null;
+        }
+        return $order[$idx + 1];
+    }
+
+    /**
+     * Передаёт ход следующему игроку: по порядку раунда (трек навыков), если задан, иначе по порядку стола.
+     */
+    public function advanceToNextPlayerInRound(): void
+    {
+        $nextId = $this->getNextPlayerIdInRoundOrder();
+        if ($nextId !== null) {
+            $this->gamestate->changeActivePlayer($nextId);
+        } else {
+            $this->activeNextPlayer();
+        }
     }
     
     /**

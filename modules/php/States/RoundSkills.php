@@ -43,11 +43,41 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
                 'name' => $color['name'] ?? $id,
             ];
         }
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+        $gameData = $this->game->getPlayerGameData($activePlayerId);
+        $activeSkillKey = $gameData['skillToken'] ?? null;
+        $skillEffectPending = false;
+        $skillEffectHint = '';
+        if ($activeSkillKey === SkillsData::SKILL_INTELLECT) {
+            $pendingJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
+            if ($pendingJson !== '' && $pendingJson !== null) {
+                $skillEffectPending = true;
+                $skillEffectHint = clienttranslate('Примените эффект: передвиньте задачи на треке и нажмите «Подтвердить»');
+            }
+        }
+        // Ячейки навыков, уже занятые другими игроками в этом раунде (текущий не может их выбрать)
+        $occupiedSkillKeys = [];
+        foreach (array_keys($this->game->loadPlayersBasicInfos()) as $pid) {
+            if ((int) $pid === $activePlayerId) {
+                continue;
+            }
+            $otherData = $this->game->getPlayerGameData((int) $pid);
+            if ($otherData === null) {
+                continue;
+            }
+            $tok = $otherData['skillToken'] ?? null;
+            if ($tok !== null && $tok !== '') {
+                $occupiedSkillKeys[] = $tok;
+            }
+        }
         return [
             'phaseKey' => 'skills',
             'phaseName' => $this->game->getPhaseName('skills'),
             'skillOptions' => SkillsData::getSkillsForSelection(),
             'taskTokenColors' => $taskTokenColors,
+            'skillEffectPending' => $skillEffectPending,
+            'skillEffectHint' => $skillEffectHint,
+            'occupiedSkillKeys' => $occupiedSkillKeys,
         ];
     }
 
@@ -68,10 +98,32 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
     public function actSelectSkill(string $skillKey, ?string $taskColor = null): ?string
     {
         $this->game->checkAction('actSelectSkill');
+        $playerId = (int)$this->game->getActivePlayerId();
+        $gameData = $this->game->getPlayerGameData($playerId);
+        if ($gameData && ($gameData['skillToken'] ?? null) !== null && $gameData['skillToken'] !== '') {
+            throw new UserException(clienttranslate('You have already chosen a skill for this round'));
+        }
         if (!SkillsData::isValidKey($skillKey)) {
             throw new UserException(clienttranslate('Invalid skill selected'));
         }
-        $playerId = (int)$this->game->getActivePlayerId();
+        // Ячейка на треке навыков уже занята другим игроком — выбирать нельзя
+        $occupiedSkillKeys = [];
+        foreach (array_keys($this->game->loadPlayersBasicInfos()) as $pid) {
+            if ((int) $pid === $playerId) {
+                continue;
+            }
+            $otherData = $this->game->getPlayerGameData((int) $pid);
+            if ($otherData === null) {
+                continue;
+            }
+            $tok = $otherData['skillToken'] ?? null;
+            if ($tok !== null && $tok !== '') {
+                $occupiedSkillKeys[] = $tok;
+            }
+        }
+        if (in_array($skillKey, $occupiedSkillKeys, true)) {
+            throw new UserException(clienttranslate('This skill slot is already taken by another player'));
+        }
         $skill = SkillsData::getSkill($skillKey);
 
         // Дисциплина: один жетон задачи в бэклог, игрок выбирает цвет
@@ -119,20 +171,23 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
             }
         }
 
-        // Уведомление о баджерсах (Бережливость) — та же механика, что у карт основателей
+        // Уведомление о баджерсах (Бережливость) — всегда отправляем с skill_name и skill_description из SkillsData
         foreach ($effectResults as $result) {
-            if (isset($result['type']) && $result['type'] === 'badger' && ($result['amount'] ?? 0) !== 0) {
+            if (isset($result['type']) && $result['type'] === 'badger') {
                 $badgersSupply = $this->game->getBadgersSupply();
+                $amount = (int)($result['amount'] ?? 0);
                 $this->notify->all('badgersChanged', clienttranslate('${player_name} ${action_text} ${amount}Б благодаря навыку «${skill_name}»'), [
                     'player_id' => $playerId,
                     'player_name' => $this->game->getPlayerNameById($playerId),
-                    'action_text' => ($result['amount'] ?? 0) > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
-                    'amount' => abs($result['amount'] ?? 0),
+                    'action_text' => $amount > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
+                    'amount' => abs($amount),
+                    'skill_key' => $skillKey,
                     'skill_name' => $skill['name'] ?? clienttranslate('Бережливость'),
+                    'skill_description' => $skill['description'] ?? clienttranslate('Получите 3 баджерса'),
                     'oldValue' => $result['oldValue'] ?? 0,
                     'newValue' => $result['newValue'] ?? 0,
                     'badgersSupply' => $badgersSupply,
-                    'i18n' => ['action_text', 'skill_name'],
+                    'i18n' => ['action_text', 'skill_name', 'skill_description'],
                 ]);
                 break;
             }
@@ -155,6 +210,15 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
     public function actCompleteSkillsPhase(): string
     {
         $this->game->checkAction('actCompleteSkillsPhase');
+        $playerId = (int) $this->game->getActivePlayerId();
+        $gameData = $this->game->getPlayerGameData($playerId);
+        $skillKey = $gameData['skillToken'] ?? null;
+        if ($skillKey === SkillsData::SKILL_INTELLECT) {
+            $pendingJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
+            if ($pendingJson !== '' && $pendingJson !== null) {
+                throw new UserException(clienttranslate('Сначала примените эффект навыка: передвиньте задачи на треке и нажмите «Подтвердить»'));
+            }
+        }
         $this->game->globals->set('skills_phase_just_finished', '1');
         return 'toNextPlayer';
     }
@@ -219,8 +283,12 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
             $totalBlocks += (int)($move['blocks'] ?? 0);
         }
 
-        if ($totalBlocks !== $requiredMoves) {
-            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов', [
+        // Принимаем, если использованы все ходы ИЛИ на треке не было больше задач для перемещения
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId);
+        $allRequiredUsed = ($totalBlocks === $requiredMoves);
+        $noMoreAvailable = ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
+        if (!$allRequiredUsed && !$noMoreAvailable) {
+            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов или переместить все доступные задачи на треке', [
                 'amount' => $requiredMoves,
             ]));
         }

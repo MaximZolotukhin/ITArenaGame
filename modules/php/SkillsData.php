@@ -71,7 +71,7 @@ class SkillsData
             self::SKILL_ELOQUENCE => [
                 'key' => self::SKILL_ELOQUENCE,
                 'name' => clienttranslate('Красноречие'),
-                'description' => clienttranslate('Возьмите 1 карту из колоды найма'),
+                'description' => clienttranslate('Получите 1 карту из колоды найма'),
                 'effects' => [
                     'card' => 1,
                 ],
@@ -95,7 +95,7 @@ class SkillsData
             self::SKILL_FRUGALITY => [
                 'key' => self::SKILL_FRUGALITY,
                 'name' => clienttranslate('Бережливость'),
-                'description' => clienttranslate('Получите 2 баджерса'),
+                'description' => clienttranslate('Получите 3 баджерса'),
                 'effects' => [
                     'badger' => '+3',
                 ],

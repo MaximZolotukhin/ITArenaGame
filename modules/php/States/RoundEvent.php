@@ -103,6 +103,14 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
             return 'toNextPlayer';
         }
 
+        // Очередь хода в этом раунде — по положению на треке навыков (левее = раньше ход в этом раунде)
+        $nextRoundOrder = $this->game->takeNextRoundPlayerOrder();
+        if ($nextRoundOrder !== null && $nextRoundOrder !== []) {
+            $this->game->setCurrentRoundPlayerOrder($nextRoundOrder);
+            $firstPlayerId = $nextRoundOrder[0];
+            $this->game->gamestate->changeActivePlayer($firstPlayerId);
+            error_log('🎲 RoundEvent - Порядок хода по треку навыков: ' . json_encode($nextRoundOrder) . ', первый: ' . $firstPlayerId);
+        }
         // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции
         $this->game->clearAllSkillTokens();
 

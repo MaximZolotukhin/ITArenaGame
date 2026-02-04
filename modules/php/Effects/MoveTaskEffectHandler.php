@@ -74,6 +74,17 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
             ];
         }
         
+        // Если на треке спринта нет задач (Бэклог, В работе, Тестирование пусты) — пропускаем этап перемещения
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($playerId);
+        if ($maxBlocksAvailable === 0) {
+            error_log("🎯 MoveTaskEffectHandler::apply - No tasks on track (maxBlocks=0), skipping move_task requirement");
+            return [
+                'type' => 'move_task',
+                'move_count' => 0,
+                'message' => 'На треке нет задач для перемещения — этап пропущен',
+            ];
+        }
+        
         // Сохраняем информацию о необходимости перемещения задач
         // Игрок должен переместить задачи через UI
         $globalsKey = 'pending_task_moves_' . $playerId;

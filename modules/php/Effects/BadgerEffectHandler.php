@@ -35,13 +35,16 @@ class BadgerEffectHandler implements EffectHandlerInterface
         error_log("BadgerEffectHandler::apply - Player: $playerId, OriginalValue: $effectValueStr, CleanValue: $cleanValue, Amount: $amount");
         
         if ($amount === 0) {
+            $currentBadgers = $this->game->playerBadgers->get($playerId);
             return [
                 'type' => 'badger',
                 'amount' => 0,
+                'oldValue' => $currentBadgers,
+                'newValue' => $currentBadgers,
                 'message' => 'Эффект баджерсов не применён (значение 0)',
             ];
         }
-        
+
         // Получаем текущее количество баджерсов через PlayerCounter
         $currentBadgers = $this->game->playerBadgers->get($playerId);
         error_log("🔵 BadgerEffectHandler::apply - Current badgers for player $playerId: $currentBadgers");
@@ -62,6 +65,8 @@ class BadgerEffectHandler implements EffectHandlerInterface
                 return [
                     'type' => 'badger',
                     'amount' => 0,
+                    'oldValue' => $currentBadgers,
+                    'newValue' => $currentBadgers,
                     'message' => 'Недостаточно баджерсов в банке',
                 ];
             }

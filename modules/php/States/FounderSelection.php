@@ -876,7 +876,7 @@ class FounderSelection extends GameState
             throw new UserException(clienttranslate('Неверный формат данных перемещений'));
         }
         
-        // Проверяем, что использовано правильное количество ходов
+        // Подсчитываем количество блоков в отправленных перемещениях
         $totalBlocks = 0;
         foreach ($moves as $move) {
             if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
@@ -886,9 +886,12 @@ class FounderSelection extends GameState
             $totalBlocks += $blocks;
         }
         
-        // ВАЖНО: Требуем использовать все доступные ходы
-        if ($totalBlocks !== $requiredMoves) {
-            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов', [
+        // Принимаем, если использованы все требуемые ходы ИЛИ на треке не было больше задач для перемещения
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId);
+        $allRequiredUsed = ($totalBlocks === $requiredMoves);
+        $noMoreAvailable = ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
+        if (!$allRequiredUsed && !$noMoreAvailable) {
+            throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов или переместить все доступные задачи на треке', [
                 'amount' => $requiredMoves
             ]));
         }
