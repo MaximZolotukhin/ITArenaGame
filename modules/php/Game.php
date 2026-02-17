@@ -145,6 +145,13 @@ class Game extends \Bga\GameFramework\Table
                 'state' => \Bga\Games\itarenagame\States\RoundSkills::class,
                 'transition' => 'toRoundSkills',
             ],
+            [
+                'key' => 'hiring',
+                'number' => 3,
+                'name' => clienttranslate('Найм'),
+                'state' => \Bga\Games\itarenagame\States\RoundHiring::class,
+                'transition' => 'toRoundHiring',
+            ],
         ];
     }
 
@@ -952,11 +959,16 @@ class Game extends \Bga\GameFramework\Table
             error_log('getAllDatas - Player ' . $current_player_id . ' has ' . count($specialistHand) . ' specialist cards in hand');
         }
         
-        // ID выбранных карт сотрудников (после подтверждения)
-        $playerSpecialistIdsJson = $this->globals->get('player_specialists_' . $current_player_id, '');
-        $playerSpecialistIds = !empty($playerSpecialistIdsJson) ? json_decode($playerSpecialistIdsJson, true) : [];
+        // Карты сотрудников на руке текущего игрока: БД — источник истины (после F5 и между ходами)
+        $gameDataCurrent = $this->getPlayerGameData((int)$current_player_id);
+        $playerSpecialistIds = !empty($gameDataCurrent['playerSpecialists']) && is_array($gameDataCurrent['playerSpecialists'])
+            ? $gameDataCurrent['playerSpecialists']
+            : [];
+        if (empty($playerSpecialistIds)) {
+            $playerSpecialistIdsJson = $this->globals->get('player_specialists_' . $current_player_id, '');
+            $playerSpecialistIds = !empty($playerSpecialistIdsJson) ? json_decode($playerSpecialistIdsJson, true) : [];
+        }
         if (!empty($playerSpecialistIds)) {
-            // Получаем полные данные карт по ID
             $playerSpecialists = [];
             foreach ($playerSpecialistIds as $cardId) {
                 $card = SpecialistsData::getCard((int)$cardId);
@@ -968,11 +980,17 @@ class Game extends \Bga\GameFramework\Table
             error_log('getAllDatas - Player ' . $current_player_id . ' has ' . count($playerSpecialists) . ' confirmed specialists');
         }
         
-        // Добавляем сотрудников всех игроков в players
+        // Добавляем сотрудников всех игроков в players (БД — источник истины)
         foreach ($result["players"] as &$player) {
             $playerId = (int)($player['id'] ?? 0);
-            $specialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
-            $specialistIds = !empty($specialistIdsJson) ? json_decode($specialistIdsJson, true) : [];
+            $playerData = $this->getPlayerGameData($playerId);
+            $specialistIds = !empty($playerData['playerSpecialists']) && is_array($playerData['playerSpecialists'])
+                ? $playerData['playerSpecialists']
+                : [];
+            if (empty($specialistIds)) {
+                $specialistIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
+                $specialistIds = !empty($specialistIdsJson) ? json_decode($specialistIdsJson, true) : [];
+            }
             if (!empty($specialistIds)) {
                 // Получаем полные данные карт по ID
                 $specialists = [];
@@ -2623,11 +2641,35 @@ class Game extends \Bga\GameFramework\Table
         if (!$data) {
             return null;
         }
-        
+        // Нормализуем трек бэк-офиса (колонка 1 — базовая позиция трека найма) в диапазон 1–6.
+        $backOfficeCol1 = $data['back_office_col1'] !== null
+            ? max(1, min(6, (int)$data['back_office_col1']))
+            : 1;
+
+        // Применяем таблицу трека найма:
+        // hiringTrackPosition - hiringTrackInterview - hiringTrackHire
+        // 1 - 2 - 3
+        // 2 - 3 - 3
+        // 3 - 4 - 3
+        // 4 - 5 - 3
+        // 5 - 5 - 4
+        // 6 - 6 - 4
+        $hiringTrack = $this->mapHiringTrackFromPosition($backOfficeCol1);
+
         return [
             'incomeTrack' => $data['income_track'] !== null ? (int)$data['income_track'] : 1,
             'badgers' => $data['badgers'] !== null ? (int)$data['badgers'] : 0,
-            'backOfficeCol1' => $data['back_office_col1'] !== null ? (int)$data['back_office_col1'] : null,
+            // Треки бэк-офиса в БД всегда храним в диапазоне 1–6.
+            // Для колонки 1 (трек найма) дополнительно гарантируем минимальное значение 1,
+            // чтобы планшет и SQL всегда совпадали по логике.
+            'backOfficeCol1' => $backOfficeCol1,
+            // Дополнительные производные поля для трека найма:
+            // - hiringTrackPosition: общая позиция трека (1–6)
+            // - hiringTrackInterview: значение по треку «собеседование»
+            // - hiringTrackHire: значение по треку «найм»
+            'hiringTrackPosition' => $hiringTrack['position'],
+            'hiringTrackInterview' => $hiringTrack['interview'],
+            'hiringTrackHire' => $hiringTrack['hire'],
             'backOfficeCol2' => $data['back_office_col2'] !== null ? (int)$data['back_office_col2'] : null,
             'backOfficeCol3' => $data['back_office_col3'] !== null ? (int)$data['back_office_col3'] : null,
             'techDevCol1' => $data['tech_dev_col1'] !== null ? (int)$data['tech_dev_col1'] : null,
@@ -2650,6 +2692,41 @@ class Game extends \Bga\GameFramework\Table
             'gameGoals' => !empty($data['game_goals']) ? json_decode($data['game_goals'], true) : [],
         ];
     }
+
+    /**
+     * Фиксированная таблица трека найма.
+     *
+     * hiringTrackPosition - hiringTrackInterview - hiringTrackHire
+     * 1 - 2 - 3
+     * 2 - 3 - 3
+     * 3 - 4 - 3
+     * 4 - 5 - 3
+     * 5 - 5 - 4
+     * 6 - 6 - 4
+     *
+     * @param int $position Позиция трека (1–6)
+     * @return array{position:int,interview:int,hire:int}
+     */
+    private function mapHiringTrackFromPosition(int $position): array
+    {
+        $position = max(1, min(6, $position));
+
+        switch ($position) {
+            case 1:
+                return ['position' => 1, 'interview' => 2, 'hire' => 3];
+            case 2:
+                return ['position' => 2, 'interview' => 3, 'hire' => 3];
+            case 3:
+                return ['position' => 3, 'interview' => 4, 'hire' => 3];
+            case 4:
+                return ['position' => 4, 'interview' => 5, 'hire' => 3];
+            case 5:
+                return ['position' => 5, 'interview' => 5, 'hire' => 4];
+            case 6:
+            default:
+                return ['position' => 6, 'interview' => 6, 'hire' => 4];
+        }
+    }
     
     /**
      * Инициализирует игровые данные игрока (создает запись если не существует)
@@ -2662,12 +2739,19 @@ class Game extends \Bga\GameFramework\Table
         ");
         
         if (!$existing) {
-            // Инициализируем с начальными значениями
+            // Инициализируем с начальными значениями (треки бэк-офиса и техразвития стартуют с 1)
             $incomeTrack = $this->playerEnergy->get($playerId);
             $badgers = $this->playerBadgers->get($playerId);
             $this->DbQuery("
-                INSERT INTO `player_game_data` (`player_id`, `income_track`, `badgers`) 
-                VALUES ($playerId, $incomeTrack, $badgers)
+                INSERT INTO `player_game_data` (
+                    `player_id`, `income_track`, `badgers`,
+                    `back_office_col1`, `back_office_col2`, `back_office_col3`,
+                    `tech_dev_col1`, `tech_dev_col2`, `tech_dev_col3`, `tech_dev_col4`
+                ) VALUES (
+                    $playerId, $incomeTrack, $badgers,
+                    1, 1, 1,
+                    1, 1, 1, 1
+                )
             ");
         }
     }
@@ -2682,7 +2766,16 @@ class Game extends \Bga\GameFramework\Table
     {
         $this->initPlayerGameData($playerId);
         $columnName = 'back_office_col' . $column;
-        $valueStr = $value !== null ? (int)$value : 'NULL';
+        if ($value !== null) {
+            // Все треки бэк-офиса на планшете имеют диапазон 1–6.
+            // Здесь жестко ограничиваем значение внутри этого диапазона,
+            // чтобы состояние в SQL не расходилось с визуальным треком.
+            $clampedValue = max(1, min(6, (int)$value));
+            $valueStr = $clampedValue;
+        } else {
+            // null по-прежнему используется как сброс/отсутствие значения.
+            $valueStr = 'NULL';
+        }
         $this->DbQuery("
             UPDATE `player_game_data` 
             SET `$columnName` = $valueStr 
@@ -3529,6 +3622,19 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Гарантирует, что колода специалистов инициализирована (для рекрутинга в фазе найма).
+     * Вызывать при входе в RoundHiring: только если глобал вообще не задан — создаём колоду.
+     * Пустой массив не перезаписываем (карты уже розданы, дублировать нельзя).
+     */
+    public function ensureSpecialistDeckInitialized(): void
+    {
+        $mainDeckRaw = $this->globals->get('specialist_main_deck', '');
+        if ($mainDeckRaw === '' || $mainDeckRaw === null) {
+            $this->initSpecialistDecks();
+        }
+    }
+
+    /**
      * Получает основную колоду специалистов
      * @return array Массив ID карт
      */
@@ -3608,6 +3714,18 @@ class Game extends \Bga\GameFramework\Table
      */
     public function drawFromActiveDeck(int $count): array
     {
+        if ($count <= 0) {
+            return [];
+        }
+
+        // Ленивая инициализация колоды специалистов для старых/недоинициализированных партий:
+        // если specialist_main_deck ещё не задан в globals, создаём колоды сейчас.
+        $mainDeckRaw = $this->globals->get('specialist_main_deck', '');
+        if ($mainDeckRaw === '' || $mainDeckRaw === null) {
+            error_log('drawFromActiveDeck - specialist_main_deck not initialized, initializing specialist decks now...');
+            $this->initSpecialistDecks();
+        }
+
         $drawnCards = [];
         
         // Сначала пытаемся взять из основной колоды
@@ -3827,6 +3945,97 @@ class Game extends \Bga\GameFramework\Table
             }
         }
         return $cards;
+    }
+
+    /**
+     * Возвращает значение трека «собеседование» для найма.
+     * Игрок получает столько карт найма, сколько указано в колонке «собеседование»
+     * согласно фиксированной таблице трека найма.
+     *
+     * @param int $playerId ID игрока
+     * @return int Значение от 2 до 6 (количество карт для рекрутинга)
+     */
+    public function getHiringTrackValue(int $playerId): int
+    {
+        $data = $this->getPlayerGameData($playerId);
+        if ($data === null) {
+            // На всякий случай возвращаем минимум по таблице
+            return 2;
+        }
+
+        // Используем значение из колонки 1 (позиция трека найма)
+        $position = isset($data['backOfficeCol1']) ? (int)$data['backOfficeCol1'] : 1;
+        $hiringTrack = $this->mapHiringTrackFromPosition($position);
+
+        // Для рекрутинга используем значение собеседований
+        return $hiringTrack['interview'];
+    }
+
+    /**
+     * Добавляет карты специалистов в руку игрока (specialist_hand_).
+     * Данные сохраняются в globals; при сохранении хода попадут в player_game_data.specialist_hand.
+     *
+     * @param int $playerId ID игрока
+     * @param array $cardIds Массив ID карт для добавления в руку
+     */
+    public function addSpecialistCardsToHand(int $playerId, array $cardIds): void
+    {
+        if (empty($cardIds)) {
+            return;
+        }
+        $cardIds = array_map('intval', $cardIds);
+        $handJson = $this->globals->get('specialist_hand_' . $playerId, '');
+        $hand = !empty($handJson) ? json_decode($handJson, true) : [];
+        if (!is_array($hand)) {
+            $hand = [];
+        }
+        $hand = array_merge($hand, $cardIds);
+        $this->globals->set('specialist_hand_' . $playerId, json_encode($hand));
+    }
+
+    /**
+     * Добавляет карты специалистов игроку как "закреплённые/на руке" (player_specialists_).
+     * Используется для эффектов и рекрутинга: эти карты сразу отображаются в руке игрока.
+     * Дополнительно синхронизирует список в player_game_data.player_specialists для строгого соответствия SQL.
+     *
+     * @param int $playerId ID игрока
+     * @param array $cardIds Массив ID карт для добавления
+     */
+    public function addSpecialistCardsToPlayerSpecialists(int $playerId, array $cardIds): void
+    {
+        if (empty($cardIds)) {
+            return;
+        }
+
+        $cardIds = array_map('intval', $cardIds);
+
+        $existingJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $existing = !empty($existingJson) ? json_decode($existingJson, true) : [];
+        if (!is_array($existing)) {
+            $existing = [];
+        }
+        $existing = array_map('intval', $existing);
+
+        // Мержим без дублей, сохраняя порядок (сначала старые, потом новые)
+        $seen = [];
+        $merged = [];
+        foreach (array_merge($existing, $cardIds) as $id) {
+            if (!isset($seen[$id])) {
+                $seen[$id] = true;
+                $merged[] = $id;
+            }
+        }
+
+        $this->globals->set('player_specialists_' . $playerId, json_encode($merged));
+
+        // Синхронизируем в SQL, чтобы данные планшета/игрока не расходились.
+        $this->initPlayerGameData($playerId);
+        $json = json_encode($merged, JSON_UNESCAPED_UNICODE);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `player_specialists` = '" . addslashes($json) . "'
+            WHERE `player_id` = $playerId
+        ");
     }
 
     /**

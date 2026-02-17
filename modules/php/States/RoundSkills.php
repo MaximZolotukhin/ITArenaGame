@@ -219,6 +219,7 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
                 throw new UserException(clienttranslate('Сначала примените эффект навыка: передвиньте задачи на треке и нажмите «Подтвердить»'));
             }
         }
+        $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('skills_phase_just_finished', '1');
         return 'toNextPlayer';
     }

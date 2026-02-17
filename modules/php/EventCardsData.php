@@ -96,7 +96,6 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'event',
-                'activationStage' => null,
             ], 
             6 => [
                 'card_type' => 'event',

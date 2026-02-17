@@ -28,6 +28,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 'toPlayerTurn' => 11,
                 'toEndScore' => 98,
                 'toRoundSkills' => 16,
+                'toRoundHiring' => 17,
             ],
         );
     }
@@ -370,10 +371,37 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             return 'toPlayerTurn';
         }
 
-        // --- Фаза «Навыки» (skills) и любые будущие фазы: ждём, пока все игроки закончат ход в фазе ---
-        if ($phaseKey === 'skills' || $phaseTransition !== null) {
-            // Только что вышли из состояния фазы (например RoundSkills) — один игрок «закончил ход» в этой фазе
-            if ($this->game->globals->get('skills_phase_just_finished', '') === '1') {
+        // --- Фаза «Навыки» (skills), «Найм» (hiring) и любые будущие фазы: ждём, пока все игроки закончат ход в фазе ---
+        // ВАЖНО: Сначала проверяем hiring — иначе при current_phase_index=1 можем ошибочно уйти в RoundSkills
+        $hiringJustFinished = $this->game->globals->get('hiring_phase_just_finished', '') === '1';
+        $skillsJustFinished = $this->game->globals->get('skills_phase_just_finished', '') === '1';
+
+        if ($hiringJustFinished) {
+            $this->game->globals->delete('hiring_phase_just_finished');
+            $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+            $playersCompletedCurrentPhase++;
+            $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
+            error_log('NextPlayer - Фаза HIRING: закончили ход ' . $playersCompletedCurrentPhase . '/' . $playersCount);
+            if ($playersCompletedCurrentPhase < $playersCount) {
+                $this->game->advanceToNextPlayerInRound();
+                return 'toRoundHiring';
+            }
+            $nextPhaseIndex = $currentPhaseIndex + 1;
+            $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
+            if ($nextPhaseIndex >= $numberOfPhases) {
+                error_log('NextPlayer - Фаза HIRING завершена → следующий раунд');
+                return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+            }
+            $nextPhase = $phases[$nextPhaseIndex];
+            $nextTransition = $nextPhase['transition'] ?? 'toRoundEvent';
+            error_log('NextPlayer - Фаза HIRING завершена → ' . $nextTransition);
+            $this->game->advanceToNextPlayerInRound();
+            return (string)$nextTransition;
+        }
+
+        if ($phaseKey === 'skills' || $phaseKey === 'hiring' || $phaseTransition !== null) {
+            if ($skillsJustFinished) {
                 $this->game->globals->delete('skills_phase_just_finished');
                 $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
                 $playersCompletedCurrentPhase++;
@@ -382,7 +410,9 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 if ($playersCompletedCurrentPhase < $playersCount) {
                     // Не все закончили — следующий игрок в эту же фазу (по порядку трека навыков)
                     $this->game->advanceToNextPlayerInRound();
-                    return (string)($phaseTransition ?: 'toRoundSkills');
+                    // Явно по ключу фазы, чтобы не путать 16 и 17 (transition (16) impossible at state (90))
+                    $transition = $phaseKey === 'hiring' ? 'toRoundHiring' : 'toRoundSkills';
+                    return $transition;
                 }
                 // Все игроки закончили ход в этой фазе. Смотрим в массив: есть ли следующая фаза?
                 $nextPhaseIndex = $currentPhaseIndex + 1;
@@ -397,12 +427,13 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $nextTransition = $nextPhase['transition'] ?? null;
                 error_log('NextPlayer - Фаза ' . $phaseKey . ' завершена, загружаем следующую: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
                 $this->game->advanceToNextPlayerInRound();
-                return (string)($nextTransition ?: 'toRoundSkills');
+                return (string)($nextTransition ?? ($nextPhase['key'] === 'hiring' ? 'toRoundHiring' : 'toRoundSkills'));
             }
-            // Первый заход в эту фазу в раунде — переходим в состояние фазы (например RoundSkills) по порядку трека навыков
-            error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . ($phaseTransition ?? 'state'));
+            // Первый заход в эту фазу в раунде — переходим в состояние фазы по порядку трека навыков
+            $transition = $phaseKey === 'hiring' ? 'toRoundHiring' : 'toRoundSkills';
+            error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . $transition);
             $this->game->advanceToNextPlayerInRound();
-            return (string)($phaseTransition ?: 'toRoundSkills');
+            return $transition;
         }
 
         // Запасной выход: следующая фаза по transition из массива (всегда имя перехода, не state id)
@@ -445,6 +476,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         return match ($key) {
             'event' => 'toRoundEvent',
             'skills' => 'toRoundSkills',
+            'hiring' => 'toRoundHiring',
             default => 'toRoundSkills',
         };
     }
