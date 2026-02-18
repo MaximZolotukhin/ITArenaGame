@@ -587,7 +587,12 @@ class Game extends \Bga\GameFramework\Table
                     $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
                     $player['playerSpecialists'] = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
                 }
-                
+
+                // Нанятые специалисты по отделам (из player_game_data) + полные данные карт для отрисовки
+                $hiredByDept = $gameData['playerHiredSpecialists'] ?? [];
+                $player['playerHiredSpecialists'] = $hiredByDept;
+                $player['playerHiredSpecialistsDetails'] = $this->expandHiredSpecialistsToDetails($hiredByDept);
+
                 // Бонусы IT проектов
                 $player['itProjectBonuses'] = $gameData['itProjectBonuses'];
                 
@@ -633,7 +638,10 @@ class Game extends \Bga\GameFramework\Table
                 
                 $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
                 $player['playerSpecialists'] = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
-                
+                $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
+                $player['playerHiredSpecialists'] = $hiredByDept;
+                $player['playerHiredSpecialistsDetails'] = $this->expandHiredSpecialistsToDetails($hiredByDept);
+
                 // Значения по умолчанию для остальных полей
                 $player['backOfficeCol1'] = null;
                 $player['backOfficeCol2'] = null;
@@ -1178,26 +1186,12 @@ class Game extends \Bga\GameFramework\Table
 
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
-            error_log('distributeInitialBadgers - Processing player ' . $playerId);
-            
-            // Получаем текущее количество баджерсов игрока до распределения
-            $currentBadgers = $this->playerBadgers->get($playerId);
-            error_log('distributeInitialBadgers - Player ' . $playerId . ' current badgers: ' . $currentBadgers);
-            
+            $this->initPlayerGameData($playerId);
             if (!$this->withdrawBadgersFromBank($amountPerPlayer)) {
                 error_log('distributeInitialBadgers - ERROR: Failed to withdraw ' . $amountPerPlayer . ' badgers from bank for player ' . $playerId);
                 break;
             }
-
-            $this->playerBadgers->inc($playerId, $amountPerPlayer);
-            
-            // Проверяем, что баджерсы были добавлены
-            $newBadgers = $this->playerBadgers->get($playerId);
-            error_log('distributeInitialBadgers - Player ' . $playerId . ' new badgers: ' . $newBadgers . ' (added: ' . $amountPerPlayer . ')');
-            
-            if ($newBadgers !== $currentBadgers + $amountPerPlayer) {
-                error_log('distributeInitialBadgers - WARNING: Badgers count mismatch for player ' . $playerId . '. Expected: ' . ($currentBadgers + $amountPerPlayer) . ', Got: ' . $newBadgers);
-            }
+            $this->addPlayerBadgers($playerId, $amountPerPlayer);
         }
         
         error_log('distributeInitialBadgers - Distribution completed');
@@ -2688,9 +2682,266 @@ class Game extends \Bga\GameFramework\Table
             'projectTokens' => !empty($data['project_tokens']) ? json_decode($data['project_tokens'], true) : [],
             'specialistHand' => !empty($data['specialist_hand']) ? json_decode($data['specialist_hand'], true) : [],
             'playerSpecialists' => !empty($data['player_specialists']) ? json_decode($data['player_specialists'], true) : [],
+            'playerHiredSpecialists' => $this->decodePlayerHiredSpecialists($data['player_hired_specialists'] ?? null),
             'itProjectBonuses' => !empty($data['it_project_bonuses']) ? json_decode($data['it_project_bonuses'], true) : [],
             'gameGoals' => !empty($data['game_goals']) ? json_decode($data['game_goals'], true) : [],
         ];
+    }
+
+    /**
+     * Декодирует JSON нанятых специалистов по отделам.
+     * @return array<string, array<int>> Отдел => массив ID карт
+     */
+    private function decodePlayerHiredSpecialists(?string $json): array
+    {
+        if ($json === null || $json === '') {
+            return [];
+        }
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Возвращает нанятых специалистов игрока по отделам (из globals, затем БД).
+     * @return array<string, array<int>> Отдел => массив ID карт
+     */
+    public function getPlayerHiredSpecialists(int $playerId): array
+    {
+        $json = $this->globals->get('player_hired_specialists_' . $playerId, '');
+        if ($json !== '') {
+            $decoded = json_decode($json, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+        $data = $this->getPlayerGameData($playerId);
+        return $data['playerHiredSpecialists'] ?? [];
+    }
+
+    /**
+     * Сохраняет нанятых специалистов по отделам (globals + БД).
+     * @param array<string, array<int>> $byDepartment Отдел => массив ID карт
+     */
+    public function setPlayerHiredSpecialists(int $playerId, array $byDepartment): void
+    {
+        $this->initPlayerGameData($playerId);
+        $json = json_encode($byDepartment, JSON_UNESCAPED_UNICODE);
+        $this->globals->set('player_hired_specialists_' . $playerId, $json);
+        $escaped = addslashes($json);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `player_hired_specialists` = '$escaped'
+            WHERE `player_id` = $playerId
+        ");
+    }
+
+    /** Допустимые отделы для размещения нанятых специалистов (универсальные карты). */
+    private const HIRED_DEPARTMENTS = ['sales-department', 'back-office', 'technical-department'];
+
+    /**
+     * Возвращает нанятых специалистов игрока по отделам с полными данными карт (id, name, img) для отрисовки.
+     * @return array<string, array<array{id: int, name: string, img: string}>>
+     */
+    public function getPlayerHiredSpecialistsDetails(int $playerId): array
+    {
+        return $this->expandHiredSpecialistsToDetails($this->getPlayerHiredSpecialists($playerId));
+    }
+
+    /**
+     * Разворачивает нанятых специалистов по отделам в полные данные карт (id, name, img) для отрисовки на клиенте.
+     * @param array<string, array<int>> $hiredByDept отдел => массив ID карт
+     * @return array<string, array<array{id: int, name: string, img: string}>>
+     */
+    private function expandHiredSpecialistsToDetails(array $hiredByDept): array
+    {
+        $result = [];
+        foreach ($hiredByDept as $dept => $ids) {
+            $result[$dept] = [];
+            foreach ($ids as $cardId) {
+                $card = \Bga\Games\itarenagame\SpecialistsData::getCard((int) $cardId);
+                if ($card) {
+                    $result[$dept][] = [
+                        'id' => (int) ($card['id'] ?? $cardId),
+                        'name' => (string) ($card['name'] ?? ''),
+                        'img' => (string) ($card['img'] ?? ''),
+                    ];
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Нанять выбранные карты с руки: списать баджерсы, убрать из руки, добавить в отделы по карте.
+     * Для карт с отделом 'universal' используется отдел из $universalDepartments[cardId].
+     *
+     * @param int $playerId ID игрока
+     * @param array<int> $cardIds ID карт с руки для найма
+     * @param array<int, string> $universalDepartments для универсальных карт: cardId => отдел (sales-department|back-office|technical-department)
+     * @throws \Bga\GameFramework\UserException
+     */
+    public function hireSpecialistsFromHand(int $playerId, array $cardIds, array $universalDepartments = []): void
+    {
+        $cardIds = array_map('intval', array_values($cardIds));
+        if (empty($cardIds)) {
+            return;
+        }
+
+        $handJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $hand = !empty($handJson) ? json_decode($handJson, true) : [];
+        $hand = is_array($hand) ? array_map('intval', $hand) : [];
+
+        $totalPrice = 0;
+        $byDepartment = [];
+        foreach ($cardIds as $cardId) {
+            if (!in_array($cardId, $hand, true)) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Card is not in your hand'));
+            }
+            $card = \Bga\Games\itarenagame\SpecialistsData::getCard($cardId);
+            if (!$card) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Invalid card'));
+            }
+            $price = (int) ($card['price'] ?? 0);
+            $totalPrice += $price;
+            $dept = $card['department'] ?? 'universal';
+            if ($dept === 'universal') {
+                $chosen = $universalDepartments[$cardId] ?? null;
+                if ($chosen === null || !in_array($chosen, self::HIRED_DEPARTMENTS, true)) {
+                    throw new \Bga\GameFramework\UserException(clienttranslate('You must choose a department for each universal specialist'));
+                }
+                $dept = $chosen;
+            }
+            if (!isset($byDepartment[$dept])) {
+                $byDepartment[$dept] = [];
+            }
+            $byDepartment[$dept][] = $cardId;
+        }
+
+        $badgers = $this->getPlayerBadgersForCheck($playerId);
+        if ($totalPrice > $badgers) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Not enough badgers to hire selected specialists'));
+        }
+
+        $this->deductPlayerBadgers($playerId, $totalPrice);
+        $remainingHand = array_values(array_diff($hand, $cardIds));
+        $this->globals->set('player_specialists_' . $playerId, json_encode($remainingHand));
+        $this->initPlayerGameData($playerId);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `player_specialists` = '" . addslashes(json_encode($remainingHand)) . "'
+            WHERE `player_id` = $playerId
+        ");
+
+        $currentHired = $this->getPlayerHiredSpecialists($playerId);
+        foreach ($byDepartment as $dept => $ids) {
+            $currentHired[$dept] = array_merge($currentHired[$dept] ?? [], $ids);
+        }
+        $this->setPlayerHiredSpecialists($playerId, $currentHired);
+    }
+
+    /**
+     * Нанять одну карту с руки: списать баджерсы, убрать из руки, добавить в отдел.
+     * Для универсальной карты $department обязателен; для остальных берётся из карты.
+     *
+     * @param int $playerId ID игрока
+     * @param int $cardId ID карты
+     * @param string|null $department отдел (обязателен для universal)
+     */
+    public function hireOneSpecialistFromHand(int $playerId, int $cardId, ?string $department = null): void
+    {
+        $cardId = (int) $cardId;
+        $handJson = $this->globals->get('player_specialists_' . $playerId, '');
+        $hand = !empty($handJson) ? json_decode($handJson, true) : [];
+        $hand = is_array($hand) ? array_map('intval', $hand) : [];
+
+        if (!in_array($cardId, $hand, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Card is not in your hand'));
+        }
+        $card = \Bga\Games\itarenagame\SpecialistsData::getCard($cardId);
+        if (!$card) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Invalid card'));
+        }
+        $price = (int) ($card['price'] ?? 0);
+        $dept = $card['department'] ?? 'universal';
+        if ($dept === 'universal') {
+            if ($department === null || !in_array($department, self::HIRED_DEPARTMENTS, true)) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('You must choose a department for a universal specialist'));
+            }
+            $dept = $department;
+        }
+
+        $badgers = $this->getPlayerBadgersForCheck($playerId);
+        if ($price > $badgers) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Not enough badgers to hire this specialist'));
+        }
+
+        $this->deductPlayerBadgers($playerId, $price);
+        $remainingHand = array_values(array_diff($hand, [$cardId]));
+        $this->globals->set('player_specialists_' . $playerId, json_encode($remainingHand));
+        $this->initPlayerGameData($playerId);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `player_specialists` = '" . addslashes(json_encode($remainingHand)) . "'
+            WHERE `player_id` = $playerId
+        ");
+
+        $currentHired = $this->getPlayerHiredSpecialists($playerId);
+        if (!isset($currentHired[$dept])) {
+            $currentHired[$dept] = [];
+        }
+        $currentHired[$dept][] = $cardId;
+        $this->setPlayerHiredSpecialists($playerId, $currentHired);
+    }
+
+    /**
+     * Возвращает количество баджерсов игрока для проверок.
+     * Используется максимум из БД и счётчика, чтобы не было расхождений после эффектов/обновлений.
+     */
+    public function getPlayerBadgersForCheck(int $playerId): int
+    {
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $dbBadgers = $gameData !== null ? (int) ($gameData['badgers'] ?? 0) : 0;
+        $counterBadgers = (int) $this->playerBadgers->get($playerId);
+        return max($dbBadgers, $counterBadgers);
+    }
+
+    /**
+     * Списывает баджерсы у игрока: обновляет БД и счётчик от одной и той же «эффективной» суммы.
+     */
+    public function deductPlayerBadgers(int $playerId, int $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+        $current = $this->getPlayerBadgersForCheck($playerId);
+        $newValue = max(0, $current - $amount);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `badgers` = $newValue
+            WHERE `player_id` = $playerId
+        ");
+        $counterNow = (int) $this->playerBadgers->get($playerId);
+        $this->playerBadgers->inc($playerId, $newValue - $counterNow);
+    }
+
+    /**
+     * Добавляет баджерсы игроку: обновляет БД (player_game_data.badgers) и синхронизирует счётчик.
+     */
+    public function addPlayerBadgers(int $playerId, int $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $current = $gameData !== null ? (int) ($gameData['badgers'] ?? 0) : 0;
+        $newValue = $current + $amount;
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `badgers` = $newValue
+            WHERE `player_id` = $playerId
+        ");
+        $counterNow = (int) $this->playerBadgers->get($playerId);
+        $this->playerBadgers->inc($playerId, $newValue - $counterNow);
     }
 
     /**
@@ -3054,6 +3305,10 @@ class Game extends \Bga\GameFramework\Table
         $playerSpecialistsIdsJson = $this->globals->get('player_specialists_' . $playerId, '');
         $playerSpecialistsIds = !empty($playerSpecialistsIdsJson) ? json_decode($playerSpecialistsIdsJson, true) : [];
         $playerSpecialistsJson = json_encode($playerSpecialistsIds, JSON_UNESCAPED_UNICODE);
+
+        // Нанятые специалисты по отделам
+        $hiredSpecialistsJson = $this->globals->get('player_hired_specialists_' . $playerId, '');
+        $hiredSpecialistsEscaped = $hiredSpecialistsJson !== '' ? addslashes($hiredSpecialistsJson) : '{}';
         
         // Формируем трек спринта из жетонов задач
         $sprintTrackBacklog = [];
@@ -3097,6 +3352,7 @@ class Game extends \Bga\GameFramework\Table
                 `project_tokens` = '" . addslashes($projectTokensJson) . "',
                 `specialist_hand` = '" . addslashes($specialistHandJson) . "',
                 `player_specialists` = '" . addslashes($playerSpecialistsJson) . "',
+                `player_hired_specialists` = '" . $hiredSpecialistsEscaped . "',
                 `sprint_track_backlog` = '" . addslashes($sprintTrackBacklogJson) . "',
                 `sprint_track_in_progress` = '" . addslashes($sprintTrackInProgressJson) . "',
                 `sprint_track_testing` = '" . addslashes($sprintTrackTestingJson) . "',
@@ -3969,6 +4225,24 @@ class Game extends \Bga\GameFramework\Table
 
         // Для рекрутинга используем значение собеседований
         return $hiringTrack['interview'];
+    }
+
+    /**
+     * Возвращает, сколько специалистов игрок может нанять в этой фазе (по треку найма).
+     * По таблице: позиции 1–4 → 3, позиции 5–6 → 4. Гарантированно не меньше 3.
+     */
+    public function getHiringTrackHireCount(int $playerId): int
+    {
+        $this->initPlayerGameData($playerId);
+        $data = $this->getPlayerGameData($playerId);
+        if ($data === null) {
+            return 3;
+        }
+        $position = isset($data['backOfficeCol1']) ? (int) $data['backOfficeCol1'] : 1;
+        $position = max(1, min(6, $position));
+        $hiringTrack = $this->mapHiringTrackFromPosition($position);
+        $hire = (int) $hiringTrack['hire'];
+        return max(3, $hire);
     }
 
     /**

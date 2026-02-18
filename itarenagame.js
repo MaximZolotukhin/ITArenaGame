@@ -610,6 +610,18 @@ define([
                     </div>
                   </div>
                 </div>
+                <!-- Модальное окно: выбор отдела для универсальных специалистов (найм) -->
+                <div id="hiring-universal-department-modal" class="hiring-universal-department-modal">
+                  <div class="hiring-universal-department-modal__content">
+                    <div class="hiring-universal-department-modal__header">
+                      <div class="hiring-universal-department-modal__title" id="hiring-universal-department-modal-title">${_('Выберите отдел для универсальных специалистов')}</div>
+                    </div>
+                    <div class="hiring-universal-department-modal__body" id="hiring-universal-department-modal-body"></div>
+                    <div class="hiring-universal-department-modal__footer">
+                      <button id="hiring-universal-department-modal-confirm-btn" class="hiring-universal-department-modal__confirm-btn">${_('Нанять')}</button>
+                    </div>
+                  </div>
+                </div>
             `
         )
       } catch (error) {
@@ -1828,40 +1840,57 @@ define([
           case 'RoundHiring':
             this._updateStageBanner()
             if (this.isCurrentPlayerActive()) {
-              const hiringTrackValue = args?.args?.hiringTrackValue ?? 0
-              const recruitingDone = args?.args?.recruitingDone === true
+              const a = args?.args || {}
+              const hiringTrackValue = a.hiringTrackValue ?? 0
+              const recruitingDone = a.recruitingDone === true
               const canRecruit = hiringTrackValue > 0 && !recruitingDone
+              const maxHireCount = Math.max(0, parseInt(a.maxHireCount, 10) || 0)
+              const badgers = Math.max(0, parseInt(a.badgers, 10) || 0)
+              const handCardsWithPrices = a.handCardsWithPrices || []
+              const hiringHiredCount = Math.max(0, parseInt(a.hiringHiredCount, 10) || 0)
 
-              this.statusBar.addActionButton(
-                _('Рекрутинг'),
-                () => this.bgaPerformAction('actRecruiting'),
-                {
-                  primary: false,
-                  disabled: !canRecruit,
-                  tooltip: canRecruit
-                    ? typeof _ !== 'undefined'
-                      ? _(
-                          'Взять ${n} карт из колоды найма по треку бэк-офиса'
-                        ).replace('${n}', String(hiringTrackValue))
-                      : 'Взять ' +
-                        hiringTrackValue +
-                        ' карт из колоды найма по треку бэк-офиса'
-                    : recruitingDone
-                    ? typeof _ !== 'undefined'
-                      ? _('Рекрутинг уже выполнен')
-                      : 'Рекрутинг уже выполнен'
-                    : typeof _ !== 'undefined'
-                    ? _('Трек найма на 0')
-                    : 'Трек найма на 0',
-                  id: 'hiring-recruiting-button',
-                }
-              )
+              this._hiringSelectMode = true
+              this._hiringMaxCount = maxHireCount
+              this._hiringBadgers = badgers
+              this._hiringHandCardsWithPrices = handCardsWithPrices
+              this._hiringHiredCount = hiringHiredCount
+
+              this._bindHiringCardSelection()
+
+              if (!recruitingDone && canRecruit) {
+                this.statusBar.addActionButton(
+                  _('Рекрутинг'),
+                  () => this.bgaPerformAction('actRecruiting'),
+                  {
+                    primary: false,
+                    disabled: !canRecruit,
+                    tooltip: canRecruit
+                      ? typeof _ !== 'undefined'
+                        ? _(
+                            'Взять ${n} карт из колоды найма по треку бэк-офиса'
+                          ).replace('${n}', String(hiringTrackValue))
+                        : 'Взять ' +
+                          hiringTrackValue +
+                          ' карт из колоды найма по треку бэк-офиса'
+                      : recruitingDone
+                        ? (typeof _ !== 'undefined'
+                            ? _('Рекрутинг уже выполнен')
+                            : 'Рекрутинг уже выполнен')
+                        : (typeof _ !== 'undefined'
+                            ? _('Трек найма на 0')
+                            : 'Трек найма на 0'),
+                    id: 'hiring-recruiting-button',
+                  }
+                )
+              }
+
               this.statusBar.addActionButton(
                 _('Завершить фазу найм'),
                 () => this.bgaPerformAction('actCompleteHiringPhase'),
                 {
                   primary: true,
                   id: 'complete-hiring-phase-button',
+                  tooltip: _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
                 }
               )
             }
@@ -2151,6 +2180,7 @@ define([
         this,
         'notif_specialistsDealtToHand'
       )
+      dojo.subscribe('specialistsHired', this, 'notif_specialistsHired')
       dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
       dojo.subscribe(
         'founderEffectsApplied',
@@ -3850,6 +3880,9 @@ define([
           this.gamedatas.playerSpecialists.length
         )
 
+        if (args.handCardsWithPrices && Array.isArray(args.handCardsWithPrices)) {
+          this._hiringHandCardsWithPrices = args.handCardsWithPrices
+        }
         // Гарантированно показываем блок руки и рендерим карты
         this._toggleActivePlayerHand(this.player_id)
         this._renderPlayerSpecialists()
@@ -3889,6 +3922,46 @@ define([
           this.player_id
         )
       }
+    },
+
+    notif_specialistsHired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const cardIds = Array.isArray(args.cardIds) ? args.cardIds : []
+      const spent = Number(args.badgers || 0)
+      if (playerId <= 0) return
+      const arr = this.gamedatas.playerSpecialists || []
+      const idsSet = new Set(cardIds.map((id) => Number(id)))
+      this.gamedatas.playerSpecialists = arr.filter(
+        (c) => !idsSet.has(Number(c.id))
+      )
+      const pl = this.gamedatas.players[playerId]
+      if (pl) {
+        if (spent > 0) {
+          pl.badgers = Math.max(0, Number(pl.badgers || 0) - spent)
+        }
+        if (args.playerHiredSpecialists) {
+          pl.playerHiredSpecialists = args.playerHiredSpecialists
+        }
+        if (args.playerHiredSpecialistsDetails) {
+          pl.playerHiredSpecialistsDetails = args.playerHiredSpecialistsDetails
+        }
+      }
+      if (Number(this.player_id) === Number(playerId)) {
+        if (args.hiringHiredCount !== undefined) {
+          this._hiringHiredCount = Number(args.hiringHiredCount)
+        } else {
+          this._hiringHiredCount = (this._hiringHiredCount || 0) + (args.amount || 1)
+        }
+        if (args.maxHireCount !== undefined) {
+          this._hiringMaxCount = Number(args.maxHireCount)
+        }
+        this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) - spent)
+        this._toggleActivePlayerHand(this.player_id)
+        this._renderPlayerSpecialists()
+      }
+      this._renderPlayerMoney(this.gamedatas.players, playerId)
+      this._renderHiredSpecialistsInDepartments(playerId)
     },
 
     notif_debugUpdateTrack: async function (notif) {
@@ -4875,6 +4948,9 @@ define([
         playerSpecialists.length,
         'saved specialist cards'
       )
+      if (this._hiringSelectMode) {
+        this._bindHiringCardSelection(true)
+      }
     },
 
     /**
@@ -4905,6 +4981,203 @@ define([
       `
 
       return cardDiv
+    },
+
+    _openHiringUniversalDepartmentModal: function (selectedIds, universalCards) {
+      this._hiringPendingSelectedIds = selectedIds
+      this._hiringUniversalChoices = {}
+      const modal = document.getElementById('hiring-universal-department-modal')
+      const body = document.getElementById('hiring-universal-department-modal-body')
+      const confirmBtn = document.getElementById('hiring-universal-department-modal-confirm-btn')
+      if (!modal || !body || !confirmBtn) return
+      body.innerHTML = ''
+      const deptLabels = {
+        'sales-department': _('Отдел продаж'),
+        'back-office': _('Бэк-офис'),
+        'technical-department': _('Техотдел'),
+      }
+      universalCards.forEach((card) => {
+        const row = document.createElement('div')
+        row.className = 'hiring-universal-department-modal__row'
+        const imgUrl = card.img
+          ? card.img.startsWith('http')
+            ? card.img
+            : `${g_gamethemeurl}${card.img}`
+          : ''
+        row.innerHTML = `
+          <div class="hiring-universal-department-modal__card">
+            ${imgUrl ? `<img src="${imgUrl}" alt="${(card.name || '').replace(/"/g, '&quot;')}" class="hiring-universal-department-modal__card-img" />` : ''}
+            <span class="hiring-universal-department-modal__card-name">${(card.name || '').replace(/</g, '&lt;')}</span>
+          </div>
+          <div class="hiring-universal-department-modal__buttons" data-card-id="${card.id}"></div>
+        `
+        const btnContainer = row.querySelector('.hiring-universal-department-modal__buttons')
+        ;['sales-department', 'back-office', 'technical-department'].forEach((dept) => {
+          const btn = document.createElement('button')
+          btn.type = 'button'
+          btn.className = 'hiring-universal-department-modal__dept-btn'
+          btn.textContent = deptLabels[dept] || dept
+          btn.dataset.department = dept
+          btn.addEventListener('click', () => {
+            this._hiringUniversalChoices[card.id] = dept
+            row.querySelectorAll('.hiring-universal-department-modal__dept-btn').forEach((b) => b.classList.remove('selected'))
+            btn.classList.add('selected')
+          })
+          btnContainer.appendChild(btn)
+        })
+        body.appendChild(row)
+      })
+      confirmBtn.onclick = () => {
+        if (universalCards.some((c) => !this._hiringUniversalChoices[c.id])) {
+          this.showMessage(_('Выберите отдел для каждого универсального специалиста'), 'error')
+          return
+        }
+        modal.classList.remove('active')
+        confirmBtn.onclick = null
+        this.bgaPerformAction('actConfirmHiringSelection', {
+          selectedCardIds: this._hiringPendingSelectedIds,
+          universalDepartments: this._hiringUniversalChoices,
+        })
+      }
+      modal.classList.add('active')
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('active')
+          modal.onclick = null
+        }
+      }
+    },
+
+    _getHiringSelectedCardIds: function () {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) return []
+      const selected = handContainer.querySelectorAll(
+        '.specialist-card[data-selected-for-hire="1"]'
+      )
+      return Array.from(selected).map((el) => Number(el.dataset.cardId))
+    },
+
+    _bindHiringCardSelection: function (enable) {
+      const handContainer = document.getElementById('active-player-hand-cards')
+      if (!handContainer) return
+      if (enable === false) {
+        handContainer.classList.remove('active-player-hand__center--selecting')
+        handContainer.querySelectorAll('.specialist-card__price-badge').forEach(
+          (el) => el.remove()
+        )
+        handContainer.querySelectorAll('.specialist-card').forEach((el) => {
+          el.classList.remove('specialist-card--selected', 'specialist-card--active')
+        })
+        this._pendingHiringCardId = null
+        this._setDepartmentHighlight(false)
+        this._unbindHiringDepartmentClicks()
+        if (this._hiringCardClickHandler) {
+          handContainer.removeEventListener(
+            'click',
+            this._hiringCardClickHandler
+          )
+          this._hiringCardClickHandler = null
+        }
+        return
+      }
+      if (this._hiringCardClickHandler) {
+        handContainer.removeEventListener('click', this._hiringCardClickHandler)
+        this._hiringCardClickHandler = null
+      }
+      handContainer.classList.add('active-player-hand__center--selecting')
+      const pricesByCardId = {}
+      ;(this._hiringHandCardsWithPrices || []).forEach((c) => {
+        pricesByCardId[String(c.id)] = c.price != null ? c.price : 0
+      })
+      handContainer.querySelectorAll('.specialist-card').forEach((cardEl) => {
+        const cardId = cardEl.dataset.cardId
+        if (cardId == null) return
+        const price = pricesByCardId[String(cardId)]
+        if (price != null && !cardEl.querySelector('.specialist-card__price-badge')) {
+          const badge = document.createElement('div')
+          badge.className = 'specialist-card__price-badge'
+          badge.textContent = price + ' Б'
+          cardEl.appendChild(badge)
+        }
+      })
+      const self = this
+      this._hiringCardClickHandler = function (e) {
+        const card = e.target.closest('.specialist-card')
+        if (!card) return
+        e.stopPropagation()
+        const cardId = Number(card.dataset.cardId)
+        const cardData = (self._hiringHandCardsWithPrices || []).find(
+          (c) => Number(c.id) === cardId
+        )
+        if (!cardData) return
+        const maxHire = Math.max(1, self._hiringMaxCount || 0)
+        const hiredCount = self._hiringHiredCount ?? 0
+        const badgersFromArgs = self._hiringBadgers ?? 0
+        const badgersFromPlayer = Number(self.gamedatas?.players?.[self.player_id]?.badgers ?? 0) || 0
+        const badgers = Math.max(badgersFromArgs, badgersFromPlayer)
+        const price = cardData.price ?? 0
+        if (hiredCount >= maxHire) {
+          self.showMessage(_('Нельзя нанять больше специалистов в этой фазе'), 'error')
+          return
+        }
+        if (price > badgers) {
+          self.showMessage(_('Недостаточно баджерсов'), 'error')
+          return
+        }
+        const dept = String(cardData.department || '')
+        if (dept !== 'universal') {
+          self.bgaPerformAction('actHireOneSpecialist', { cardId: cardId })
+          return
+        }
+        if (self._pendingHiringCardId !== null) {
+          card.classList.remove('specialist-card--active')
+          self._setDepartmentHighlight(false)
+          self._unbindHiringDepartmentClicks()
+        }
+        self._pendingHiringCardId = cardId
+        card.classList.add('specialist-card--active')
+        self._setDepartmentHighlight(true)
+        self._bindHiringDepartmentClicks()
+      }
+      handContainer.addEventListener('click', this._hiringCardClickHandler)
+    },
+
+    _bindHiringDepartmentClicks: function () {
+      const self = this
+      const handler = function (e) {
+        const dept = this.dataset?.department || this.closest('[data-department]')?.dataset?.department
+        if (!dept || self._pendingHiringCardId == null) return
+        e.stopPropagation()
+        const cardId = self._pendingHiringCardId
+        self._pendingHiringCardId = null
+        self._setDepartmentHighlight(false)
+        self._unbindHiringDepartmentClicks()
+        const handContainer = document.getElementById('active-player-hand-cards')
+        if (handContainer) {
+          handContainer.querySelectorAll('.specialist-card--active').forEach((el) => el.classList.remove('specialist-card--active'))
+        }
+        self.bgaPerformAction('actHireOneSpecialist', {
+          cardId: cardId,
+          department: dept,
+        })
+      }
+      ;['sales-department', 'back-office', 'technical-department'].forEach((key) => {
+        const container = document.querySelector(`.${key}__body`)
+        if (container) {
+          container._hiringDeptHandler = handler
+          container.addEventListener('click', container._hiringDeptHandler)
+        }
+      })
+    },
+
+    _unbindHiringDepartmentClicks: function () {
+      ;['sales-department', 'back-office', 'technical-department'].forEach((key) => {
+        const container = document.querySelector(`.${key}__body`)
+        if (container && container._hiringDeptHandler) {
+          container.removeEventListener('click', container._hiringDeptHandler)
+          container._hiringDeptHandler = null
+        }
+      })
     },
 
     // Helpers
@@ -6088,6 +6361,7 @@ define([
             'Карта основателя не выбрана'
           )}</div>`
         }
+        this._renderHiredSpecialistsInDepartments(playerId)
         return
       }
 
@@ -6147,6 +6421,7 @@ define([
             </div>
           `
           container.innerHTML = cardMarkup
+          this._renderHiredSpecialistsInDepartments(playerId)
         } else {
           console.error(
             '_renderFounderCard - ❌ Container not found for department:',
@@ -6220,7 +6495,43 @@ define([
           handContainer.innerHTML = backCardMarkup
         }
       }
+      this._renderHiredSpecialistsInDepartments(playerId)
     },
+
+    _renderHiredSpecialistsInDepartments: function (playerId) {
+      const containers = {
+        'sales-department': document.querySelector('.sales-department__body'),
+        'back-office': document.querySelector('.back-office__body'),
+        'technical-department': document.querySelector('.technical-department__body'),
+      }
+      const playerData = this.gamedatas?.players?.[playerId]
+      const details = playerData?.playerHiredSpecialistsDetails || {}
+      const depts = ['sales-department', 'back-office', 'technical-department']
+      depts.forEach((dept) => {
+        const container = containers[dept]
+        if (!container) return
+        container.querySelectorAll('.hired-specialist-card').forEach((el) => el.remove())
+        const cards = details[dept] || []
+        cards.forEach((card) => {
+          const imgUrl = card.img
+            ? card.img.startsWith('http')
+              ? card.img
+              : `${g_gamethemeurl}${card.img}`
+            : ''
+          const div = document.createElement('div')
+          div.className = 'specialist-card hired-specialist-card'
+          div.dataset.cardId = String(card.id)
+          div.dataset.department = dept
+          div.innerHTML = `
+            <div class="specialist-card__inner">
+              ${imgUrl ? `<img src="${imgUrl}" alt="${(card.name || '').replace(/"/g, '&quot;')}" class="specialist-card__image" />` : ''}
+            </div>
+          `
+          container.appendChild(div)
+        })
+      })
+    },
+
     _renderFounderSelectionCards: function (founderOptions, playerId) {
       console.log('🎴 _renderFounderSelectionCards called with:', {
         founderOptions,

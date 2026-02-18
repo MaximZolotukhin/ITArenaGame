@@ -194,6 +194,10 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.active-player-hand__center--selecting .specialist-card {
+  cursor: pointer;
+}
+
 .active-player-hand__image {
   width: 100%;
   max-width: 120px;
@@ -308,28 +312,38 @@
   }
 }
 
-/* Карты основателей в отделах - увеличение на 200% при наведении */
+/* Карты основателей в отделах — в одной линии со специалистами, перекрывать нельзя */
 .sales-department__body .founder-card,
 .back-office__body .founder-card,
 .technical-department__body .founder-card {
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease, z-index 0s;
+  width: 180px;
+  min-width: 180px;
+  height: 254px;
+  flex-shrink: 0;
+  z-index: 1001; /* выше, чем у специалистов при hover (1000) — карту основателя не перекрывать */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
 }
 
 .sales-department__body .founder-card:hover,
 .back-office__body .founder-card:hover,
 .technical-department__body .founder-card:hover {
   transform: scale(2);
-  z-index: 1000;
+  z-index: 1001;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(76, 175, 80, 0.4);
 }
 
-/* Изображение карты в отделе */
+/* Изображение карты основателя в отделе */
 .sales-department__body .founder-card__image,
 .back-office__body .founder-card__image,
 .technical-department__body .founder-card__image {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
   border-radius: 8px;
 }
 
@@ -1420,6 +1434,7 @@
   flex-direction: column;
   gap: 8px;
   transition: transform 0.2s ease, box-shadow 0.2s ease, outline 0.2s ease, background 0.2s ease;
+  overflow: visible; /* при увеличении карта может выезжать за рамки кабинета */
 }
 
 .sales-department__body,
@@ -2901,8 +2916,8 @@
 
 /* Карта сотрудника */
 .specialist-card {
-  width: 173px; /* Увеличено еще на 20%: 144px * 1.2 = 172.8px ≈ 173px */
-  height: 245px; /* Увеличено еще на 20%: 204px * 1.2 = 244.8px ≈ 245px */
+  width: 190px;
+  height: 268px; /* пропорция 282/200 */
   border-radius: 10px;
   cursor: pointer;
   position: relative;
@@ -2974,6 +2989,21 @@
   transition: all 0.3s ease;
 }
 
+/* Цена карты в фазе найма (баджерсы) */
+.specialist-card__price-badge {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffc107;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 /* Выбранная карта */
 .specialist-card--selected .specialist-card__inner {
   border-color: #4CAF50;
@@ -2988,6 +3018,15 @@
 }
 
 .specialist-card--selected:hover {
+  transform: scale(2);
+}
+
+/* Карта в режиме «выберите отдел» (универсальный специалист при найме) */
+.specialist-card--active .specialist-card__inner {
+  border-color: #4CAF50;
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.6), inset 0 0 5px rgba(76, 175, 80, 0.3);
+}
+.specialist-card--active:hover {
   transform: scale(2);
 }
 
@@ -3052,8 +3091,8 @@
 /* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {
   .specialist-card {
-    width: 144px; /* Увеличено еще на 20%: 120px * 1.2 = 144px */
-    height: 202px; /* Увеличено еще на 20%: 168px * 1.2 = 201.6px ≈ 202px */
+    width: 137px;
+    height: 192px;
   }
 
   .specialist-selection-title {
@@ -3067,8 +3106,8 @@
 
 @media (max-width: 480px) {
   .specialist-card {
-    width: 115px; /* Увеличено еще на 20%: 96px * 1.2 = 115.2px ≈ 115px */
-    height: 166px; /* Увеличено еще на 20%: 138px * 1.2 = 165.6px ≈ 166px */
+    width: 109px;
+    height: 157px;
   }
 
   .specialist-card__check {
@@ -3211,6 +3250,163 @@
   .specialist-selection-modal__body {
     gap: 10px;
   }
+}
+
+/* Модальное окно: выбор отдела для универсальных специалистов (найм) */
+.hiring-universal-department-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.hiring-universal-department-modal.active {
+  display: flex;
+}
+.hiring-universal-department-modal__content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.hiring-universal-department-modal__header {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.hiring-universal-department-modal__title {
+  font-size: 1.3em;
+  color: #fff;
+}
+.hiring-universal-department-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.hiring-universal-department-modal__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+.hiring-universal-department-modal__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 120px;
+}
+.hiring-universal-department-modal__card-img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.hiring-universal-department-modal__card-name {
+  font-size: 0.95em;
+  color: #eee;
+}
+.hiring-universal-department-modal__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.hiring-universal-department-modal__dept-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ddd;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+.hiring-universal-department-modal__dept-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.hiring-universal-department-modal__dept-btn.selected {
+  border-color: #4CAF50;
+  background: rgba(76, 175, 80, 0.25);
+  color: #fff;
+}
+.hiring-universal-department-modal__footer {
+  text-align: center;
+}
+.hiring-universal-department-modal__confirm-btn {
+  padding: 12px 28px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  color: #fff;
+  font-size: 1em;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hiring-universal-department-modal__confirm-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+}
+
+/* Нанятые специалисты в отделах — размер как у карты основателя (founder-card__image max-width: 180px) */
+.hired-specialist-card {
+  width: 180px;
+  min-width: 180px;
+  height: 254px; /* пропорция как у specialist-card 282/200 */
+}
+.hired-specialist-card .specialist-card__inner {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+}
+/* Карты в отделах — одна горизонтальная линия (основатель + специалисты), при нехватке места перекрытие до 70% */
+.sales-department__body > *,
+.back-office__body > *,
+.technical-department__body > * {
+  flex-shrink: 0;
+  position: relative;
+}
+.sales-department__body > *:first-child,
+.back-office__body > *:first-child,
+.technical-department__body > *:first-child {
+  margin-left: 0;
+}
+.sales-department__body > *:not(:first-child),
+.back-office__body > *:not(:first-child),
+.technical-department__body > *:not(:first-child) {
+  margin-left: -126px; /* 70% от 180px — каждая следующая карта перекрывает предыдущую */
+}
+/* Специалисты — можно перекрывать; при увеличении (hover) могут выезжать за кабинет и поверх других карт */
+.sales-department__body .hired-specialist-card,
+.back-office__body .hired-specialist-card,
+.technical-department__body .hired-specialist-card {
+  display: inline-flex;
+  z-index: 1;
+}
+.sales-department__body .hired-specialist-card:hover,
+.back-office__body .hired-specialist-card:hover,
+.technical-department__body .hired-specialist-card:hover {
+  z-index: 1000; /* поверх других специалистов, но ниже основателя (1001) */
+}
+.sales-department__body,
+.back-office__body,
+.technical-department__body {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: visible; /* при увеличении карта может выезжать за рамки кабинета */
 }
 
 /* ========================================

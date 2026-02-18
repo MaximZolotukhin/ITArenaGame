@@ -34,8 +34,9 @@ class BadgerEffectHandler implements EffectHandlerInterface
         
         error_log("BadgerEffectHandler::apply - Player: $playerId, OriginalValue: $effectValueStr, CleanValue: $cleanValue, Amount: $amount");
         
+        // Баджерсы хранятся в БД (player_game_data.badgers)
+        $currentBadgers = $this->game->getPlayerBadgersForCheck($playerId);
         if ($amount === 0) {
-            $currentBadgers = $this->game->playerBadgers->get($playerId);
             return [
                 'type' => 'badger',
                 'amount' => 0,
@@ -45,21 +46,9 @@ class BadgerEffectHandler implements EffectHandlerInterface
             ];
         }
 
-        // Получаем текущее количество баджерсов через PlayerCounter
-        $currentBadgers = $this->game->playerBadgers->get($playerId);
-        error_log("🔵 BadgerEffectHandler::apply - Current badgers for player $playerId: $currentBadgers");
-        
-        // ВАЖНО: Проверяем баджерсы ВСЕХ игроков ДО обновления
-        $allPlayers = array_keys($this->game->loadPlayersBasicInfos());
-        error_log("🔵🔵🔵 BadgerEffectHandler::apply - Badgers BEFORE update for ALL players:");
-        foreach ($allPlayers as $pId) {
-            $pBadgers = $this->game->playerBadgers->get((int)$pId);
-            error_log("🔵   Player $pId: $pBadgers badgers");
-        }
-        
-        // Добавляем/вычитаем баджерсы через PlayerCounter
+        error_log("🔵 BadgerEffectHandler::apply - Current badgers for player $playerId (from DB): $currentBadgers");
+
         if ($amount > 0) {
-            // Списываем баджерсы из банка
             if (!$this->game->withdrawBadgersFromBank($amount)) {
                 error_log("BadgerEffectHandler::apply - ERROR: Failed to withdraw $amount badgers from bank");
                 return [
@@ -70,35 +59,15 @@ class BadgerEffectHandler implements EffectHandlerInterface
                     'message' => 'Недостаточно баджерсов в банке',
                 ];
             }
-            error_log("🔴🔴🔴 BadgerEffectHandler::apply - CALLING playerBadgers->inc($playerId, $amount)");
-            $this->game->playerBadgers->inc($playerId, $amount);
-            error_log("🔵 BadgerEffectHandler::apply - Incremented badgers for player $playerId by $amount");
+            $this->game->addPlayerBadgers($playerId, $amount);
         } else {
-            // При отрицательном значении уменьшаем, но не ниже 0
-            // и возвращаем баджерсы в банк
             $decreaseAmount = min(abs($amount), $currentBadgers);
-            error_log("🔴🔴🔴 BadgerEffectHandler::apply - CALLING playerBadgers->inc($playerId, -$decreaseAmount)");
-            $this->game->playerBadgers->inc($playerId, -$decreaseAmount);
+            $this->game->deductPlayerBadgers($playerId, $decreaseAmount);
             $this->game->depositBadgersToBank($decreaseAmount);
-            error_log("🔵 BadgerEffectHandler::apply - Decremented badgers for player $playerId by $decreaseAmount");
         }
-        
-        // ВАЖНО: Проверяем баджерсы ВСЕХ игроков ПОСЛЕ обновления
-        error_log("🔵🔵🔵 BadgerEffectHandler::apply - Badgers AFTER update for ALL players:");
-        foreach ($allPlayers as $pId) {
-            $pBadgers = $this->game->playerBadgers->get((int)$pId);
-            error_log("🔵   Player $pId: $pBadgers badgers");
-        }
-        
-        // Получаем новое значение
-        $newBadgers = $this->game->playerBadgers->get($playerId);
+
+        $newBadgers = $this->game->getPlayerBadgersForCheck($playerId);
         error_log("🔵 BadgerEffectHandler::apply - Updated badgers from $currentBadgers to $newBadgers for player $playerId");
-        
-        // ВАЖНО: Проверяем, что данные сохранились правильно
-        $verifyBadgers = $this->game->playerBadgers->get($playerId);
-        if ($verifyBadgers !== $newBadgers) {
-            error_log("🔴🔴🔴 BadgerEffectHandler::apply - ERROR: Badgers mismatch! Expected: $newBadgers, Got: $verifyBadgers");
-        }
         
         // Формируем сообщение для уведомления
         $actionText = $amount > 0 ? 'получает' : 'теряет';

@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS `player_game_data` (
   `project_tokens` text DEFAULT NULL COMMENT 'Все жетоны проектов игрока (JSON массив)',
   `specialist_hand` text DEFAULT NULL COMMENT 'Карты специалистов на руке для выбора (JSON массив ID)',
   `player_specialists` text DEFAULT NULL COMMENT 'Карты сотрудников подтвержденные (JSON массив ID)',
+  `player_hired_specialists` text DEFAULT NULL COMMENT 'Нанятые специалисты по отделам (JSON: {"technical-department":[id,...], ...})',
   `it_project_bonuses` text DEFAULT NULL COMMENT 'Бонусы IT проектов (JSON массив)',
   `game_goals` text DEFAULT NULL COMMENT 'Цели игры (JSON массив)',
   PRIMARY KEY (`id`),
