@@ -426,7 +426,15 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $nextPhase = $phases[$nextPhaseIndex];
                 $nextTransition = $nextPhase['transition'] ?? null;
                 error_log('NextPlayer - Фаза ' . $phaseKey . ' завершена, загружаем следующую: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
-                $this->game->advanceToNextPlayerInRound();
+                // После фазы «Навыки» очередность хода меняется с следующей фазы (по треку навыков)
+                if ($phaseKey === 'skills') {
+                    $newOrder = $this->game->getSkillOrderForNextRound();
+                    $this->game->setCurrentRoundPlayerOrder($newOrder);
+                    $this->game->gamestate->changeActivePlayer($newOrder[0]);
+                    error_log('NextPlayer - Очередность хода обновлена по треку навыков (следующая фаза): ' . json_encode($newOrder) . ', первый: ' . $newOrder[0]);
+                } else {
+                    $this->game->advanceToNextPlayerInRound();
+                }
                 return (string)($nextTransition ?? ($nextPhase['key'] === 'hiring' ? 'toRoundHiring' : 'toRoundSkills'));
             }
             // Первый заход в эту фазу в раунде — переходим в состояние фазы по порядку трека навыков
