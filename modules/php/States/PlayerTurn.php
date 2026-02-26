@@ -37,11 +37,13 @@ class PlayerTurn extends GameState
         $activePlayerIdRaw = $this->game->getActivePlayerId();
         $activePlayerId = is_int($activePlayerIdRaw) ? $activePlayerIdRaw : (int)$activePlayerIdRaw;
         $mustPlaceFounder = $this->game->hasUnplacedUniversalFounder($activePlayerId);
+        $badgers = $this->game->getPlayerBadgersForCheck($activePlayerId);
 
         return [
             "playableCardsIds" => [1, 2], // Идентификаторы доступных карт
             "activePlayerId" => $activePlayerId, // Идентификатор активного игрока
             "mustPlaceFounder" => $mustPlaceFounder, // Обязательно ли разместить карту основателя
+            "badgers" => $badgers, // Баджерсы активного игрока (для корректного отображения при смене хода)
         ];
     }    
 

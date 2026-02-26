@@ -23,7 +23,7 @@ define([
 ], function (dojo, declare, gamegui, counter) {
   // ВАЖНО: используем переданный модуль gamegui, а не глобальный ebg.core.gamegui,
   // чтобы избежать ошибок, если глобальный ebg ещё не определён.
-  return declare('bgagame.itarenagame', gamegui, {
+  const GameClass = declare('bgagame.itarenagame', gamegui, {
     constructor: function () {
       // Here, you can init the global variables of your user interface
       // Example:
@@ -49,7 +49,7 @@ define([
       const gameArea = this.getGameAreaElement()
       if (!gameArea) {
         console.error(
-          '❌ getGameAreaElement() returned null! Cannot initialize game UI.'
+          '❌ getGameAreaElement() returned null! Cannot initialize game UI.',
         )
         return
       }
@@ -69,13 +69,13 @@ define([
                     <div class="events-and-skills"> <!-- Планшет навыков и событий -->
                       <div id="event-card-panel" class="event-card-panel">
                         <div class="event-card-panel__header">${_(
-                          'Карта события'
+                          'Карта события',
                         )}</div>
                         <div class="event-card-panel__body"></div>
                       </div>
                       <div class="round-panel">
                         <div class="round-panel__header">${_(
-                          'Планшет событий'
+                          'Планшет событий',
                         )}</div>
                         <div class="round-panel__wrapper">
                           <img src="${g_gamethemeurl}img/table/events_board.png" alt="Events board" class="round-panel__image" />
@@ -152,7 +152,7 @@ define([
                     <!-- Деньги игрока -->
                       <div class="player-money-panel">
                         <div class="player-money-panel__header">${_(
-                          'Деньги игрока'
+                          'Деньги игрока',
                         )}</div>
                         <div class="player-money-panel__color-badge"></div>
                         <div class="player-money-panel__body"></div>
@@ -160,16 +160,16 @@ define([
                       <!-- планшет проектов -->
                       <div class="project-board-panel">
                         <div class="project-board-panel__header">${_(
-                          'Планшет проектов'
+                          'Планшет проектов',
                         )}</div>
                         <div class="project-board-panel__body">
                           <img src="${g_gamethemeurl}img/table/project_table.png" alt="${_(
-            'Планшет проектов'
-          )}" class="project-board-panel__image" />
+                            'Планшет проектов',
+                          )}" class="project-board-panel__image" />
                           <div class="project-board-panel__columns">
                             <div class="project-board-panel__column project-board-panel__column--complex project-board-panel__column--red">
                               <div class="project-board-panel__column-header">${_(
-                                'Сложные - Красный'
+                                'Сложные - Красный',
                               )}</div>
                               <div class="project-board-panel__column-body">
                                 ${[
@@ -180,14 +180,14 @@ define([
                                 ]
                                   .map(
                                     (label) =>
-                                      `<div class="project-board-panel__row" data-label="${label}"></div>`
+                                      `<div class="project-board-panel__row" data-label="${label}"></div>`,
                                   )
                                   .join('')}
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--long-term project-board-panel__column--blue">
                               <div class="project-board-panel__column-header">${_(
-                                'Длительные - Синий'
+                                'Длительные - Синий',
                               )}</div>
                               <div class="project-board-panel__column-body">
                                 ${[
@@ -198,14 +198,14 @@ define([
                                 ]
                                   .map(
                                     (label) =>
-                                      `<div class="project-board-panel__row" data-label="${label}"></div>`
+                                      `<div class="project-board-panel__row" data-label="${label}"></div>`,
                                   )
                                   .join('')}
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--expensive project-board-panel__column--green">
                               <div class="project-board-panel__column-header">${_(
-                                'Дорогие - Зеленый'
+                                'Дорогие - Зеленый',
                               )}</div>
                               <div class="project-board-panel__column-body">
                                 ${[
@@ -216,14 +216,14 @@ define([
                                 ]
                                   .map(
                                     (label) =>
-                                      `<div class="project-board-panel__row" data-label="${label}"></div>`
+                                      `<div class="project-board-panel__row" data-label="${label}"></div>`,
                                   )
                                   .join('')}
                               </div>
                             </div>
                             <div class="project-board-panel__column project-board-panel__column--task-pool">
                               <div class="project-board-panel__column-header">${_(
-                                'Пулл проектов'
+                                'Пулл проектов',
                               )}</div>
                               <div class="project-board-panel__task-pool-body">
                                 <div class="project-board-panel__task-pool-row project-board-panel__task-pool-row--top">
@@ -242,7 +242,7 @@ define([
                       <div class="bank">
                         <div class="badgers-panel">
                           <div class="badgers-panel__header">${_(
-                            'Баджерсы'
+                            'Баджерсы',
                           )}</div>
                           <div class="badgers-panel__body"></div>
                         </div>
@@ -251,23 +251,23 @@ define([
                     <!-- Планшет игрока и его проектов -->
                     <div class="players-table">
                       <!--<div class="players-table__header">${_(
-                        'IT проекты'
+                        'IT проекты',
                       )}</div>-->
                       <div class="players-table__body">
                         <div class="it-projects">
                           <div class="it-projects__header">${_(
-                            'IT проекты'
+                            'IT проекты',
                           )}</div>
                           <div class="it-projects__columns">
                             <div class="completed-projects">
                               <div class="completed-projects__header">${_(
-                                'Выполненные проекты'
+                                'Выполненные проекты',
                               )}</div>
                               <div class="completed-projects__body"></div>
                             </div>
                             <div class="parts-of-projects">
                               <div class="parts-of-projects__header">${_(
-                                'Части проектов'
+                                'Части проектов',
                               )}</div>
                               <div class="parts-of-projects__body"></div>
                             </div>
@@ -275,12 +275,12 @@ define([
                         </div>
                         <div class="player-personal-board">
                           <div class="player-personal-board__header">${_(
-                            'Планшет игрока'
+                            'Планшет игрока',
                           )}</div>
                           <div class="player-personal-board__body">
                             <img src="${g_gamethemeurl}img/table/player-table-green.png" alt="${_(
-            'Планшет игрока'
-          )}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
+                              'Планшет игрока',
+                            )}" class="player-personal-board__image" data-default-src="${g_gamethemeurl}img/table/player-table-green.png" />
                             <div class="player-board-blocks">
                               <div class="player-board-block player-board-block--left player-actions-block">
                                 <div class="player-board-block--left-row">
@@ -314,7 +314,7 @@ define([
                                             (_, i) =>
                                               `<div class="player-exchange-block__choice-row" data-row="${
                                                 i + 1
-                                              }"></div>`
+                                              }"></div>`,
                                           ).join('')}
                                         </div>
                                         <div class="player-exchange-block__choice-column shema-update-on">
@@ -323,7 +323,7 @@ define([
                                             (_, i) =>
                                               `<div class="player-exchange-block__choice-row" data-row="${
                                                 i + 1
-                                              }"></div>`
+                                              }"></div>`,
                                           ).join('')}
                                         </div>
                                       </div>
@@ -372,7 +372,7 @@ define([
                                           } ${col.className}">${
                                             i === 0
                                               ? `<div class="player-sprint-panel__rows-container">${Array(
-                                                  6
+                                                  6,
                                                 )
                                                   .fill(0)
                                                   .map((_, j) => {
@@ -385,7 +385,7 @@ define([
                                                   })
                                                   .join('')}</div>`
                                               : ''
-                                          }</div>`
+                                          }</div>`,
                                       )
                                       .join('')}
                                   </div>
@@ -411,7 +411,7 @@ define([
                                                   </div>
                                                 </div>
                                               `
-                                              }
+                                              },
                                             ).join('')}
                                           </div>
                                           <!-- Внутренняя окружность (1-10) -->
@@ -432,7 +432,7 @@ define([
                                                   </div>
                                                 </div>
                                               `
-                                              }
+                                              },
                                             ).join('')}
                                           </div>
                                           <div class="income-track__center"></div>
@@ -511,17 +511,26 @@ define([
                                             columnNum === 1 || columnNum === 3
                                               ? '70%'
                                               : columnNum === 2 ||
-                                                columnNum === 4
-                                              ? '80%'
-                                              : '100%'
+                                                  columnNum === 4
+                                                ? '80%'
+                                                : '100%'
+                                          // Цвет колонки: совпадает с цветами жетонов задач (cyan, pink, orange, purple)
+                                          const columnColor =
+                                            columnNum === 1
+                                              ? 'pink'
+                                              : columnNum === 2
+                                                ? 'orange'
+                                                : columnNum === 3
+                                                  ? 'cyan'
+                                                  : 'purple'
                                           const colorClass =
                                             columnNum === 1
                                               ? 'player-department-technical-development__column--pink'
                                               : columnNum === 2
-                                              ? 'player-department-technical-development__column--orange'
-                                              : columnNum === 3
-                                              ? 'player-department-technical-development__column--blue'
-                                              : 'player-department-technical-development__column--purple'
+                                                ? 'player-department-technical-development__column--orange'
+                                                : columnNum === 3
+                                                  ? 'player-department-technical-development__column--blue'
+                                                  : 'player-department-technical-development__column--purple'
                                           const rowsHtml = Array(rowCount)
                                             .fill(0)
                                             .map((_, j) => {
@@ -536,7 +545,7 @@ define([
                                               }</div>`
                                             })
                                             .join('')
-                                          return `<div id="player-department-technical-development-column-${columnNum}" class="player-department-technical-development__column ${colorClass}">
+                                          return `<div id="player-department-technical-development-column-${columnNum}" class="player-department-technical-development__column ${colorClass}" data-column-color="${columnColor}">
                                             ${
                                               needsWrapper
                                                 ? `<div class="player-department-technical-development-column-${columnNum}__rows-wrapper" style="height: ${wrapperHeight};">${rowsHtml}</div>`
@@ -560,7 +569,7 @@ define([
                         </div>
                         <div class="hiring-employees">
                           <div class="hiring-employees__header">${_(
-                            'Найм сотрудников'
+                            'Найм сотрудников',
                           )}</div>
                           <div class="hiring-employees__body">
                             <div class="sales-department">
@@ -578,19 +587,19 @@ define([
                     </div>
                     <div class="active-player-hand" id="active-player-hand" hidden>
                        <div class="active-player-hand__header">${_(
-                         'Руки игрока'
+                         'Руки игрока',
                        )}</div>
                       <div class="active-player-hand__body">
                         <div class="active-player-hand__side active-player-hand__side--left">
                           <img src="${g_gamethemeurl}img/table/hand-right.png" alt="${_(
-            'Рука игрока'
-          )}" class="active-player-hand__image active-player-hand__image--left" />
+                            'Рука игрока',
+                          )}" class="active-player-hand__image active-player-hand__image--left" />
                         </div>
                         <div class="active-player-hand__center" id="active-player-hand-cards"></div>
                         <div class="active-player-hand__side active-player-hand__side--right">
                           <img src="${g_gamethemeurl}img/table/hand-right.png" alt="${_(
-            'Рука игрока'
-          )}" class="active-player-hand__image" />
+                            'Рука игрока',
+                          )}" class="active-player-hand__image" />
                         </div>
                       </div>
                     </div>
@@ -622,7 +631,7 @@ define([
                     </div>
                   </div>
                 </div>
-            `
+            `,
         )
       } catch (error) {
         console.error('❌ Error inserting game HTML:', error)
@@ -637,7 +646,7 @@ define([
           'beforeend',
           `
                     <span id="energy-player-counter-${player.id}"></span> Energy
-                `
+                `,
         )
         // Мой код для счетчика энергии
         const counter = new ebg.counter()
@@ -656,7 +665,7 @@ define([
                         <strong>${player.name}</strong>
                         <div>Player zone content goes here</div>
                     </div>
-                `
+                `,
         )
       })
       // Мой код для таблицы игроков
@@ -683,7 +692,7 @@ define([
         this.totalRounds,
         gamedatas.roundName,
         gamedatas.cubeFace,
-        gamedatas.phaseName
+        gamedatas.phaseName,
       )
       this._renderGameModeBanner()
 
@@ -712,7 +721,7 @@ define([
           this.gamedatas.cubeFace = gamedatas.cubeFace
           console.log(
             '🎲 setup: Saved cubeFace to gamedatas (Stage 2):',
-            gamedatas.cubeFace
+            gamedatas.cubeFace,
           )
         }
         if (gamedatas.roundEventCards && gamedatas.roundEventCards.length > 0) {
@@ -720,7 +729,7 @@ define([
           this.gamedatas.roundEventCard = gamedatas.roundEventCards[0] || null
           console.log(
             '🎴 setup: Saved roundEventCards to gamedatas (Stage 2):',
-            gamedatas.roundEventCards.length
+            gamedatas.roundEventCards.length,
           )
         }
       } else {
@@ -754,7 +763,7 @@ define([
         console.log(
           '🎴 Setup - Found',
           gamedatas.playerSpecialists.length,
-          'saved specialist cards'
+          'saved specialist cards',
         )
         this._renderPlayerSpecialists()
       }
@@ -795,12 +804,12 @@ define([
         if (!hasSelectedFounder) {
           console.log(
             '✅ setup - Rendering founder selection cards for current player, count:',
-            currentPlayerOptions.length
+            currentPlayerOptions.length,
           )
           setTimeout(() => {
             this._renderFounderSelectionCards(
               currentPlayerOptions,
-              this.player_id
+              this.player_id,
             )
           }, 200)
           this._toggleActivePlayerHand(this.player_id)
@@ -843,7 +852,7 @@ define([
         if (!hasSelectedFounder && founderOptions.length > 0) {
           console.log(
             '✅ setup - Rendering founder selection cards, count:',
-            founderOptions.length
+            founderOptions.length,
           )
           // Используем небольшую задержку, чтобы DOM точно был готов
           setTimeout(() => {
@@ -872,7 +881,7 @@ define([
       setTimeout(() => {
         console.log(
           '🔄 setup: Calling _renderTaskTokens, players:',
-          gamedatas.players
+          gamedatas.players,
         )
         if (gamedatas.players) {
           try {
@@ -882,7 +891,7 @@ define([
           }
         } else {
           console.warn(
-            '⚠️ _renderTaskTokens: gamedatas.players is not available'
+            '⚠️ _renderTaskTokens: gamedatas.players is not available',
           )
         }
       }, 200)
@@ -973,7 +982,7 @@ define([
           } else if (this.gamedatas?.projectTokensOnBoard) {
             setTimeout(() => {
               this._renderProjectTokensOnBoard(
-                this.gamedatas.projectTokensOnBoard
+                this.gamedatas.projectTokensOnBoard,
               )
             }, 200)
           }
@@ -994,6 +1003,12 @@ define([
             this._getActivePlayerIdFromDatas(this.gamedatas) ??
             this.player_id
           this.gamedatas.gamestate.active_player = activeId
+          if (this.gamedatas.players && this.gamedatas.players[activeId]) {
+            const b = args?.args?.badgers
+            if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
+              this.gamedatas.players[activeId].badgers = Number(b)
+            }
+          }
 
           // ВАЖНО: Проверяем и обновляем кубик и карты событий ТОЛЬКО на этапе 2 (round > 0)
           // Это нужно на случай, если RoundEvent быстро перешел в PlayerTurn
@@ -1042,25 +1057,25 @@ define([
             if (cubeFaceForPlayerTurn) {
               console.log(
                 '🎲 PlayerTurn: Updating cube face:',
-                cubeFaceForPlayerTurn
+                cubeFaceForPlayerTurn,
               )
               this._updateCubeFace(cubeFaceForPlayerTurn)
             } else {
               // Если кубик еще не установлен, ждем уведомление
               console.log(
-                '🎲 PlayerTurn: cubeFace is empty, waiting for roundStart notification...'
+                '🎲 PlayerTurn: cubeFace is empty, waiting for roundStart notification...',
               )
               setTimeout(() => {
                 const updatedCubeFace = this.gamedatas?.cubeFace || ''
                 if (updatedCubeFace) {
                   console.log(
                     '🎲 PlayerTurn: Updating cube face from notification:',
-                    updatedCubeFace
+                    updatedCubeFace,
                   )
                   this._updateCubeFace(updatedCubeFace)
                 } else {
                   console.warn(
-                    '🎲 PlayerTurn: cubeFace STILL empty after timeout!'
+                    '🎲 PlayerTurn: cubeFace STILL empty after timeout!',
                   )
                 }
               }, 500)
@@ -1069,27 +1084,27 @@ define([
             if (eventCardsForPlayerTurn.length > 0) {
               console.log(
                 '🎴 PlayerTurn: Rendering event cards:',
-                eventCardsForPlayerTurn
+                eventCardsForPlayerTurn,
               )
               this._renderEventCards(eventCardsForPlayerTurn)
               this._renderRoundEventCards(eventCardsForPlayerTurn)
             } else {
               // Если карты еще не установлены, ждем уведомление
               console.log(
-                '🎴 PlayerTurn: event cards are empty, waiting for roundStart notification...'
+                '🎴 PlayerTurn: event cards are empty, waiting for roundStart notification...',
               )
               setTimeout(() => {
                 const updatedCards = this.gamedatas?.roundEventCards || []
                 if (updatedCards.length > 0) {
                   console.log(
                     '🎴 PlayerTurn: Rendering event cards from notification:',
-                    updatedCards
+                    updatedCards,
                   )
                   this._renderEventCards(updatedCards)
                   this._renderRoundEventCards(updatedCards)
                 } else {
                   console.warn(
-                    '🎴 PlayerTurn: event cards STILL empty after timeout!'
+                    '🎴 PlayerTurn: event cards STILL empty after timeout!',
                   )
                 }
               }, 500)
@@ -1097,7 +1112,7 @@ define([
           } else {
             // Этап 1 - не отрисовываем кубик и карты событий
             console.log(
-              '🎲 PlayerTurn: Stage 1 - skipping cube and event cards rendering'
+              '🎲 PlayerTurn: Stage 1 - skipping cube and event cards rendering',
             )
           }
 
@@ -1169,7 +1184,7 @@ define([
             this.gamedatas.activeFounderOptions = args.args.founderOptions
             console.log(
               'Updated founderOptions from args:',
-              args.args.founderOptions.length
+              args.args.founderOptions.length,
             )
           }
 
@@ -1192,7 +1207,7 @@ define([
               hasOptionsInAllPlayers:
                 this.gamedatas?.allPlayersFounderOptions?.[this.player_id]
                   ?.length || 0,
-            }
+            },
           )
 
           // Проверяем, является ли активный игрок текущим игроком
@@ -1265,12 +1280,12 @@ define([
                 '✅ Rendering selection cards in onEnteringState, count:',
                 founderOptions.length,
                 'for player:',
-                targetPlayerId
+                targetPlayerId,
               )
               setTimeout(() => {
                 this._renderFounderSelectionCards(
                   founderOptions,
-                  targetPlayerId
+                  targetPlayerId,
                 )
               }, 100)
             } else if (actualHasSelectedFounder) {
@@ -1294,7 +1309,7 @@ define([
             } else {
               // Нет опций и карта не выбрана
               console.log(
-                'Founder already selected or no options, rendering normal card'
+                'Founder already selected or no options, rendering normal card',
               )
               this._renderFounderCard(this.gamedatas.players, targetPlayerId)
             }
@@ -1303,7 +1318,7 @@ define([
             console.log('Not current player, rendering normal card')
             this._renderFounderCard(
               this.gamedatas.players,
-              activeIdFounderSelection
+              activeIdFounderSelection,
             )
           }
 
@@ -1353,7 +1368,7 @@ define([
           ) {
             this._renderFounderCard(
               this.gamedatas.players,
-              Number(specialistActivePlayerId)
+              Number(specialistActivePlayerId),
             )
           }
 
@@ -1379,11 +1394,11 @@ define([
             console.log(
               '🎴 My turn! Rendering',
               handCards.length,
-              'cards from args'
+              'cards from args',
             )
             console.log(
               '🎴 specialistArgs.handCards length:',
-              specialistArgs.handCards?.length || 0
+              specialistArgs.handCards?.length || 0,
             )
 
             // ВАЖНО: Проверяем, что пришло 7 карт
@@ -1391,7 +1406,7 @@ define([
               console.error(
                 '🎴❌ ERROR: Expected 7 cards for selection, but got',
                 handCards.length,
-                'from server!'
+                'from server!',
               )
             }
 
@@ -1400,12 +1415,12 @@ define([
               this._renderSpecialistSelectionCards(
                 handCards,
                 selectedCards,
-                cardsToKeep
+                cardsToKeep,
               )
             } else {
               console.error(
                 '🎴❌ No hand cards to render! specialistArgs.handCards:',
-                specialistArgs.handCards
+                specialistArgs.handCards,
               )
             }
           } else {
@@ -1458,7 +1473,7 @@ define([
           // RoundEvent должен вызываться только на этапе 2
           if (round <= 0) {
             console.warn(
-              '🎲 RoundEvent: round <= 0, skipping cube and event cards rendering'
+              '🎲 RoundEvent: round <= 0, skipping cube and event cards rendering',
             )
             break
           }
@@ -1492,12 +1507,12 @@ define([
           if (cubeFace) {
             console.log(
               '🎲 RoundEvent: Updating cube face from args:',
-              cubeFace
+              cubeFace,
             )
             this._updateCubeFace(cubeFace)
           } else {
             console.log(
-              '🎲 RoundEvent: cubeFace is empty in args, waiting for roundStart notification...'
+              '🎲 RoundEvent: cubeFace is empty in args, waiting for roundStart notification...',
             )
             // Ждем уведомление с увеличенной задержкой (может прийти после перехода в PlayerTurn)
             setTimeout(() => {
@@ -1505,12 +1520,12 @@ define([
               if (updatedCubeFace) {
                 console.log(
                   '🎲 RoundEvent: Updating cube face from notification:',
-                  updatedCubeFace
+                  updatedCubeFace,
                 )
                 this._updateCubeFace(updatedCubeFace)
               } else {
                 console.warn(
-                  '🎲 RoundEvent: cubeFace still empty after timeout!'
+                  '🎲 RoundEvent: cubeFace still empty after timeout!',
                 )
               }
             }, 500)
@@ -1519,13 +1534,13 @@ define([
           if (roundEventCards.length > 0) {
             console.log(
               '🎴 RoundEvent: Rendering round event cards from args:',
-              roundEventCards
+              roundEventCards,
             )
             this._renderEventCards(roundEventCards)
             this._renderRoundEventCards(roundEventCards)
           } else {
             console.log(
-              '🎴 RoundEvent: No event cards in args, waiting for roundStart notification...'
+              '🎴 RoundEvent: No event cards in args, waiting for roundStart notification...',
             )
             // Ждем уведомление с увеличенной задержкой (может прийти после перехода в PlayerTurn)
             setTimeout(() => {
@@ -1533,13 +1548,13 @@ define([
               if (updatedCards.length > 0) {
                 console.log(
                   '🎴 RoundEvent: Rendering event cards from notification:',
-                  updatedCards
+                  updatedCards,
                 )
                 this._renderEventCards(updatedCards)
                 this._renderRoundEventCards(updatedCards)
               } else {
                 console.warn(
-                  '🎴 RoundEvent: event cards still empty after timeout!'
+                  '🎴 RoundEvent: event cards still empty after timeout!',
                 )
               }
             }, 500)
@@ -1551,7 +1566,7 @@ define([
               this.totalRounds,
               roundName,
               cubeFace || this.gamedatas?.cubeFace || '',
-              phaseName
+              phaseName,
             )
           } else {
             // Обновляем баннер - ЭТАП 2
@@ -1569,6 +1584,7 @@ define([
           // Карты всегда берутся из gamedatas.players[roundEventActiveId]
           this._clearDepartmentsForNewPlayer(roundEventActiveId)
 
+          this._renderPlayerMoney(this.gamedatas.players, roundEventActiveId)
           // Отрисовываем карту основателя активного игрока
           if (
             this.gamedatas.players &&
@@ -1576,7 +1592,7 @@ define([
           ) {
             this._renderFounderCard(
               this.gamedatas.players,
-              Number(roundEventActiveId)
+              Number(roundEventActiveId),
             )
           }
 
@@ -1587,23 +1603,44 @@ define([
           this._renderTaskTokens(this.gamedatas.players)
           break
 
-        case 'RoundSkills':
+        case 'RoundSkills': {
           if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
           if (args?.args?.phaseName)
             this.gamedatas.phaseName = args.args.phaseName
           this.gamedatas.phaseNumber = 2
           this._updateStageBanner()
-          {
-            const roundPanel = document.querySelector('.round-panel__wrapper')
-            if (roundPanel) this._renderPlayerIndicators(roundPanel)
+          if (args?.args?.currentRoundPlayerOrder && Array.isArray(args.args.currentRoundPlayerOrder)) {
+            this.gamedatas.currentRoundPlayerOrder = args.args.currentRoundPlayerOrder
           }
+          const skillsActiveId =
+            this._extractActivePlayerId(args) ??
+            this._getActivePlayerIdFromDatas(this.gamedatas) ??
+            this.player_id
+          if (this.gamedatas.gamestate) {
+            this.gamedatas.gamestate.active_player = skillsActiveId
+          }
+          if (this.gamedatas.players && this.gamedatas.players[skillsActiveId]) {
+            const b = args?.args?.badgers
+            if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
+              this.gamedatas.players[skillsActiveId].badgers = Number(b)
+            }
+          }
+          this._clearDepartmentsForNewPlayer(skillsActiveId)
+          this._renderPlayerMoney(this.gamedatas.players, skillsActiveId)
+          this._renderFounderCard(this.gamedatas.players, skillsActiveId)
+          const roundPanel = document.querySelector('.round-panel__wrapper')
+          if (roundPanel) this._renderPlayerIndicators(roundPanel)
           break
+        }
         case 'RoundHiring': {
           if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
           if (args?.args?.phaseName)
             this.gamedatas.phaseName = args.args.phaseName
           this.gamedatas.phaseNumber = 3
           this._updateStageBanner()
+          if (args?.args?.currentRoundPlayerOrder && Array.isArray(args.args.currentRoundPlayerOrder)) {
+            this.gamedatas.currentRoundPlayerOrder = args.args.currentRoundPlayerOrder
+          }
           const hiringActiveId =
             this._extractActivePlayerId(args) ??
             this._getActivePlayerIdFromDatas(this.gamedatas) ??
@@ -1611,6 +1648,15 @@ define([
           if (this.gamedatas.gamestate) {
             this.gamedatas.gamestate.active_player = hiringActiveId
           }
+          if (this.gamedatas.players && this.gamedatas.players[hiringActiveId]) {
+            const b = args?.args?.badgers
+            if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
+              this.gamedatas.players[hiringActiveId].badgers = Number(b)
+            }
+          }
+          this._clearDepartmentsForNewPlayer(hiringActiveId)
+          this._renderPlayerMoney(this.gamedatas.players, hiringActiveId)
+          this._renderFounderCard(this.gamedatas.players, hiringActiveId)
           this._toggleActivePlayerHand(hiringActiveId)
           this._renderPlayerSpecialists()
           break
@@ -1664,7 +1710,7 @@ define([
             (typeof _ !== 'undefined'
               ? _('Фаза «${phase}» — ваш ход')
               : 'Фаза «' + phaseNameSkills + '» — ваш ход'
-            ).replace('${phase}', phaseNameSkills)
+            ).replace('${phase}', phaseNameSkills),
           )
         } else {
           const activeId = this.gamedatas?.gamestate?.active_player
@@ -1672,15 +1718,15 @@ define([
             activeId && this.gamedatas?.players?.[activeId]?.name
               ? this.gamedatas.players[activeId].name
               : typeof _ !== 'undefined'
-              ? _('Игрок')
-              : 'Игрок'
+                ? _('Игрок')
+                : 'Игрок'
           this.statusBar.setTitle(
             (typeof _ !== 'undefined'
               ? _('Фаза «${phase}» — ожидание ${player}')
               : 'Фаза «' + phaseNameSkills + '» — ожидание ' + activeName
             )
               .replace('${phase}', phaseNameSkills)
-              .replace('${player}', activeName)
+              .replace('${player}', activeName),
           )
         }
       }
@@ -1694,7 +1740,7 @@ define([
             (typeof _ !== 'undefined'
               ? _('Фаза «${phase}» — ваш ход')
               : 'Фаза «' + phaseNameHiring + '» — ваш ход'
-            ).replace('${phase}', phaseNameHiring)
+            ).replace('${phase}', phaseNameHiring),
           )
         } else {
           const activeId = this.gamedatas?.gamestate?.active_player
@@ -1702,15 +1748,15 @@ define([
             activeId && this.gamedatas?.players?.[activeId]?.name
               ? this.gamedatas.players[activeId].name
               : typeof _ !== 'undefined'
-              ? _('Игрок')
-              : 'Игрок'
+                ? _('Игрок')
+                : 'Игрок'
           this.statusBar.setTitle(
             (typeof _ !== 'undefined'
               ? _('Фаза «${phase}» — ожидание ${player}')
               : 'Фаза «' + phaseNameHiring + '» — ожидание ' + activeName
             )
               .replace('${phase}', phaseNameHiring)
-              .replace('${player}', activeName)
+              .replace('${player}', activeName),
           )
         }
       }
@@ -1739,14 +1785,14 @@ define([
             playableCardsIds.forEach((cardId) =>
               this.statusBar.addActionButton(
                 _('Play card with id ${card_id}').replace('${card_id}', cardId),
-                () => this.onCardClick(cardId)
-              )
+                () => this.onCardClick(cardId),
+              ),
             )
 
             this.statusBar.addActionButton(
               _('Pass'),
               () => this.bgaPerformAction('actPass'),
-              { color: 'secondary' }
+              { color: 'secondary' },
             )
 
             // Кнопка завершения хода: блокируется, если нужно разместить карту основателя
@@ -1758,11 +1804,11 @@ define([
                 disabled: mustPlaceFounderPlayerTurn,
                 tooltip: mustPlaceFounderPlayerTurn
                   ? _(
-                      'Вы должны разместить карту основателя в один из отделов перед завершением хода'
+                      'Вы должны разместить карту основателя в один из отделов перед завершением хода',
                     )
                   : undefined,
                 id: 'finish-turn-button', // ID для обновления состояния кнопки
-              }
+              },
             )
 
             // Сохраняем ссылку на кнопку для обновления состояния после размещения карты
@@ -1807,7 +1853,7 @@ define([
               let completeBtnTooltip
               if (!hasSkillSelected) {
                 completeBtnTooltip = _(
-                  'Сначала выберите навык (переместите жетон на колонку навыка)'
+                  'Сначала выберите навык (переместите жетон на колонку навыка)',
                 )
               } else if (pendingDiscipline) {
                 completeBtnTooltip =
@@ -1829,7 +1875,7 @@ define([
                   disabled: !skillEffectApplied || skillEffectPending,
                   id: 'complete-skills-phase-button',
                   tooltip: completeBtnTooltip,
-                }
+                },
               )
               this.completeSkillsPhaseButton = completeSkillsPhaseBtn
             } else {
@@ -1844,10 +1890,16 @@ define([
               const hiringTrackValue = a.hiringTrackValue ?? 0
               const recruitingDone = a.recruitingDone === true
               const canRecruit = hiringTrackValue > 0 && !recruitingDone
-              const maxHireCount = Math.max(0, parseInt(a.maxHireCount, 10) || 0)
+              const maxHireCount = Math.max(
+                0,
+                parseInt(a.maxHireCount, 10) || 0,
+              )
               const badgers = Math.max(0, parseInt(a.badgers, 10) || 0)
               const handCardsWithPrices = a.handCardsWithPrices || []
-              const hiringHiredCount = Math.max(0, parseInt(a.hiringHiredCount, 10) || 0)
+              const hiringHiredCount = Math.max(
+                0,
+                parseInt(a.hiringHiredCount, 10) || 0,
+              )
 
               this._hiringSelectMode = true
               this._hiringMaxCount = maxHireCount
@@ -1867,20 +1919,20 @@ define([
                     tooltip: canRecruit
                       ? typeof _ !== 'undefined'
                         ? _(
-                            'Взять ${n} карт из колоды найма по треку бэк-офиса'
+                            'Взять ${n} карт из колоды найма по треку бэк-офиса',
                           ).replace('${n}', String(hiringTrackValue))
                         : 'Взять ' +
                           hiringTrackValue +
                           ' карт из колоды найма по треку бэк-офиса'
                       : recruitingDone
-                        ? (typeof _ !== 'undefined'
-                            ? _('Рекрутинг уже выполнен')
-                            : 'Рекрутинг уже выполнен')
-                        : (typeof _ !== 'undefined'
-                            ? _('Трек найма на 0')
-                            : 'Трек найма на 0'),
+                        ? typeof _ !== 'undefined'
+                          ? _('Рекрутинг уже выполнен')
+                          : 'Рекрутинг уже выполнен'
+                        : typeof _ !== 'undefined'
+                          ? _('Трек найма на 0')
+                          : 'Трек найма на 0',
                     id: 'hiring-recruiting-button',
-                  }
+                  },
                 )
               }
 
@@ -1890,8 +1942,10 @@ define([
                 {
                   primary: true,
                   id: 'complete-hiring-phase-button',
-                  tooltip: _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
-                }
+                  tooltip: _(
+                    'Нажмите, когда закончите нанимать (или если не нанимаете)',
+                  ),
+                },
               )
             }
             break
@@ -1903,7 +1957,7 @@ define([
             const founderSelectionActionArgs = args?.args || args || {}
             console.log(
               'FounderSelection onUpdateActionButtons - Extracted args:',
-              founderSelectionActionArgs
+              founderSelectionActionArgs,
             )
             const hasSelectedFounder =
               founderSelectionActionArgs?.hasSelectedFounder === true
@@ -1970,12 +2024,12 @@ define([
                 '✅ Rendering selection cards in onUpdateActionButtons for current player:',
                 this.player_id,
                 'count:',
-                currentPlayerOptions.length
+                currentPlayerOptions.length,
               )
               setTimeout(() => {
                 this._renderFounderSelectionCards(
                   currentPlayerOptions,
-                  this.player_id
+                  this.player_id,
                 )
               }, 100)
             } else if (
@@ -1990,12 +2044,12 @@ define([
                 '✅ Rendering selection cards in onUpdateActionButtons for active player:',
                 activePlayerId,
                 'count:',
-                founderOptionsFromArgs.length
+                founderOptionsFromArgs.length,
               )
               setTimeout(() => {
                 this._renderFounderSelectionCards(
                   founderOptionsFromArgs,
-                  activePlayerId
+                  activePlayerId,
                 )
               }, 100)
             }
@@ -2011,7 +2065,7 @@ define([
               // Переход к следующему этапу/игроку происходит только по нажатию кнопки
               console.log(
                 '✅ Adding finish turn button for active player:',
-                activePlayerId
+                activePlayerId,
               )
               this.statusBar.addActionButton(
                 _('Завершить ход'),
@@ -2021,11 +2075,11 @@ define([
                   disabled: mustPlaceFounderFounderSelection, // Блокируется, если карта не размещена
                   tooltip: mustPlaceFounderFounderSelection
                     ? _(
-                        'Вы должны разместить карту основателя в один из отделов перед завершением хода'
+                        'Вы должны разместить карту основателя в один из отделов перед завершением хода',
                       )
                     : undefined,
                   id: 'finish-turn-button',
-                }
+                },
               )
             } else {
               console.log('❌ Not showing finish button:', {
@@ -2044,17 +2098,17 @@ define([
             // Состояние выбора карт сотрудников
             console.log(
               '🎴 SpecialistSelection onUpdateActionButtons, RAW args:',
-              args
+              args,
             )
             console.log('🎴 SpecialistSelection args?.args:', args?.args)
             const specialistActionArgs = args?.args || args || {}
             console.log(
               '🎴 SpecialistSelection EXTRACTED specialistActionArgs:',
-              specialistActionArgs
+              specialistActionArgs,
             )
             console.log(
               '🎴 SpecialistSelection handCards:',
-              specialistActionArgs.handCards
+              specialistActionArgs.handCards,
             )
 
             const selectedSpecialistsCount =
@@ -2085,7 +2139,7 @@ define([
               this._renderSpecialistSelectionCards(
                 specialistActionArgs.handCards,
                 specialistActionArgs.selectedCards || [],
-                specialistCardsToKeep
+                specialistCardsToKeep,
               )
             }
 
@@ -2097,7 +2151,7 @@ define([
               this.statusBar.addActionButton(
                 _('Продолжить'),
                 () => this.bgaPerformAction('actStartRoundEvent'),
-                { primary: true }
+                { primary: true },
               )
             }
             break
@@ -2169,7 +2223,7 @@ define([
       dojo.subscribe(
         'founderCardsDiscarded',
         this,
-        'notif_founderCardsDiscarded'
+        'notif_founderCardsDiscarded',
       )
 
       // Уведомления для выбора сотрудников
@@ -2178,19 +2232,19 @@ define([
       dojo.subscribe(
         'specialistsDealtToHand',
         this,
-        'notif_specialistsDealtToHand'
+        'notif_specialistsDealtToHand',
       )
       dojo.subscribe('specialistsHired', this, 'notif_specialistsHired')
       dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
       dojo.subscribe(
         'founderEffectsApplied',
         this,
-        'notif_founderEffectsApplied'
+        'notif_founderEffectsApplied',
       )
       dojo.subscribe(
         'taskSelectionRequired',
         this,
-        'notif_taskSelectionRequired'
+        'notif_taskSelectionRequired',
       )
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
@@ -2200,19 +2254,19 @@ define([
       dojo.subscribe(
         'technicalDevelopmentMovesRequired',
         this,
-        'notif_technicalDevelopmentMovesRequired'
+        'notif_technicalDevelopmentMovesRequired',
       )
       dojo.subscribe(
         'technicalDevelopmentMovesCompleted',
         this,
-        'notif_technicalDevelopmentMovesCompleted'
+        'notif_technicalDevelopmentMovesCompleted',
       )
       dojo.subscribe('initialPlayerValues', this, 'notif_initialPlayerValues')
       dojo.subscribe('skillSelected', this, 'notif_skillSelected')
       dojo.subscribe('skillTaskTokenAdded', this, 'notif_skillTaskTokenAdded')
 
       console.log(
-        '✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected, skillTaskTokenAdded'
+        '✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected, skillTaskTokenAdded',
       )
     },
 
@@ -2229,7 +2283,7 @@ define([
         '🎲 cubeFace from notification:',
         args.cubeFace,
         'type:',
-        typeof args.cubeFace
+        typeof args.cubeFace,
       )
       console.log('🎲 roundEventCards from notification:', args.roundEventCards)
       console.log('🎲 phaseNumber from notification:', args.phaseNumber)
@@ -2244,6 +2298,13 @@ define([
         this.gamedatas.phaseKey = args.phaseKey
         console.log('🎲 Saved phaseKey to gamedatas:', args.phaseKey)
       }
+      if (args.currentRoundPlayerOrder && Array.isArray(args.currentRoundPlayerOrder) && args.currentRoundPlayerOrder.length > 0) {
+        this.gamedatas.currentRoundPlayerOrder = args.currentRoundPlayerOrder
+      } else if (args.round !== undefined && args.round > 0) {
+        const players = this.gamedatas?.players || {}
+        const fallback = Object.keys(players).map((id) => parseInt(id)).sort((a, b) => a - b)
+        if (fallback.length > 0) this.gamedatas.currentRoundPlayerOrder = fallback
+      }
 
       // ВАЖНО: Обновляем данные в gamedatas ПЕРЕД обновлением отображения
       // Это гарантирует, что значение будет доступно для последующих вызовов
@@ -2257,7 +2318,7 @@ define([
       } else {
         console.warn(
           '🎲 WARNING: cubeFace is empty in roundStart notification!',
-          args.cubeFace
+          args.cubeFace,
         )
       }
 
@@ -2313,7 +2374,7 @@ define([
         // Это гарантирует, что они отобразятся сразу при получении уведомления
         console.log(
           '🎲 notif_roundStart: Updating cube face (Stage 2):',
-          args.cubeFace
+          args.cubeFace,
         )
         if (args.cubeFace) {
           this._updateCubeFace(args.cubeFace)
@@ -2322,14 +2383,14 @@ define([
         if (eventCards.length > 0) {
           console.log(
             '🎴 notif_roundStart: Rendering event cards (Stage 2):',
-            eventCards
+            eventCards,
           )
           this._renderEventCards(eventCards)
           this._renderRoundEventCards(eventCards)
         }
       } else {
         console.log(
-          '🎲 notif_roundStart: Stage 1 - skipping cube and event cards rendering'
+          '🎲 notif_roundStart: Stage 1 - skipping cube and event cards rendering',
         )
       }
 
@@ -2339,7 +2400,7 @@ define([
         this.totalRounds,
         args.roundName,
         args.cubeFace || '',
-        args.phaseName
+        args.phaseName,
       )
       if (args.players) {
         // Обновляем деньги игрока
@@ -2398,30 +2459,30 @@ define([
         console.log(`  - incomeTrack=${values.incomeTrack}`)
         console.log(
           `  - taskTokens: всего=${values.taskTokens.total}, по локациям=`,
-          values.taskTokens.byLocation
+          values.taskTokens.byLocation,
         )
         console.log(`  - projectTokens: всего=${values.projectTokens}`)
         console.log(
           `  - specialistHand (на руке): всего=${values.specialistHand.count}, IDs=`,
-          values.specialistHand.ids
+          values.specialistHand.ids,
         )
         console.log(
           `  - playerSpecialists (подтвержденные): всего=${values.playerSpecialists.count}, IDs=`,
-          values.playerSpecialists.ids
+          values.playerSpecialists.ids,
         )
         console.log(
           `  - backOfficeCol1=${
             values.backOfficeCol1 ?? 'null'
           }, backOfficeCol2=${
             values.backOfficeCol2 ?? 'null'
-          }, backOfficeCol3=${values.backOfficeCol3 ?? 'null'}`
+          }, backOfficeCol3=${values.backOfficeCol3 ?? 'null'}`,
         )
         console.log(
           `  - techDevCol1=${values.techDevCol1 ?? 'null'}, techDevCol2=${
             values.techDevCol2 ?? 'null'
           }, techDevCol3=${values.techDevCol3 ?? 'null'}, techDevCol4=${
             values.techDevCol4 ?? 'null'
-          }`
+          }`,
         )
         console.log(`  - skillToken=${values.skillToken ?? 'null'}`)
       })
@@ -2439,7 +2500,7 @@ define([
         this.gamedatas.allPlayersFounderOptions
       ) {
         console.log(
-          'gameSetupStart - Checking founder options from allPlayersFounderOptions'
+          'gameSetupStart - Checking founder options from allPlayersFounderOptions',
         )
         const activePlayerId = this._getActivePlayerIdFromDatas(this.gamedatas)
         if (
@@ -2450,7 +2511,7 @@ define([
             this.gamedatas.allPlayersFounderOptions[activePlayerId]
           console.log(
             'gameSetupStart - Updated activeFounderOptions for player ' +
-              activePlayerId
+              activePlayerId,
           )
         }
       }
@@ -2463,12 +2524,12 @@ define([
         if (content) {
           content.textContent = _('🔄 ЭТАП 1: ${stageName}').replace(
             '${stageName}',
-            stageName
+            stageName,
           )
         } else {
           banner.textContent = _('🔄 ЭТАП 1: ${stageName}').replace(
             '${stageName}',
-            stageName
+            stageName,
           )
         }
         banner.className = 'round-banner round-banner--setup'
@@ -2487,7 +2548,7 @@ define([
       console.log('notif_gameSetupComplete called with args:', args)
       console.log('Current game state:', this.gamedatas?.gamestate?.name)
       console.log(
-        'Expected: GameSetup, Next state should be FounderSelection (in main mode)'
+        'Expected: GameSetup, Next state should be FounderSelection (in main mode)',
       )
       // Обновляем отображение после завершения подготовки
       const banner = document.getElementById('round-banner')
@@ -2533,7 +2594,7 @@ define([
         const content = banner.querySelector('.round-banner__content')
         const bannerText = _('🎮 ЭТАП 2: ${stageName}').replace(
           '${stageName}',
-          stageName
+          stageName,
         )
 
         if (content) {
@@ -2572,7 +2633,7 @@ define([
       const playerId = Number(args.player_id || 0)
       const founder = args.founder || null
       const department = String(
-        args.department || founder?.department || 'universal'
+        args.department || founder?.department || 'universal',
       )
         .trim()
         .toLowerCase()
@@ -2604,19 +2665,19 @@ define([
         }
 
         const handContainer = document.getElementById(
-          'active-player-hand-cards'
+          'active-player-hand-cards',
         )
 
         // ВАЖНО: Принудительно удаляем все карты выбора из DOM
         if (handContainer) {
           const selectableCards = handContainer.querySelectorAll(
-            '.founder-card--selectable'
+            '.founder-card--selectable',
           )
           selectableCards.forEach((card) => {
             card.remove()
           })
           handContainer.classList.remove(
-            'active-player-hand__center--selecting'
+            'active-player-hand__center--selecting',
           )
         }
 
@@ -2626,7 +2687,7 @@ define([
           if (handContainer) {
             // Удаляем только карты выбора основателя, но сохраняем карты специалистов
             const selectableCards = handContainer.querySelectorAll(
-              '.founder-card--selectable'
+              '.founder-card--selectable',
             )
             selectableCards.forEach((card) => card.remove())
 
@@ -2661,8 +2722,8 @@ define([
             handContainer.innerHTML = `
               <div class="founder-card founder-card--back" data-player-id="${playerId}" data-department="universal">
                 <img src="${backImageUrl}" alt="${_(
-              'Рубашка карты'
-            )}" class="founder-card__image" />
+                  'Рубашка карты',
+                )}" class="founder-card__image" />
               </div>
             `
           }
@@ -2732,7 +2793,7 @@ define([
         '💰 Current player:',
         this.player_id,
         'Target player:',
-        playerId
+        playerId,
       )
 
       // ВАЖНО: Обновляем данные в gamedatas только для указанного игрока
@@ -2759,11 +2820,19 @@ define([
         // ВАЖНО: Используем newValue из уведомления, так как oldValue совпадает с currentValue
         // Это означает, что данные не были изменены getAllDatas()
         this.gamedatas.players[playerId].badgers = newValue
+        // В фазе найма синхронизируем _hiringBadgers с сервером, чтобы проверка «хватает ли баджерсов» не ломалась
+        if (
+          Number(this.player_id) === Number(playerId) &&
+          this.gamedatas?.gamestate?.name === 'RoundHiring' &&
+          typeof this._hiringBadgers === 'number'
+        ) {
+          this._hiringBadgers = Math.max(0, newValue)
+        }
       } else {
         console.error(
           '🔴🔴🔴 ERROR: Cannot update badgers for player',
           playerId,
-          '- player not found in gamedatas.players'
+          '- player not found in gamedatas.players',
         )
       }
 
@@ -2771,7 +2840,7 @@ define([
       if (args.badgersSupply && Array.isArray(args.badgersSupply)) {
         console.log(
           '💰 Updating badgers supply, count:',
-          args.badgersSupply.length
+          args.badgersSupply.length,
         )
         this.gamedatas.badgers = args.badgersSupply
         this._renderBadgers(args.badgersSupply)
@@ -2786,7 +2855,7 @@ define([
           pid,
           'badgers:',
           pBadgers,
-          pid == playerId ? '(UPDATED)' : '(unchanged)'
+          pid == playerId ? '(UPDATED)' : '(unchanged)',
         )
       })
 
@@ -2832,7 +2901,7 @@ define([
         this.gamedatas.players[playerId].energy = newValue
         console.log(
           '📈 Updated gamedatas.players[' + playerId + '].energy to',
-          newValue
+          newValue,
         )
       }
 
@@ -2841,7 +2910,7 @@ define([
         '📈 Calling _updateIncomeTrackPosition with playerId:',
         playerId,
         'newValue:',
-        newValue
+        newValue,
       )
       this._updateIncomeTrackPosition(playerId, newValue)
 
@@ -2850,7 +2919,7 @@ define([
         const actionText = amount > 0 ? '+' : ''
         this.showMessage(
           `${founderName}: ${actionText}${amount} трек дохода`,
-          'info'
+          'info',
         )
       }
     },
@@ -2871,13 +2940,13 @@ define([
         this.gamedatas.players[playerId].energy = energyValue
         console.log(
           '📈 Updated gamedatas.players[' + playerId + '].energy to',
-          energyValue
+          energyValue,
         )
       } else {
         console.warn(
           '📈 WARNING: Cannot update energy for player',
           playerId,
-          '- player not found in gamedatas'
+          '- player not found in gamedatas',
         )
       }
 
@@ -2889,7 +2958,7 @@ define([
           '📈 Skipping visual update - track belongs to player',
           playerId,
           'but current player is',
-          currentPlayerId
+          currentPlayerId,
         )
         return
       }
@@ -2905,7 +2974,7 @@ define([
 
       if (allIncomeTracks.length === 0) {
         console.log(
-          '📈 _updateIncomeTrackPosition - No income tracks found on page'
+          '📈 _updateIncomeTrackPosition - No income tracks found on page',
         )
         return
       }
@@ -2915,7 +2984,7 @@ define([
 
       if (!playerBoard) {
         console.log(
-          '📈 _updateIncomeTrackPosition - Income track element not found'
+          '📈 _updateIncomeTrackPosition - Income track element not found',
         )
         return
       }
@@ -2952,7 +3021,7 @@ define([
             '📈 Found matching sector:',
             sectorValue,
             'for position:',
-            position
+            position,
           )
         }
         return matches
@@ -2962,7 +3031,7 @@ define([
         console.log('📈 Target sector found:', targetSector)
         // Находим контейнер содержимого сектора
         const sectorContent = targetSector.querySelector(
-          '.income-track__sector-content'
+          '.income-track__sector-content',
         )
         if (sectorContent) {
           console.log('📈 Sector content found:', sectorContent)
@@ -2974,28 +3043,28 @@ define([
             '✅ Added token to sector:',
             position,
             'in sectorContent:',
-            sectorContent
+            sectorContent,
           )
         } else {
           console.log(
             '❌ _updateIncomeTrackPosition - Sector content not found for position:',
-            position
+            position,
           )
           console.log(
             '📈 Target sector HTML:',
-            targetSector.outerHTML.substring(0, 200)
+            targetSector.outerHTML.substring(0, 200),
           )
         }
       } else {
         console.log(
           '❌ _updateIncomeTrackPosition - Target sector not found for position:',
-          position
+          position,
         )
         console.log(
           '📈 Available sector values:',
           Array.from(sectors)
             .map((s) => s.dataset.value)
-            .join(', ')
+            .join(', '),
         )
       }
     },
@@ -3024,13 +3093,13 @@ define([
           'for player:',
           playerId,
           'amount:',
-          amount
+          amount,
         )
         this._updateBackOfficeEvolutionColumn(
           playerId,
           trackId,
           newValue,
-          amount
+          amount,
         )
       } else if (
         trackId === 'player-department-back-office-evolution-column-2' ||
@@ -3043,7 +3112,7 @@ define([
           'for player:',
           playerId,
           'amount:',
-          amount
+          amount,
         )
         const columnMatch = trackId.match(/column-(\d+)/)
         const columnNum = columnMatch ? columnMatch[1] : '1'
@@ -3059,7 +3128,7 @@ define([
         console.log(
           '🎯 Track',
           trackId,
-          'is not a back-office evolution column, skipping'
+          'is not a back-office evolution column, skipping',
         )
       }
 
@@ -3070,7 +3139,7 @@ define([
           `${args.founder_name || 'Основатель'}: ${actionText}${amount} ${
             args.track_name || trackId
           }`,
-          'info'
+          'info',
         )
       }
     },
@@ -3086,7 +3155,7 @@ define([
       playerId,
       trackId,
       newValue,
-      amount
+      amount,
     ) {
       // Извлекаем номер колонки из trackId
       const columnMatch = trackId.match(/column-(\d+)/)
@@ -3131,11 +3200,11 @@ define([
         '🎯 Column element found:',
         columnElement,
         'for trackId:',
-        trackId
+        trackId,
       )
       console.log(
         '🎯 Column element innerHTML length:',
-        columnElement.innerHTML.length
+        columnElement.innerHTML.length,
       )
 
       // Находим wrapper со строками (может быть с классом column-1__rows-wrapper, column-2__rows-wrapper и т.д.)
@@ -3146,7 +3215,7 @@ define([
         console.log(
           '🎯 Wrapper not found with class:',
           wrapperClass,
-          'trying fallback'
+          'trying fallback',
         )
         // Fallback: пробуем найти любой wrapper или используем сам columnElement
         wrapper =
@@ -3159,7 +3228,7 @@ define([
 
       // Находим все строки в колонке - пробуем несколько способов
       let rows = wrapper.querySelectorAll(
-        '.player-department-back-office-evolution__row'
+        '.player-department-back-office-evolution__row',
       )
       console.log(
         '🎯 Found rows in wrapper:',
@@ -3167,16 +3236,16 @@ define([
         'in column',
         columnNum,
         'for trackId:',
-        trackId
+        trackId,
       )
 
       // Если строки не найдены в wrapper, пробуем найти их напрямую в columnElement
       if (rows.length === 0) {
         console.log(
-          '🎯 No rows found in wrapper, trying direct search in columnElement'
+          '🎯 No rows found in wrapper, trying direct search in columnElement',
         )
         rows = columnElement.querySelectorAll(
-          '.player-department-back-office-evolution__row'
+          '.player-department-back-office-evolution__row',
         )
         console.log('🎯 Direct rows found in columnElement:', rows.length)
 
@@ -3198,7 +3267,7 @@ define([
             console.log(
               '🎯 Found',
               rowElements.length,
-              'rows by ID, converting to NodeList-like structure'
+              'rows by ID, converting to NodeList-like structure',
             )
             // Создаем объект, похожий на NodeList
             rows = {
@@ -3224,7 +3293,7 @@ define([
         '🎯 Successfully found',
         rows.length,
         'rows for column',
-        columnNum
+        columnNum,
       )
 
       // Преобразуем rows в массив для единообразной обработки
@@ -3237,7 +3306,7 @@ define([
       let currentPosition = 1 // По умолчанию позиция 1 (нижняя ячейка)
       rowsArray.forEach((row) => {
         const token = row.querySelector(
-          '.player-department-back-office-evolution__token'
+          '.player-department-back-office-evolution__token',
         )
         if (token) {
           const rowIndex = parseInt(row.dataset.rowIndex, 10)
@@ -3257,14 +3326,14 @@ define([
         currentPosition,
         '+ amount:',
         amount,
-        ')'
+        ')',
       )
 
       // Удаляем жетон из всех строк
       let removedCount = 0
       rowsArray.forEach((row) => {
         const token = row.querySelector(
-          '.player-department-back-office-evolution__token'
+          '.player-department-back-office-evolution__token',
         )
         if (token) {
           token.remove()
@@ -3284,7 +3353,7 @@ define([
             '🎯 Found matching row:',
             rowIndex,
             'for position:',
-            newPosition
+            newPosition,
           )
         }
         return matches
@@ -3300,7 +3369,7 @@ define([
           '✅ Added token to row:',
           newPosition,
           'in column:',
-          columnNum
+          columnNum,
         )
 
         // Сохраняем данные в gamedatas
@@ -3316,7 +3385,7 @@ define([
             'column:',
             columnKey,
             'position:',
-            newPosition
+            newPosition,
           )
         }
       } else {
@@ -3324,13 +3393,13 @@ define([
           '❌ _updateBackOfficeEvolutionColumn - Target row not found for position:',
           newPosition,
           'in column:',
-          columnNum
+          columnNum,
         )
         console.log(
           '🎯 Available row indices:',
           Array.from(rows)
             .map((r) => r.dataset.rowIndex)
-            .join(', ')
+            .join(', '),
         )
       }
     },
@@ -3347,7 +3416,7 @@ define([
         playerId,
         'player-department-back-office-evolution-column-1',
         newValue,
-        amount
+        amount,
       )
     },
 
@@ -3356,7 +3425,7 @@ define([
     _clearDepartmentsForNewPlayer: function (activePlayerId) {
       console.log(
         '🧹 _clearDepartmentsForNewPlayer called for player:',
-        activePlayerId
+        activePlayerId,
       )
 
       const departments = [
@@ -3391,7 +3460,7 @@ define([
             ) {
               console.log(
                 '🧹 Removing hand card for other player:',
-                cardPlayerId
+                cardPlayerId,
               )
               card.remove()
             }
@@ -3413,13 +3482,13 @@ define([
             '💰 _clearDepartmentsForNewPlayer: Updating money for new player:',
             activePlayerId,
             'badgers:',
-            badgers
+            badgers,
           )
           this._renderPlayerMoney(this.gamedatas.players, activePlayerId)
         } else {
           console.warn(
             '⚠️ _clearDepartmentsForNewPlayer: Player data not found in gamedatas.players for player:',
-            activePlayerId
+            activePlayerId,
           )
         }
       }, 100)
@@ -3431,7 +3500,7 @@ define([
         'sales-department': document.querySelector('.sales-department__body'),
         'back-office': document.querySelector('.back-office__body'),
         'technical-department': document.querySelector(
-          '.technical-department__body'
+          '.technical-department__body',
         ),
       }
 
@@ -3439,7 +3508,7 @@ define([
       if (!container) {
         console.error(
           '_renderFounderCardInDepartment - Container NOT FOUND for department:',
-          department
+          department,
         )
         return
       }
@@ -3452,7 +3521,7 @@ define([
       } else {
         // Удаляем только карту этого игрока, если она уже есть
         const existingCard = container.querySelector(
-          `[data-player-id="${playerId}"]`
+          `[data-player-id="${playerId}"]`,
         )
         if (existingCard) {
           existingCard.remove()
@@ -3492,7 +3561,7 @@ define([
 
       // Удаляем только старую карту основателя, если она есть, но сохраняем карты специалистов
       const existingFounderCard = handContainer.querySelector(
-        '.founder-card--universal-clickable'
+        '.founder-card--universal-clickable',
       )
       if (existingFounderCard) {
         existingFounderCard.remove()
@@ -3577,13 +3646,13 @@ define([
         // Если карта была размещена из руки (была универсальной), удаляем её из руки
         // После размещения карта должна быть в отделе, а не на руке
         const handContainer = document.getElementById(
-          'active-player-hand-cards'
+          'active-player-hand-cards',
         )
         if (handContainer && Number(playerId) === Number(this.player_id)) {
           // Удаляем только карту основателя из руки, но сохраняем карты специалистов
           // Ищем и удаляем только карту основателя (универсальную)
           const founderCardElement = handContainer.querySelector(
-            '.founder-card--universal-clickable'
+            '.founder-card--universal-clickable',
           )
           if (founderCardElement) {
             founderCardElement.remove()
@@ -3690,7 +3759,7 @@ define([
 
         // Фильтруем карты - оставляем только выбранные из 7 карт
         const keptCards = handCards.filter((card) =>
-          selectedIds.includes(card.id)
+          selectedIds.includes(card.id),
         )
 
         // ВАЖНО: Добавляем выбранные карты к существующим (от эффекта), а не перезаписываем!
@@ -3699,19 +3768,19 @@ define([
 
         console.log(
           '🎴 notif_specialistsConfirmed - Existing cards from effect:',
-          existingCards.length
+          existingCards.length,
         )
         console.log(
           '🎴 notif_specialistsConfirmed - Selected cards from 7:',
-          keptCards.length
+          keptCards.length,
         )
         console.log(
           '🎴 notif_specialistsConfirmed - New cards (no duplicates):',
-          newCards.length
+          newCards.length,
         )
         console.log(
           '🎴 notif_specialistsConfirmed - Total cards now:',
-          this.gamedatas.playerSpecialists.length
+          this.gamedatas.playerSpecialists.length,
         )
 
         // Очищаем временные данные
@@ -3801,7 +3870,7 @@ define([
           this.gamedatas.specialists = allSpecialists
           console.log(
             '🎴 Converted specialists object to array, count:',
-            allSpecialists.length
+            allSpecialists.length,
           )
         }
 
@@ -3812,7 +3881,7 @@ define([
               type: typeof allSpecialists,
               isArray: Array.isArray(allSpecialists),
               length: allSpecialists?.length,
-            }
+            },
           )
           return
         }
@@ -3820,14 +3889,14 @@ define([
         const dealtCards = cardIds
           .map((cardId) => {
             const card = allSpecialists.find(
-              (card) => Number(card.id) === Number(cardId)
+              (card) => Number(card.id) === Number(cardId),
             )
             if (!card) {
               console.warn(
                 '🎴 Card not found in specialists data:',
                 cardId,
                 'Available IDs:',
-                allSpecialists.slice(0, 10).map((c) => c.id)
+                allSpecialists.slice(0, 10).map((c) => c.id),
               )
             }
             return card || null
@@ -3838,7 +3907,7 @@ define([
           '🎴 Dealt cards found:',
           dealtCards.length,
           'out of',
-          cardIds.length
+          cardIds.length,
         )
 
         if (dealtCards.length === 0) {
@@ -3851,19 +3920,19 @@ define([
         // Они сразу добавляются в playerSpecialists для отображения на руке
 
         console.log(
-          '🎴 notif_specialistsDealtToHand - Cards from founder effect are LOCKED to player (player_specialists_)'
+          '🎴 notif_specialistsDealtToHand - Cards from founder effect are LOCKED to player (player_specialists_)',
         )
         console.log(
-          '🎴 notif_specialistsDealtToHand - These cards do NOT participate in selection from 7 cards'
+          '🎴 notif_specialistsDealtToHand - These cards do NOT participate in selection from 7 cards',
         )
 
         // Добавляем карты в playerSpecialists (они уже закреплены на сервере)
         const currentSpecialists = this.gamedatas.playerSpecialists || []
         const existingIds = new Set(
-          currentSpecialists.map((card) => Number(card.id))
+          currentSpecialists.map((card) => Number(card.id)),
         )
         const newCards = dealtCards.filter(
-          (card) => !existingIds.has(Number(card.id))
+          (card) => !existingIds.has(Number(card.id)),
         )
 
         // Добавляем только новые карты (без дубликатов)
@@ -3873,14 +3942,17 @@ define([
           '🎴 notif_specialistsDealtToHand - Dealt cards:',
           dealtCards.length,
           'New cards (no duplicates):',
-          newCards.length
+          newCards.length,
         )
         console.log(
           '🎴 notif_specialistsDealtToHand - Total player specialists now:',
-          this.gamedatas.playerSpecialists.length
+          this.gamedatas.playerSpecialists.length,
         )
 
-        if (args.handCardsWithPrices && Array.isArray(args.handCardsWithPrices)) {
+        if (
+          args.handCardsWithPrices &&
+          Array.isArray(args.handCardsWithPrices)
+        ) {
           this._hiringHandCardsWithPrices = args.handCardsWithPrices
         }
         // Гарантированно показываем блок руки и рендерим карты
@@ -3904,12 +3976,13 @@ define([
             typeof _ !== 'undefined'
               ? _('Рекрутинг: вы получили ${n} карт сотрудников').replace(
                   '${n}',
-                  String(amount)
+                  String(amount),
                 )
               : `Рекрутинг: +${amount} карт сотрудников`
         } else {
           // Сообщение по умолчанию (эффекты основателей/навыков)
-          const founderName = args.founder_name || args.specialist_name || 'Карта'
+          const founderName =
+            args.founder_name || args.specialist_name || 'Карта'
           message = `${founderName}: +${amount} карт специалистов`
         }
 
@@ -3919,7 +3992,7 @@ define([
           '🎴 Notification is for another player:',
           playerId,
           'current:',
-          this.player_id
+          this.player_id,
         )
       }
     },
@@ -3933,7 +4006,7 @@ define([
       const arr = this.gamedatas.playerSpecialists || []
       const idsSet = new Set(cardIds.map((id) => Number(id)))
       this.gamedatas.playerSpecialists = arr.filter(
-        (c) => !idsSet.has(Number(c.id))
+        (c) => !idsSet.has(Number(c.id)),
       )
       const pl = this.gamedatas.players[playerId]
       if (pl) {
@@ -3951,7 +4024,8 @@ define([
         if (args.hiringHiredCount !== undefined) {
           this._hiringHiredCount = Number(args.hiringHiredCount)
         } else {
-          this._hiringHiredCount = (this._hiringHiredCount || 0) + (args.amount || 1)
+          this._hiringHiredCount =
+            (this._hiringHiredCount || 0) + (args.amount || 1)
         }
         if (args.maxHireCount !== undefined) {
           this._hiringMaxCount = Number(args.maxHireCount)
@@ -3973,16 +4047,16 @@ define([
       console.log('🔵 updateTrack value type:', typeof args.updateTrack_value)
       console.log(
         '🔵 updateTrack value is_array:',
-        Array.isArray(args.updateTrack_value)
+        Array.isArray(args.updateTrack_value),
       )
       console.log(
         '🔵 updateTrack_count (from FoundersData):',
-        args.updateTrack_count
+        args.updateTrack_count,
       )
       if (Array.isArray(args.updateTrack_value)) {
         console.log(
           '🔵 updateTrack value count:',
-          args.updateTrack_value.length
+          args.updateTrack_value.length,
         )
         args.updateTrack_value.forEach((track, idx) => {
           console.log(`🔵 updateTrack value[${idx}]:`, track)
@@ -3997,14 +4071,14 @@ define([
       if (Array.isArray(args.tracks_in_applied)) {
         console.log(
           '🔵 tracks_in_applied count:',
-          args.tracks_in_applied.length
+          args.tracks_in_applied.length,
         )
         args.tracks_in_applied.forEach((track, idx) => {
           console.log(`🔵 tracks_in_applied[${idx}]:`, track)
           if (track.trackId === 'player-department-technical-development') {
             console.log(
               `🔧🔧🔧 FOUND technical-development track in applied! column:`,
-              track.column
+              track.column,
             )
           }
         })
@@ -4013,19 +4087,19 @@ define([
       // Проверяем, есть ли updateTrack в примененных эффектах
       if (args.applied_effects && Array.isArray(args.applied_effects)) {
         const updateTrackEffect = args.applied_effects.find(
-          (e) => e.type === 'updateTrack'
+          (e) => e.type === 'updateTrack',
         )
         if (updateTrackEffect) {
           console.log(
             '🔵🔵🔵 FOUND updateTrack in applied_effects!',
-            updateTrackEffect
+            updateTrackEffect,
           )
           if (
             updateTrackEffect.tracks &&
             Array.isArray(updateTrackEffect.tracks)
           ) {
             const incomeTrack = updateTrackEffect.tracks.find(
-              (t) => t.trackId === 'income-track'
+              (t) => t.trackId === 'income-track',
             )
             if (incomeTrack) {
               console.log('🔵🔵🔵 FOUND income-track in tracks!', incomeTrack)
@@ -4045,7 +4119,7 @@ define([
 
       console.log(
         '✅ notif_founderEffectsApplied received for player:',
-        playerId
+        playerId,
       )
 
       // Если это текущий игрок, разблокируем кнопку "Завершить ход"
@@ -4071,7 +4145,7 @@ define([
             finishButton.disabled = false
             finishButton.removeAttribute('title') // Убираем tooltip
             console.log(
-              '✅ Finish turn button unlocked after all founder effects applied'
+              '✅ Finish turn button unlocked after all founder effects applied',
             )
           } else {
             // Если кнопки нет, добавляем её (активную)
@@ -4079,7 +4153,7 @@ define([
           }
         } else {
           console.log(
-            '⏳ Finish turn button remains disabled - waiting for task selection/moves/technical development'
+            '⏳ Finish turn button remains disabled - waiting for task selection/moves/technical development',
           )
         }
       }
@@ -4095,7 +4169,7 @@ define([
         '🎯 notif_taskSelectionRequired received for player:',
         playerId,
         'amount:',
-        amount
+        amount,
       )
 
       // Если это текущий игрок, активируем выбор задач
@@ -4113,7 +4187,7 @@ define([
           this._showFounderEffectSequenceHint(
             founderName,
             amount,
-            JSON.parse(pendingMovesJson)
+            JSON.parse(pendingMovesJson),
           )
         }
 
@@ -4137,7 +4211,7 @@ define([
         'moveColor:',
         moveColor,
         'currentPlayer:',
-        this.player_id
+        this.player_id,
       )
 
       // Если это текущий игрок, активируем режим перемещения задач
@@ -4164,7 +4238,7 @@ define([
         console.log('✅ pendingTaskMoves set:', this.gamedatas.pendingTaskMoves)
         console.log(
           '✅ pendingTaskMovesJson set:',
-          this.gamedatas.pendingTaskMovesJson
+          this.gamedatas.pendingTaskMovesJson,
         )
 
         // В фазе навыков (Интеллект): блокируем кнопку «Завершить фазу навыков» до подтверждения перемещений
@@ -4177,8 +4251,8 @@ define([
             this.completeSkillsPhaseButton.setAttribute(
               'title',
               _(
-                'Примените эффект: передвиньте задачи на треке и нажмите «Подтвердить»'
-              )
+                'Примените эффект: передвиньте задачи на треке и нажмите «Подтвердить»',
+              ),
             )
           }
         }
@@ -4186,7 +4260,7 @@ define([
         // Проверяем, завершен ли выбор задач
         if (!this.gamedatas.pendingTaskSelection) {
           console.log(
-            '✅ No pending task selection, activating move mode immediately'
+            '✅ No pending task selection, activating move mode immediately',
           )
           // Если выбор задач уже завершен, сразу активируем режим перемещения
           this._activateTaskMoveMode(moveCount, moveColor)
@@ -4199,7 +4273,7 @@ define([
             {
               moveCount: moveCount,
               moveColor: moveColor,
-            }
+            },
           )
         }
       } else {
@@ -4268,13 +4342,13 @@ define([
         'moveCount:',
         moveCount,
         'founderName:',
-        founderName
+        founderName,
       )
 
       // Если это текущий игрок, активируем режим выбора колонок
       if (Number(playerId) === Number(this.player_id)) {
         console.log(
-          '✅ This is current player, activating technical development move mode'
+          '✅ This is current player, activating technical development move mode',
         )
         this._activateTechnicalDevelopmentMoveMode(moveCount, founderName)
       } else {
@@ -4288,7 +4362,7 @@ define([
 
       console.log(
         '✅ notif_technicalDevelopmentMovesCompleted received for player:',
-        playerId
+        playerId,
       )
 
       // Если это текущий игрок, деактивируем режим выбора
@@ -4314,20 +4388,20 @@ define([
         '✅ notif_tasksSelected received for player:',
         playerId,
         'tasks:',
-        selectedTasks
+        selectedTasks,
       )
       console.log('🔍🔍🔍 notif_tasksSelected - BEFORE processing:')
       console.log(
         '  → this.gamedatas.pendingTaskMoves:',
-        this.gamedatas.pendingTaskMoves
+        this.gamedatas.pendingTaskMoves,
       )
       console.log(
         '  → this.gamedatas.pendingTaskMovesJson:',
-        this.gamedatas.pendingTaskMovesJson
+        this.gamedatas.pendingTaskMovesJson,
       )
       console.log('  → args.pending_task_moves:', args.pending_task_moves)
       console.log(
-        '  → Was notif_taskMovesRequired called? Check logs above for "🎯🎯🎯 notif_taskMovesRequired"'
+        '  → Was notif_taskMovesRequired called? Check logs above for "🎯🎯🎯 notif_taskMovesRequired"',
       )
 
       // Обновляем данные игрока - добавляем задачи в backlog
@@ -4359,7 +4433,7 @@ define([
         const hint = document.getElementById('founder-effect-sequence-hint')
         if (hint) {
           const step1 = hint.querySelector(
-            '.founder-effect-sequence-hint__step:first-child'
+            '.founder-effect-sequence-hint__step:first-child',
           )
           if (step1) {
             step1.classList.remove('founder-effect-sequence-hint__step--active')
@@ -4371,19 +4445,19 @@ define([
         // Проверяем два источника: pendingTaskMovesJson (из уведомления) и данные из args
         console.log(
           '🔍 notif_tasksSelected - Checking for pendingTaskMovesJson:',
-          this.gamedatas.pendingTaskMovesJson
+          this.gamedatas.pendingTaskMovesJson,
         )
         console.log(
           '🔍 notif_tasksSelected - Checking args for pendingTaskMoves:',
-          args.pending_task_moves
+          args.pending_task_moves,
         )
         console.log(
           '🔍 notif_tasksSelected - Full args keys:',
-          Object.keys(args)
+          Object.keys(args),
         )
         console.log(
           '🔍 notif_tasksSelected - Full args:',
-          JSON.stringify(args, null, 2)
+          JSON.stringify(args, null, 2),
         )
 
         let movesData = null
@@ -4398,7 +4472,7 @@ define([
                 : args.pending_task_moves
             console.log(
               '✅✅✅ notif_tasksSelected - Found pending_task_moves in args (PRIORITY), activating move mode:',
-              movesData
+              movesData,
             )
 
             // Преобразуем данные в формат, который ожидает клиент
@@ -4431,7 +4505,7 @@ define([
                     tokenId: m.tokenId,
                     toLocation: m.toLocation,
                   })),
-                }
+                },
               )
 
               // Также сохраняем в movesData для дальнейшей обработки
@@ -4447,7 +4521,7 @@ define([
           movesData = JSON.parse(this.gamedatas.pendingTaskMovesJson)
           console.log(
             '✅ Found pendingTaskMovesJson (fallback), activating move mode:',
-            movesData
+            movesData,
           )
           delete this.gamedatas.pendingTaskMovesJson
         }
@@ -4457,7 +4531,7 @@ define([
           args.founder_name === 'Dmitry'
         ) {
           console.warn(
-            '⚠️⚠️⚠️ notif_tasksSelected - Founder is Дмитрий but no pending_task_moves found! Creating from known effect.'
+            '⚠️⚠️⚠️ notif_tasksSelected - Founder is Дмитрий but no pending_task_moves found! Creating from known effect.',
           )
           // Карта "Дмитрий" имеет эффект move_task: {move_count: 3, move_color: 'any'}
           movesData = {
@@ -4469,7 +4543,7 @@ define([
           }
           console.log(
             '✅✅✅ notif_tasksSelected - Created movesData from known Дмитрий effect:',
-            movesData
+            movesData,
           )
         }
 
@@ -4481,12 +4555,12 @@ define([
           console.log('🔍 notif_tasksSelected - movesData found:', movesData)
           console.log(
             '🔍 notif_tasksSelected - current pendingTaskMoves:',
-            this.gamedatas.pendingTaskMoves
+            this.gamedatas.pendingTaskMoves,
           )
 
           if (!this.gamedatas.pendingTaskMoves) {
             console.log(
-              '⚠️ notif_tasksSelected - pendingTaskMoves is NOT set, setting it now from movesData'
+              '⚠️ notif_tasksSelected - pendingTaskMoves is NOT set, setting it now from movesData',
             )
             // Активируем режим перемещения задач после выбора задач
             // ВАЖНО: Сохраняем существующие moves и usedMoves, если они есть
@@ -4512,11 +4586,11 @@ define([
                   tokenId: m.tokenId,
                   toLocation: m.toLocation,
                 })),
-              }
+              },
             )
           } else {
             console.log(
-              '⚠️ notif_tasksSelected - pendingTaskMoves already exists, ensuring fromEffect and moveSource are set'
+              '⚠️ notif_tasksSelected - pendingTaskMoves already exists, ensuring fromEffect and moveSource are set',
             )
             // ВАЖНО: Гарантируем, что fromEffect и moveSource установлены правильно
             if (this.gamedatas.pendingTaskMoves.fromEffect !== true) {
@@ -4527,13 +4601,13 @@ define([
               this.gamedatas.pendingTaskMoves.moveSource !== 'founder_effect'
             ) {
               console.log(
-                '⚠️⚠️⚠️ moveSource is not founder_effect, setting it to founder_effect'
+                '⚠️⚠️⚠️ moveSource is not founder_effect, setting it to founder_effect',
               )
               this.gamedatas.pendingTaskMoves.moveSource = 'founder_effect'
             }
             console.log(
               '✅ pendingTaskMoves after ensuring flags:',
-              this.gamedatas.pendingTaskMoves
+              this.gamedatas.pendingTaskMoves,
             )
           }
 
@@ -4548,14 +4622,14 @@ define([
             this._activateTaskMoveMode(moveCount, moveColor)
           } else {
             console.error(
-              '❌❌❌ notif_tasksSelected - pendingTaskMoves is NOT set after processing movesData!'
+              '❌❌❌ notif_tasksSelected - pendingTaskMoves is NOT set after processing movesData!',
             )
           }
 
           // Обновляем подсказку - активируем шаг 2
           if (hint) {
             const step2 = hint.querySelector(
-              '.founder-effect-sequence-hint__step:last-child'
+              '.founder-effect-sequence-hint__step:last-child',
             )
             if (step2) {
               step2.classList.add('founder-effect-sequence-hint__step--active')
@@ -4596,7 +4670,7 @@ define([
 
         if (!Array.isArray(allSpecialists)) {
           console.error(
-            '🎴 ERROR: gamedatas.specialists is not an array in notif_specialistsDealt!'
+            '🎴 ERROR: gamedatas.specialists is not an array in notif_specialistsDealt!',
           )
           return
         }
@@ -4605,7 +4679,7 @@ define([
           .map((cardId) => {
             return (
               allSpecialists.find(
-                (card) => Number(card.id) === Number(cardId)
+                (card) => Number(card.id) === Number(cardId),
               ) || null
             )
           })
@@ -4624,11 +4698,11 @@ define([
           '🎴 notif_specialistsDealt - Dealt cards:',
           dealtCards.length,
           'New cards (no duplicates):',
-          newCards.length
+          newCards.length,
         )
         console.log(
           '🎴 notif_specialistsDealt - Total player specialists now:',
-          this.gamedatas.playerSpecialists.length
+          this.gamedatas.playerSpecialists.length,
         )
 
         // Рендерим карты в блоке руки
@@ -4674,7 +4748,7 @@ define([
     _renderSpecialistSelectionCards: function (
       handCards,
       selectedCards,
-      cardsToKeep
+      cardsToKeep,
     ) {
       console.log('🎴 _renderSpecialistSelectionCards called:', {
         handCards: handCards?.length || 0,
@@ -4693,7 +4767,7 @@ define([
         console.log('🎴 Card IDs from server:', cardIds)
         console.log(
           '🎴 Card IDs (numbers only):',
-          handCards.map((c) => Number(c.id))
+          handCards.map((c) => Number(c.id)),
         )
       }
 
@@ -4701,21 +4775,21 @@ define([
       if (handCards && handCards.length !== 7 && handCards.length > 0) {
         console.warn(
           '⚠️ WARNING: Expected 7 cards for selection, but got',
-          handCards.length
+          handCards.length,
         )
       }
 
       const modalBody = document.getElementById(
-        'specialist-selection-modal-body'
+        'specialist-selection-modal-body',
       )
       const modalTitle = document.getElementById(
-        'specialist-selection-modal-title'
+        'specialist-selection-modal-title',
       )
       const modalSubtitle = document.getElementById(
-        'specialist-selection-modal-subtitle'
+        'specialist-selection-modal-subtitle',
       )
       const confirmBtn = document.getElementById(
-        'specialist-selection-modal-confirm-btn'
+        'specialist-selection-modal-confirm-btn',
       )
 
       if (!modalBody || !modalTitle || !modalSubtitle || !confirmBtn) {
@@ -4812,7 +4886,7 @@ define([
 
     _updateSpecialistCardSelection: function (cardId, isSelected) {
       const cardDiv = document.querySelector(
-        `.specialist-card[data-card-id="${cardId}"]`
+        `.specialist-card[data-card-id="${cardId}"]`,
       )
       if (cardDiv) {
         if (isSelected) {
@@ -4824,7 +4898,7 @@ define([
 
       // Обновляем счётчик в модальном окне
       const modalSubtitle = document.getElementById(
-        'specialist-selection-modal-subtitle'
+        'specialist-selection-modal-subtitle',
       )
       if (modalSubtitle && this.gamedatas.selectedSpecialists !== undefined) {
         const cardsToKeep = this.gamedatas.cardsToKeep || 3
@@ -4839,7 +4913,7 @@ define([
 
     _updateConfirmSpecialistsButton: function (selectedCount, cardsToKeep) {
       const confirmBtn = document.getElementById(
-        'specialist-selection-modal-confirm-btn'
+        'specialist-selection-modal-confirm-btn',
       )
       if (!confirmBtn) return
 
@@ -4847,7 +4921,7 @@ define([
         // Можно подтвердить
         confirmBtn.disabled = false
         confirmBtn.classList.remove(
-          'specialist-selection-modal__confirm-btn:disabled'
+          'specialist-selection-modal__confirm-btn:disabled',
         )
 
         // Удаляем старый обработчик и добавляем новый
@@ -4873,7 +4947,7 @@ define([
         // Нельзя подтвердить
         confirmBtn.disabled = true
         confirmBtn.classList.add(
-          'specialist-selection-modal__confirm-btn:disabled'
+          'specialist-selection-modal__confirm-btn:disabled',
         )
       }
     },
@@ -4893,8 +4967,8 @@ define([
         <div class="waiting-for-selection">
           <div class="waiting-icon">⏳</div>
           <div class="waiting-text">${playerName} ${_(
-        'выбирает карты сотрудников...'
-      )}</div>
+            'выбирает карты сотрудников...',
+          )}</div>
         </div>
       `
     },
@@ -4946,7 +5020,7 @@ define([
       console.log(
         '🎴 Rendered',
         playerSpecialists.length,
-        'saved specialist cards'
+        'saved specialist cards',
       )
       if (this._hiringSelectMode) {
         this._bindHiringCardSelection(true)
@@ -4983,12 +5057,19 @@ define([
       return cardDiv
     },
 
-    _openHiringUniversalDepartmentModal: function (selectedIds, universalCards) {
+    _openHiringUniversalDepartmentModal: function (
+      selectedIds,
+      universalCards,
+    ) {
       this._hiringPendingSelectedIds = selectedIds
       this._hiringUniversalChoices = {}
       const modal = document.getElementById('hiring-universal-department-modal')
-      const body = document.getElementById('hiring-universal-department-modal-body')
-      const confirmBtn = document.getElementById('hiring-universal-department-modal-confirm-btn')
+      const body = document.getElementById(
+        'hiring-universal-department-modal-body',
+      )
+      const confirmBtn = document.getElementById(
+        'hiring-universal-department-modal-confirm-btn',
+      )
       if (!modal || !body || !confirmBtn) return
       body.innerHTML = ''
       const deptLabels = {
@@ -5011,25 +5092,36 @@ define([
           </div>
           <div class="hiring-universal-department-modal__buttons" data-card-id="${card.id}"></div>
         `
-        const btnContainer = row.querySelector('.hiring-universal-department-modal__buttons')
-        ;['sales-department', 'back-office', 'technical-department'].forEach((dept) => {
-          const btn = document.createElement('button')
-          btn.type = 'button'
-          btn.className = 'hiring-universal-department-modal__dept-btn'
-          btn.textContent = deptLabels[dept] || dept
-          btn.dataset.department = dept
-          btn.addEventListener('click', () => {
-            this._hiringUniversalChoices[card.id] = dept
-            row.querySelectorAll('.hiring-universal-department-modal__dept-btn').forEach((b) => b.classList.remove('selected'))
-            btn.classList.add('selected')
-          })
-          btnContainer.appendChild(btn)
-        })
+        const btnContainer = row.querySelector(
+          '.hiring-universal-department-modal__buttons',
+        )
+        ;['sales-department', 'back-office', 'technical-department'].forEach(
+          (dept) => {
+            const btn = document.createElement('button')
+            btn.type = 'button'
+            btn.className = 'hiring-universal-department-modal__dept-btn'
+            btn.textContent = deptLabels[dept] || dept
+            btn.dataset.department = dept
+            btn.addEventListener('click', () => {
+              this._hiringUniversalChoices[card.id] = dept
+              row
+                .querySelectorAll(
+                  '.hiring-universal-department-modal__dept-btn',
+                )
+                .forEach((b) => b.classList.remove('selected'))
+              btn.classList.add('selected')
+            })
+            btnContainer.appendChild(btn)
+          },
+        )
         body.appendChild(row)
       })
       confirmBtn.onclick = () => {
         if (universalCards.some((c) => !this._hiringUniversalChoices[c.id])) {
-          this.showMessage(_('Выберите отдел для каждого универсального специалиста'), 'error')
+          this.showMessage(
+            _('Выберите отдел для каждого универсального специалиста'),
+            'error',
+          )
           return
         }
         modal.classList.remove('active')
@@ -5052,7 +5144,7 @@ define([
       const handContainer = document.getElementById('active-player-hand-cards')
       if (!handContainer) return []
       const selected = handContainer.querySelectorAll(
-        '.specialist-card[data-selected-for-hire="1"]'
+        '.specialist-card[data-selected-for-hire="1"]',
       )
       return Array.from(selected).map((el) => Number(el.dataset.cardId))
     },
@@ -5062,11 +5154,14 @@ define([
       if (!handContainer) return
       if (enable === false) {
         handContainer.classList.remove('active-player-hand__center--selecting')
-        handContainer.querySelectorAll('.specialist-card__price-badge').forEach(
-          (el) => el.remove()
-        )
+        handContainer
+          .querySelectorAll('.specialist-card__price-badge')
+          .forEach((el) => el.remove())
         handContainer.querySelectorAll('.specialist-card').forEach((el) => {
-          el.classList.remove('specialist-card--selected', 'specialist-card--active')
+          el.classList.remove(
+            'specialist-card--selected',
+            'specialist-card--active',
+          )
         })
         this._pendingHiringCardId = null
         this._setDepartmentHighlight(false)
@@ -5074,7 +5169,7 @@ define([
         if (this._hiringCardClickHandler) {
           handContainer.removeEventListener(
             'click',
-            this._hiringCardClickHandler
+            this._hiringCardClickHandler,
           )
           this._hiringCardClickHandler = null
         }
@@ -5093,7 +5188,10 @@ define([
         const cardId = cardEl.dataset.cardId
         if (cardId == null) return
         const price = pricesByCardId[String(cardId)]
-        if (price != null && !cardEl.querySelector('.specialist-card__price-badge')) {
+        if (
+          price != null &&
+          !cardEl.querySelector('.specialist-card__price-badge')
+        ) {
           const badge = document.createElement('div')
           badge.className = 'specialist-card__price-badge'
           badge.textContent = price + ' Б'
@@ -5107,17 +5205,25 @@ define([
         e.stopPropagation()
         const cardId = Number(card.dataset.cardId)
         const cardData = (self._hiringHandCardsWithPrices || []).find(
-          (c) => Number(c.id) === cardId
+          (c) => Number(c.id) === cardId,
         )
         if (!cardData) return
         const maxHire = Math.max(1, self._hiringMaxCount || 0)
         const hiredCount = self._hiringHiredCount ?? 0
         const badgersFromArgs = self._hiringBadgers ?? 0
-        const badgersFromPlayer = Number(self.gamedatas?.players?.[self.player_id]?.badgers ?? 0) || 0
-        const badgers = Math.max(badgersFromArgs, badgersFromPlayer)
+        const badgersFromPlayer =
+          Number(self.gamedatas?.players?.[self.player_id]?.badgers ?? 0) || 0
+        // Берём минимум из двух источников, чтобы не разрешать покупку при расхождении (защита от перерасхода)
+        const badgers =
+          badgersFromArgs > 0 && badgersFromPlayer > 0
+            ? Math.min(badgersFromArgs, badgersFromPlayer)
+            : Math.max(badgersFromArgs, badgersFromPlayer)
         const price = cardData.price ?? 0
         if (hiredCount >= maxHire) {
-          self.showMessage(_('Нельзя нанять больше специалистов в этой фазе'), 'error')
+          self.showMessage(
+            _('Нельзя нанять больше специалистов в этой фазе'),
+            'error',
+          )
           return
         }
         if (price > badgers) {
@@ -5145,39 +5251,49 @@ define([
     _bindHiringDepartmentClicks: function () {
       const self = this
       const handler = function (e) {
-        const dept = this.dataset?.department || this.closest('[data-department]')?.dataset?.department
+        const dept =
+          this.dataset?.department ||
+          this.closest('[data-department]')?.dataset?.department
         if (!dept || self._pendingHiringCardId == null) return
         e.stopPropagation()
         const cardId = self._pendingHiringCardId
         self._pendingHiringCardId = null
         self._setDepartmentHighlight(false)
         self._unbindHiringDepartmentClicks()
-        const handContainer = document.getElementById('active-player-hand-cards')
+        const handContainer = document.getElementById(
+          'active-player-hand-cards',
+        )
         if (handContainer) {
-          handContainer.querySelectorAll('.specialist-card--active').forEach((el) => el.classList.remove('specialist-card--active'))
+          handContainer
+            .querySelectorAll('.specialist-card--active')
+            .forEach((el) => el.classList.remove('specialist-card--active'))
         }
         self.bgaPerformAction('actHireOneSpecialist', {
           cardId: cardId,
           department: dept,
         })
       }
-      ;['sales-department', 'back-office', 'technical-department'].forEach((key) => {
-        const container = document.querySelector(`.${key}__body`)
-        if (container) {
-          container._hiringDeptHandler = handler
-          container.addEventListener('click', container._hiringDeptHandler)
-        }
-      })
+      ;['sales-department', 'back-office', 'technical-department'].forEach(
+        (key) => {
+          const container = document.querySelector(`.${key}__body`)
+          if (container) {
+            container._hiringDeptHandler = handler
+            container.addEventListener('click', container._hiringDeptHandler)
+          }
+        },
+      )
     },
 
     _unbindHiringDepartmentClicks: function () {
-      ;['sales-department', 'back-office', 'technical-department'].forEach((key) => {
-        const container = document.querySelector(`.${key}__body`)
-        if (container && container._hiringDeptHandler) {
-          container.removeEventListener('click', container._hiringDeptHandler)
-          container._hiringDeptHandler = null
-        }
-      })
+      ;['sales-department', 'back-office', 'technical-department'].forEach(
+        (key) => {
+          const container = document.querySelector(`.${key}__body`)
+          if (container && container._hiringDeptHandler) {
+            container.removeEventListener('click', container._hiringDeptHandler)
+            container._hiringDeptHandler = null
+          }
+        },
+      )
     },
 
     // Helpers
@@ -5186,7 +5302,7 @@ define([
       total,
       roundName,
       cubeFace,
-      phaseName
+      phaseName,
     ) {
       // Текущий раунд, Общее количество раундов, Название раунда, Значение кубика на раунд
       //
@@ -5307,8 +5423,8 @@ define([
             ? skillsPhase.name ||
               (typeof _ !== 'undefined' ? _('Навыки') : 'Навыки')
             : typeof _ !== 'undefined'
-            ? _('Навыки')
-            : 'Навыки'
+              ? _('Навыки')
+              : 'Навыки'
         }
         // В состоянии RoundHiring баннер показывает фазу «Найм»
         if (currentState === 'RoundHiring') {
@@ -5319,8 +5435,8 @@ define([
             ? hiringPhase.name ||
               (typeof _ !== 'undefined' ? _('Найм') : 'Найм')
             : typeof _ !== 'undefined'
-            ? _('Найм')
-            : 'Найм'
+              ? _('Найм')
+              : 'Найм'
         }
 
         // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
@@ -5434,7 +5550,7 @@ define([
           'state:',
           currentState,
           'bgColor:',
-          bgColor
+          bgColor,
         )
       } catch (e) {
         console.error('🏷️ Error in _updateStageBanner:', e)
@@ -5455,7 +5571,7 @@ define([
           skillKey && occupiedSkillKeys.indexOf(skillKey) >= 0
         col.classList.remove(
           'skill-column--clickable',
-          'skill-column--occupied'
+          'skill-column--occupied',
         )
         col.onclick = null
         if (isOccupiedByOther) {
@@ -5487,7 +5603,7 @@ define([
                 typeof _ !== 'undefined'
                   ? _('Ячейка занята другим игроком')
                   : 'Ячейка занята другим игроком',
-                'error'
+                'error',
               )
               return
             }
@@ -5512,7 +5628,7 @@ define([
               description =
                 typeof _ !== 'undefined'
                   ? _(
-                      'Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку'
+                      'Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку',
                     )
                   : 'Передвиньте на треке задач одну задачу на 2 трека или 2 задачи по 1 треку'
             if (!description && skillKey === 'frugality')
@@ -5529,7 +5645,7 @@ define([
               if (self.gamedatas?.players?.[pid]) {
                 self.gamedatas.players[pid].skillToken = 'discipline'
                 const roundPanel = document.querySelector(
-                  '.round-panel__wrapper'
+                  '.round-panel__wrapper',
                 )
                 if (roundPanel) self._renderPlayerIndicators(roundPanel)
               }
@@ -5539,7 +5655,7 @@ define([
                   self.completeSkillsPhaseButton.setAttribute(
                     'title',
                     description ||
-                      _('Получите одну задачу в бэклог (выберите цвет)')
+                      _('Получите одну задачу в бэклог (выберите цвет)'),
                   )
                 }
               }
@@ -5562,24 +5678,27 @@ define([
 
     _renderPlayerIndicators: function (container) {
       const players = this.gamedatas?.players || {}
-      const playerIds = Object.keys(players)
-        .map((id) => parseInt(id))
-        .sort((a, b) => a - b)
+      const turnOrder = this.gamedatas?.currentRoundPlayerOrder
+      const playerIds = Array.isArray(turnOrder) && turnOrder.length > 0
+        ? turnOrder.filter((id) => players[id]).slice(0, 4)
+        : Object.keys(players)
+            .map((id) => parseInt(id))
+            .sort((a, b) => a - b)
       const currentState = this.gamedatas?.gamestate?.name || ''
       const activePlayerId = this.gamedatas?.gamestate?.active_player
         ? parseInt(this.gamedatas.gamestate.active_player, 10)
         : null
 
       const tokensRow = container.querySelector(
-        '.round-panel__skills-track-row--tokens'
+        '.round-panel__skills-track-row--tokens',
       )
       const skillsRow = container.querySelector(
-        '.round-panel__skills-track-row--skills'
+        '.round-panel__skills-track-row--skills',
       )
       if (!tokensRow) return
 
       const tokenColumns = tokensRow.querySelectorAll(
-        '.round-panel__skill-token-column'
+        '.round-panel__skill-token-column',
       )
       if (tokenColumns.length < 4) return
 
@@ -5732,7 +5851,7 @@ define([
       display.textContent = value
       console.log(
         '✅ _updateCubeFace: Updated cube-face-display with value:',
-        value
+        value,
       )
 
       // Визуальная индикация обновления (для отладки)
@@ -5794,14 +5913,14 @@ define([
         const cubeFaceEl = document.getElementById('debug-cube-face')
         const eventCardsEl = document.getElementById('debug-event-cards')
         const roundStartCalledEl = document.getElementById(
-          'debug-roundstart-called'
+          'debug-roundstart-called',
         )
         const currentStateEl = document.getElementById('debug-current-state')
         const gamedatasCubeFaceEl = document.getElementById(
-          'debug-gamedatas-cubeface'
+          'debug-gamedatas-cubeface',
         )
         const gamedatasCardsEl = document.getElementById(
-          'debug-gamedatas-cards'
+          'debug-gamedatas-cards',
         )
 
         // Обновляем данные о раунде
@@ -5835,7 +5954,7 @@ define([
           'round:',
           currentRound,
           'phaseName from gamedatas:',
-          phaseName
+          phaseName,
         )
 
         // Определяем фазу только для состояний этапа 2
@@ -5858,7 +5977,7 @@ define([
           console.log(
             '🔍 ЭТАП 2, но не RoundEvent/PlayerTurn:',
             currentState,
-            '- фаза не определена'
+            '- фаза не определена',
           )
         }
 
@@ -5893,7 +6012,7 @@ define([
           eventCardsEl.textContent =
             cards.length > 0
               ? `${cards.length} карт: ${JSON.stringify(
-                  cards.map((c) => c.card_id || c.card_type_arg || '?')
+                  cards.map((c) => c.card_id || c.card_type_arg || '?'),
                 )}`
               : '(пусто)'
           eventCardsEl.style.color = cards.length > 0 ? '#0f0' : '#f00'
@@ -5940,7 +6059,7 @@ define([
       columns.forEach((column, index) => {
         const roundNumber = index + 1
         const circleContainer = column.querySelector(
-          '.round-track-column__circle'
+          '.round-track-column__circle',
         )
         if (circleContainer) {
           circleContainer.innerHTML = ''
@@ -5971,7 +6090,7 @@ define([
 
     _renderEventCards: function (eventCards) {
       const panelBody = document.querySelector(
-        '#event-card-panel .event-card-panel__body'
+        '#event-card-panel .event-card-panel__body',
       )
       if (!panelBody) return
 
@@ -6027,7 +6146,7 @@ define([
                 <div class="event-card__meta">
                   <div class="event-card__meta-item">
                     <span class="event-card__meta-label">${_(
-                      'Power round'
+                      'Power round',
                     )}:</span>
                     <span class="event-card__meta-value">${powerRound}</span>
                   </div>
@@ -6057,7 +6176,7 @@ define([
         if (!(target instanceof HTMLElement)) return
 
         const card = target.closest(
-          '.event-card, .founder-card, .employee-card, .badge-card'
+          '.event-card, .founder-card, .employee-card, .badge-card',
         )
         if (!card || !(card instanceof HTMLElement)) return
 
@@ -6086,7 +6205,7 @@ define([
       }
 
       const coins = [...this.badgersData].sort(
-        (a, b) => (a.value || 0) - (b.value || 0)
+        (a, b) => (a.value || 0) - (b.value || 0),
       )
       const html = coins
         .map((coin) => {
@@ -6100,11 +6219,11 @@ define([
           const available =
             typeof coin.available_quantity === 'number'
               ? coin.available_quantity
-              : coin.available_quantity ?? ''
+              : (coin.available_quantity ?? '')
           const initial =
             typeof coin.initial_quantity === 'number'
               ? coin.initial_quantity
-              : coin.initial_quantity ?? ''
+              : (coin.initial_quantity ?? '')
           const counts =
             available !== '' && initial !== '' ? `${available}/${initial}` : ''
 
@@ -6146,7 +6265,7 @@ define([
       if (!playerId) {
         // Если игрок не найден, очищаем панель
         console.warn(
-          '⚠️ _renderPlayerMoney: playerId not found, clearing panel'
+          '⚠️ _renderPlayerMoney: playerId not found, clearing panel',
         )
         panelBody.innerHTML = '' // Очищаем панель
         return
@@ -6166,7 +6285,7 @@ define([
         playerData = this.gamedatas.players[playerId]
         console.log(
           '💰 _renderPlayerMoney: Using data from gamedatas.players for player:',
-          playerId
+          playerId,
         )
       }
 
@@ -6174,7 +6293,7 @@ define([
         // Если игрок не найден, очищаем панель
         console.warn(
           '⚠️ _renderPlayerMoney: playerData not found for player:',
-          playerId
+          playerId,
         )
         panelBody.innerHTML = ''
         return
@@ -6185,7 +6304,7 @@ define([
         '💰 _renderPlayerMoney: Rendering money for player:',
         playerId,
         'amount:',
-        amount
+        amount,
       )
 
       const coinData = this._getBestCoinForAmount(amount)
@@ -6207,7 +6326,7 @@ define([
         panel.style.setProperty('--player-money-color', color)
         panel.setAttribute('data-player-id', String(playerId))
         const colorBadge = panel.querySelector(
-          '.player-money-panel__color-badge'
+          '.player-money-panel__color-badge',
         )
         if (colorBadge) {
           colorBadge.style.backgroundColor = color
@@ -6220,8 +6339,8 @@ define([
       panelBody.innerHTML = `
         <div class="player-money-panel__balance">
           <img src="${imageUrl}" alt="${
-        coinData?.name || _('Баджерсы')
-      }" class="player-money-panel__icon" />
+            coinData?.name || _('Баджерсы')
+          }" class="player-money-panel__icon" />
           <span class="player-money-panel__amount">${amount}</span>
         </div>
       `
@@ -6229,7 +6348,7 @@ define([
         '✅ _renderPlayerMoney: Updated balance to',
         amount,
         'for player',
-        playerId
+        playerId,
       )
       // УБРАНО: _renderFounderCard теперь вызывается отдельно, не из _renderPlayerMoney
       // Это исправляет баг, когда карта другого игрока появлялась при обновлении денег
@@ -6241,7 +6360,7 @@ define([
         'sales-department': document.querySelector('.sales-department__body'),
         'back-office': document.querySelector('.back-office__body'),
         'technical-department': document.querySelector(
-          '.technical-department__body'
+          '.technical-department__body',
         ),
       }
 
@@ -6257,15 +6376,15 @@ define([
         !containers['technical-department']
       ) {
         console.error(
-          '_renderFounderCard - ERROR: No containers found! Searching in DOM...'
+          '_renderFounderCard - ERROR: No containers found! Searching in DOM...',
         )
         const allContainers = document.querySelectorAll(
-          '.sales-department__body, .back-office__body, .technical-department__body'
+          '.sales-department__body, .back-office__body, .technical-department__body',
         )
         console.error(
           '_renderFounderCard - Found containers in DOM:',
           allContainers.length,
-          Array.from(allContainers)
+          Array.from(allContainers),
         )
       }
 
@@ -6288,7 +6407,7 @@ define([
         if (container) {
           // Удаляем только карту этого игрока (если есть)
           const existingCard = container.querySelector(
-            `[data-player-id="${playerId}"]`
+            `[data-player-id="${playerId}"]`,
           )
           if (existingCard) {
             existingCard.remove()
@@ -6302,7 +6421,7 @@ define([
         if (!isSpecialistSelection) {
           // Не очищаем руку, если там есть карты для выбора (в состоянии FounderSelection)
           const hasSelectableCards = handContainer.querySelector(
-            '.founder-card--selectable'
+            '.founder-card--selectable',
           )
           const isFounderSelection = currentState === 'FounderSelection'
           const isMainMode = !this.isTutorialMode
@@ -6323,7 +6442,7 @@ define([
           // Убираем выделение только если нет карт для выбора
           if (!hasSelectableCards) {
             handContainer.classList.remove(
-              'active-player-hand__center--selecting'
+              'active-player-hand__center--selecting',
             )
           }
         }
@@ -6355,11 +6474,10 @@ define([
       const playerData = this._findPlayerData(players, playerId)
       if (!playerData || !playerData.founder) {
         if (containers['sales-department']) {
-          containers[
-            'sales-department'
-          ].innerHTML = `<div class="founder-card founder-card--placeholder">${_(
-            'Карта основателя не выбрана'
-          )}</div>`
+          containers['sales-department'].innerHTML =
+            `<div class="founder-card founder-card--placeholder">${_(
+              'Карта основателя не выбрана',
+            )}</div>`
         }
         this._renderHiredSpecialistsInDepartments(playerId)
         return
@@ -6404,7 +6522,7 @@ define([
           } else {
             // В основном режиме удаляем только карту этого игрока
             const existingCard = container.querySelector(
-              `[data-player-id="${playerId}"]`
+              `[data-player-id="${playerId}"]`,
             )
             if (existingCard) {
               existingCard.remove()
@@ -6425,7 +6543,7 @@ define([
         } else {
           console.error(
             '_renderFounderCard - ❌ Container not found for department:',
-            department
+            department,
           )
           console.error(
             '_renderFounderCard - Available containers:',
@@ -6433,22 +6551,22 @@ define([
               key,
               found: !!containers[key],
               element: containers[key],
-            }))
+            })),
           )
 
           // Попробуем найти контейнеры еще раз
           const retryContainers = {
             'sales-department': document.querySelector(
-              '.sales-department__body'
+              '.sales-department__body',
             ),
             'back-office': document.querySelector('.back-office__body'),
             'technical-department': document.querySelector(
-              '.technical-department__body'
+              '.technical-department__body',
             ),
           }
           console.error(
             '_renderFounderCard - Retry search results:',
-            retryContainers
+            retryContainers,
           )
         }
         // Убеждаемся, что карта не в руке (она в отделе)
@@ -6488,8 +6606,8 @@ define([
           const backCardMarkup = `
             <div class="founder-card founder-card--back" data-player-id="${playerId}" data-department="${department}">
               <img src="${backImageUrl}" alt="${_(
-            'Рубашка карты'
-          )}" class="founder-card__image" />
+                'Рубашка карты',
+              )}" class="founder-card__image" />
             </div>
           `
           handContainer.innerHTML = backCardMarkup
@@ -6502,7 +6620,9 @@ define([
       const containers = {
         'sales-department': document.querySelector('.sales-department__body'),
         'back-office': document.querySelector('.back-office__body'),
-        'technical-department': document.querySelector('.technical-department__body'),
+        'technical-department': document.querySelector(
+          '.technical-department__body',
+        ),
       }
       const playerData = this.gamedatas?.players?.[playerId]
       const details = playerData?.playerHiredSpecialistsDetails || {}
@@ -6510,7 +6630,9 @@ define([
       depts.forEach((dept) => {
         const container = containers[dept]
         if (!container) return
-        container.querySelectorAll('.hired-specialist-card').forEach((el) => el.remove())
+        container
+          .querySelectorAll('.hired-specialist-card')
+          .forEach((el) => el.remove())
         const cards = details[dept] || []
         cards.forEach((card) => {
           const imgUrl = card.img
@@ -6548,7 +6670,7 @@ define([
       // ВАЖНО: Проверяем флаг - если карта уже выбрана текущим игроком, не рендерим
       if (this.founderSelectedByCurrentPlayer) {
         console.log(
-          '🎴 Founder already selected by current player (flag), skipping render'
+          '🎴 Founder already selected by current player (flag), skipping render',
         )
         return
       }
@@ -6556,7 +6678,7 @@ define([
       // Проверяем, есть ли у текущего игрока уже выбранный основатель в gamedatas
       if (this.gamedatas?.players?.[this.player_id]?.founder) {
         console.log(
-          '🎴 Player already has founder in gamedatas, skipping selection cards render'
+          '🎴 Player already has founder in gamedatas, skipping selection cards render',
         )
         return
       }
@@ -6580,7 +6702,7 @@ define([
       // Функция для рендеринга карт
       const renderCards = () => {
         const handContainer = document.getElementById(
-          'active-player-hand-cards'
+          'active-player-hand-cards',
         )
         if (!handContainer) {
           console.error('❌ Hand container not found! Trying again...')
@@ -6592,7 +6714,7 @@ define([
         console.log('Container parent:', handContainer.parentElement)
         console.log(
           'Container computed style:',
-          window.getComputedStyle(handContainer)
+          window.getComputedStyle(handContainer),
         )
 
         // Убеждаемся, что контейнер видим
@@ -6607,7 +6729,7 @@ define([
         // Если это не мой ход, показываем три рубашки карт
         if (!isMyTurn) {
           console.log(
-            '🎴 Not my turn, showing 3 card backs for player ' + playerId
+            '🎴 Not my turn, showing 3 card backs for player ' + playerId,
           )
           const backImageUrl = `${g_gamethemeurl}img/back-cards.png`
 
@@ -6635,7 +6757,7 @@ define([
         }
 
         console.log(
-          '🎴 Rendering ' + founderOptions.length + ' founder selection cards'
+          '🎴 Rendering ' + founderOptions.length + ' founder selection cards',
         )
 
         // Отображаем три карты для выбора (только для активного игрока)
@@ -6697,17 +6819,17 @@ define([
           '✅✅✅ Rendered ' +
             founderOptions.length +
             ' founder selection cards for player ' +
-            playerId
+            playerId,
         )
         console.log('Container children count:', handContainer.children.length)
         console.log(
           'Container innerHTML length:',
-          handContainer.innerHTML.length
+          handContainer.innerHTML.length,
         )
 
         // Проверяем, что карты действительно добавлены
         const cards = handContainer.querySelectorAll(
-          '.founder-card--selectable'
+          '.founder-card--selectable',
         )
         console.log('Found cards in container:', cards.length)
         if (cards.length === 0) {
@@ -6728,7 +6850,7 @@ define([
         this.gamedatas?.activeFounderOptions ||
         []
       const selectedFounder = founderOptions.find(
-        (f) => f.id === cardId || f.card_id === cardId
+        (f) => f.id === cardId || f.card_id === cardId,
       )
 
       console.log('🎯 Selected founder:', selectedFounder)
@@ -6768,12 +6890,12 @@ define([
 
             // Очищаем руку от карт выбора
             const handContainer = document.getElementById(
-              'active-player-hand-cards'
+              'active-player-hand-cards',
             )
             if (handContainer) {
               handContainer.innerHTML = ''
               handContainer.classList.remove(
-                'active-player-hand__center--selecting'
+                'active-player-hand__center--selecting',
               )
             }
 
@@ -6786,12 +6908,12 @@ define([
               // Не универсальная - размещаем в отдел
               console.log(
                 '🎯 Non-universal card - placing in department:',
-                department
+                department,
               )
               this._renderFounderCardInDepartment(
                 selectedFounder,
                 playerId,
-                department
+                department,
               )
             }
 
@@ -6823,11 +6945,11 @@ define([
           disabled: isDisabled,
           tooltip: isDisabled
             ? _(
-                'Вы должны разместить карту основателя в один из отделов перед завершением хода'
+                'Вы должны разместить карту основателя в один из отделов перед завершением хода',
               )
             : undefined,
           id: 'finish-turn-button',
-        }
+        },
       )
     },
 
@@ -6871,7 +6993,7 @@ define([
       })
 
       const container = document.querySelector(
-        '.player-penalty-tokens__container'
+        '.player-penalty-tokens__container',
       )
       if (!container) {
         console.error('Penalty tokens container not found!')
@@ -6882,7 +7004,7 @@ define([
 
       // Очищаем все колонки
       const columns = container.querySelectorAll(
-        '.player-penalty-tokens__column'
+        '.player-penalty-tokens__column',
       )
       columns.forEach((column) => {
         column.innerHTML = ''
@@ -6930,7 +7052,7 @@ define([
         if (penaltyValue === 0) {
           // Пустой жетон размещаем в start-position
           targetColumn = container.querySelector(
-            `.start-position-${startPositionIndex}`
+            `.start-position-${startPositionIndex}`,
           )
           startPositionIndex++
         } else {
@@ -6968,19 +7090,19 @@ define([
 
       if (!projectTokens || projectTokens.length === 0) {
         console.warn(
-          '⚠️ No project tokens to render - array is empty or undefined'
+          '⚠️ No project tokens to render - array is empty or undefined',
         )
         return
       }
 
       // Проверяем наличие контейнера
       const allRows = document.querySelectorAll(
-        '.project-board-panel__row[data-label]'
+        '.project-board-panel__row[data-label]',
       )
       console.log(
         'Found project board rows:',
         allRows.length,
-        Array.from(allRows).map((r) => r.dataset.label)
+        Array.from(allRows).map((r) => r.dataset.label),
       )
 
       // Отображаем каждый жетон в соответствующей позиции
@@ -7000,14 +7122,14 @@ define([
 
         // Находим div с соответствующим data-label
         const rowElement = document.querySelector(
-          `.project-board-panel__row[data-label="${boardPosition}"]`
+          `.project-board-panel__row[data-label="${boardPosition}"]`,
         )
         if (!rowElement) {
           console.warn(
             'Row element not found for position:',
             boardPosition,
             'Available positions:',
-            Array.from(allRows).map((r) => r.dataset.label)
+            Array.from(allRows).map((r) => r.dataset.label),
           )
           return
         }
@@ -7050,7 +7172,7 @@ define([
           'at position',
           boardPosition,
           'rowElement:',
-          rowElement
+          rowElement,
         )
       })
     },
@@ -7063,7 +7185,7 @@ define([
       let currentPlayer = null
       if (Array.isArray(players)) {
         currentPlayer = players.find(
-          (p) => Number(p.id) === Number(currentPlayerId)
+          (p) => Number(p.id) === Number(currentPlayerId),
         )
       } else if (players) {
         // Пробуем разные варианты ключей
@@ -7098,7 +7220,7 @@ define([
         'Task tokens for player:',
         taskTokens,
         'count:',
-        taskTokens.length
+        taskTokens.length,
       )
 
       if (taskTokens.length === 0) {
@@ -7106,7 +7228,7 @@ define([
           'ℹ️ No task tokens to render for player',
           currentPlayerId,
           'taskTokens:',
-          taskTokens
+          taskTokens,
         )
       }
 
@@ -7134,7 +7256,7 @@ define([
 
         // Получаем жетоны для этой локации
         const locationTokens = taskTokens.filter(
-          (token) => token.location === location
+          (token) => token.location === location,
         )
         console.log(`${location} tokens:`, locationTokens)
 
@@ -7173,7 +7295,7 @@ define([
           } else {
             // Если нет изображения, используем цветной круг
             token.style.backgroundColor = this._getTaskTokenColorCode(
-              tokenData?.color
+              tokenData?.color,
             )
             token.style.borderRadius = '50%'
           }
@@ -7311,7 +7433,7 @@ define([
               ) {
                 console.log(
                   '🔄 Activating inactive token on click - canceling move:',
-                  { tokenId: currentTokenId }
+                  { tokenId: currentTokenId },
                 )
 
                 // ВАЖНО: Удаляем перемещение из pendingMoves, чтобы активировать жетон
@@ -7342,7 +7464,7 @@ define([
                         movesCount:
                           this.gamedatas.pendingTaskMoves.moves.length,
                         usedMoves: this.gamedatas.pendingTaskMoves.usedMoves,
-                      }
+                      },
                     )
                   }
 
@@ -7350,7 +7472,7 @@ define([
                   const currentPlayer = this.gamedatas.players[this.player_id]
                   if (currentPlayer && currentPlayer.taskTokens) {
                     const tokenDataInGamedatas = currentPlayer.taskTokens.find(
-                      (t) => t.token_id == currentTokenId
+                      (t) => t.token_id == currentTokenId,
                     )
                     if (tokenDataInGamedatas) {
                       tokenDataInGamedatas.location = canceledMove.fromLocation
@@ -7376,7 +7498,7 @@ define([
                   // ВАЖНО: Очищаем подсветку колонок, чтобы можно было выбрать другой жетон
                   this._clearColumnHighlight()
                   console.log(
-                    '✅ Cleared column highlight after canceling move - token remains inactive'
+                    '✅ Cleared column highlight after canceling move - token remains inactive',
                   )
                 }
 
@@ -7393,7 +7515,7 @@ define([
               ) {
                 console.log(
                   '🔄 Activating inactive token (no move) on click:',
-                  { tokenId: currentTokenId }
+                  { tokenId: currentTokenId },
                 )
                 token.classList.remove('task-token--inactive')
                 token.style.cursor = 'pointer'
@@ -7407,7 +7529,7 @@ define([
               ) {
                 console.warn(
                   '⚠️ Active token has existing move - this should not happen:',
-                  { tokenId: currentTokenId }
+                  { tokenId: currentTokenId },
                 )
               }
 
@@ -7496,7 +7618,7 @@ define([
 
       // Ищем жетон в колонке техотдела
       const column = document.getElementById(
-        `player-department-technical-development-column-${columnNum}`
+        `player-department-technical-development-column-${columnNum}`,
       )
       if (!column) {
         console.warn('Tech department column not found:', columnNum)
@@ -7505,7 +7627,7 @@ define([
 
       // Ищем жетон (токен) в колонке
       const token = column.querySelector(
-        '.player-department-technical-development__token'
+        '.player-department-technical-development__token',
       )
       if (!token) {
         console.warn('Tech department token not found in column:', columnNum)
@@ -7549,7 +7671,7 @@ define([
       const currentPlayer = this.gamedatas.players[this.player_id]
       if (currentPlayer && currentPlayer.taskTokens) {
         const token = currentPlayer.taskTokens.find(
-          (t) => t.token_id == tokenId
+          (t) => t.token_id == tokenId,
         )
         if (token && token.location) {
           location = token.location
@@ -7590,19 +7712,19 @@ define([
         fullGamedatasPendingTaskMoves: JSON.stringify(
           this.gamedatas?.pendingTaskMoves,
           null,
-          2
+          2,
         ),
       })
 
       console.log(
-        '🔍🔍🔍 _handleTaskTokenClick - STEP 1: Checking if pendingMoves exists'
+        '🔍🔍🔍 _handleTaskTokenClick - STEP 1: Checking if pendingMoves exists',
       )
       console.log('  → pendingMoves:', pendingMoves)
       console.log('  → !!pendingMoves:', !!pendingMoves)
 
       if (pendingMoves) {
         console.log(
-          '✅✅✅ _handleTaskTokenClick - STEP 2: pendingMoves EXISTS, entering effect mode branch'
+          '✅✅✅ _handleTaskTokenClick - STEP 2: pendingMoves EXISTS, entering effect mode branch',
         )
 
         // ВАЖНО: Проверяем, есть ли уже перемещение для этого жетона
@@ -7627,12 +7749,12 @@ define([
               existingMove: existingMove,
               currentLocation: location,
               fromLocation: existingMove.fromLocation,
-            }
+            },
           )
 
           // Активируем жетон визуально (убираем неактивное состояние)
           const tokenElement = document.querySelector(
-            `[data-token-id="${tokenId}"]`
+            `[data-token-id="${tokenId}"]`,
           )
           if (tokenElement) {
             tokenElement.classList.remove('task-token--inactive')
@@ -7664,7 +7786,7 @@ define([
             color,
             tokenId,
             existingMove.fromLocation,
-            pendingMoves
+            pendingMoves,
           )
 
           // Выходим из функции - подсветка выполнена
@@ -7679,7 +7801,7 @@ define([
         ) {
           this.showMessage(
             _('Можно перемещать только задачи указанного цвета'),
-            'error'
+            'error',
           )
           return
         }
@@ -7697,23 +7819,23 @@ define([
         // НЕ учитываем позицию в техотделе - используем только availableMoves
         // Проверяем и fromEffect, и moveSource для надежности
         console.log(
-          '🔍🔍🔍 _handleTaskTokenClick - STEP 3: Checking isEffectMode condition'
+          '🔍🔍🔍 _handleTaskTokenClick - STEP 3: Checking isEffectMode condition',
         )
         console.log(
           '  → pendingMoves.fromEffect:',
           pendingMoves.fromEffect,
           '(type:',
           typeof pendingMoves.fromEffect,
-          ')'
+          ')',
         )
         console.log(
           '  → pendingMoves.fromEffect === true:',
-          pendingMoves.fromEffect === true
+          pendingMoves.fromEffect === true,
         )
         console.log('  → pendingMoves.moveSource:', pendingMoves.moveSource)
         console.log(
           '  → pendingMoves.moveSource === "founder_effect":',
-          pendingMoves.moveSource === 'founder_effect'
+          pendingMoves.moveSource === 'founder_effect',
         )
 
         const check1 = pendingMoves.fromEffect === true
@@ -7730,7 +7852,7 @@ define([
           : Math.min(techDeptPos, availableMoves)
 
         console.log(
-          '🔍🔍🔍 _handleTaskTokenClick - STEP 4: Calculating maxBlocks'
+          '🔍🔍🔍 _handleTaskTokenClick - STEP 4: Calculating maxBlocks',
         )
         console.log('  → availableMoves:', availableMoves)
         console.log('  → techDeptPosition:', techDeptPos)
@@ -7739,7 +7861,7 @@ define([
           '  → maxBlocks calculation:',
           isEffectMode
             ? `availableMoves (${availableMoves})`
-            : `Math.min(techDeptPos (${techDeptPos}), availableMoves (${availableMoves}))`
+            : `Math.min(techDeptPos (${techDeptPos}), availableMoves (${availableMoves}))`,
         )
         console.log('  → FINAL maxBlocks:', maxBlocks)
 
@@ -7782,14 +7904,14 @@ define([
           color,
           tokenId,
           location,
-          pendingMoves
+          pendingMoves,
         )
       } else {
         console.log(
-          '❌❌❌ _handleTaskTokenClick - STEP 2: pendingMoves DOES NOT EXIST, entering normal mode branch'
+          '❌❌❌ _handleTaskTokenClick - STEP 2: pendingMoves DOES NOT EXIST, entering normal mode branch',
         )
         console.log(
-          '  → This means: NO effect mode, using tech department logic'
+          '  → This means: NO effect mode, using tech department logic',
         )
 
         // Обычный режим (фаза Спринт) - используем стандартную логику
@@ -7802,7 +7924,7 @@ define([
         if (maxBlocks === 0) {
           this.showMessage(
             _('Невозможно переместить задачу: позиция в техотделе не найдена'),
-            'error'
+            'error',
           )
           return
         }
@@ -7831,7 +7953,7 @@ define([
           color,
           tokenId,
           location,
-          sprintPhaseMoves
+          sprintPhaseMoves,
         )
       }
     },
@@ -7849,7 +7971,7 @@ define([
       color,
       tokenId,
       fromLocation = 'backlog',
-      pendingMoves = null
+      pendingMoves = null,
     ) {
       console.log('🎯🎯🎯 _highlightAvailableColumns CALLED:', {
         maxBlocks: maxBlocks,
@@ -7914,7 +8036,7 @@ define([
 
       // Определяем режим: эффект карты (fromEffect=true) или фаза Спринт (moveSource='sprint_phase')
       console.log(
-        '🔍🔍🔍 _highlightAvailableColumns - STEP 1: Determining mode'
+        '🔍🔍🔍 _highlightAvailableColumns - STEP 1: Determining mode',
       )
       console.log('  → pendingMoves:', pendingMoves)
       console.log(
@@ -7922,16 +8044,16 @@ define([
         pendingMoves?.fromEffect,
         '(type:',
         typeof pendingMoves?.fromEffect,
-        ')'
+        ')',
       )
       console.log(
         '  → pendingMoves?.fromEffect === true:',
-        pendingMoves?.fromEffect === true
+        pendingMoves?.fromEffect === true,
       )
       console.log('  → pendingMoves?.moveSource:', pendingMoves?.moveSource)
       console.log(
         '  → pendingMoves?.moveSource === "founder_effect":',
-        pendingMoves?.moveSource === 'founder_effect'
+        pendingMoves?.moveSource === 'founder_effect',
       )
 
       let check1 = pendingMoves && pendingMoves.fromEffect === true
@@ -7954,13 +8076,13 @@ define([
         pendingMoves.moveCount > 0
       ) {
         console.warn(
-          '⚠️⚠️⚠️ _highlightAvailableColumns - pendingMoves exists but fromEffect/moveSource not set! Assuming founder_effect mode.'
+          '⚠️⚠️⚠️ _highlightAvailableColumns - pendingMoves exists but fromEffect/moveSource not set! Assuming founder_effect mode.',
         )
         console.warn(
           '  → BEFORE fix: fromEffect=',
           pendingMoves.fromEffect,
           ', moveSource=',
-          pendingMoves.moveSource
+          pendingMoves.moveSource,
         )
         pendingMoves.fromEffect = true
         pendingMoves.moveSource = 'founder_effect'
@@ -7977,7 +8099,7 @@ define([
           ', moveSource=',
           pendingMoves.moveSource,
           ', isEffectMode=',
-          isEffectMode
+          isEffectMode,
         )
       }
 
@@ -7997,8 +8119,8 @@ define([
         techDeptPosition: isEffectMode
           ? 'IGNORED (founder effect)'
           : this._getTechDepartmentPosition
-          ? this._getTechDepartmentPosition(color || '')
-          : 'N/A',
+            ? this._getTechDepartmentPosition(color || '')
+            : 'N/A',
       })
 
       // Подсвечиваем доступные колонки
@@ -8033,31 +8155,31 @@ define([
             const availableMoves =
               pendingMoves.moveCount - pendingMoves.usedMoves
             console.log(
-              `🔍 Column ${col.location}: blocksNeeded=${blocksNeeded}, availableMoves=${availableMoves}, maxBlocks=${maxBlocks}`
+              `🔍 Column ${col.location}: blocksNeeded=${blocksNeeded}, availableMoves=${availableMoves}, maxBlocks=${maxBlocks}`,
             )
             if (blocksNeeded > availableMoves) {
               console.log(
-                `⏭️ Skipping column ${col.location}: blocksNeeded (${blocksNeeded}) > availableMoves (${availableMoves})`
+                `⏭️ Skipping column ${col.location}: blocksNeeded (${blocksNeeded}) > availableMoves (${availableMoves})`,
               )
               return // Пропускаем, если не хватает ходов
             }
             console.log(
-              `✅ Will highlight column ${col.location} (founder effect mode, ignoring tech dept)`
+              `✅ Will highlight column ${col.location} (founder effect mode, ignoring tech dept)`,
             )
           } else if (canMoveBackward) {
             console.log(
-              `✅ Will highlight column ${col.location} (moving backward, blocksNeeded=${blocksNeeded})`
+              `✅ Will highlight column ${col.location} (moving backward, blocksNeeded=${blocksNeeded})`,
             )
           }
         } else if (isSprintPhase) {
           // В режиме фазы Спринт используем ограничение из техотдела (maxBlocks уже установлен)
           console.log(
-            `✅ Will highlight column ${col.location} (sprint phase mode, maxBlocks=${maxBlocks} from tech dept)`
+            `✅ Will highlight column ${col.location} (sprint phase mode, maxBlocks=${maxBlocks} from tech dept)`,
           )
         } else {
           // Обычный режим (без pendingMoves) - используем maxBlocks
           console.log(
-            `✅ Will highlight column ${col.location} (normal mode, maxBlocks=${maxBlocks})`
+            `✅ Will highlight column ${col.location} (normal mode, maxBlocks=${maxBlocks})`,
           )
         }
 
@@ -8085,7 +8207,7 @@ define([
             columnElement.removeEventListener(
               'click',
               columnElement._taskMoveHandler,
-              true
+              true,
             )
           }
 
@@ -8119,7 +8241,7 @@ define([
 
             // Находим элемент жетона в DOM
             const tokenElement = document.querySelector(
-              `[data-token-id="${tokenId}"]`
+              `[data-token-id="${tokenId}"]`,
             )
             const isTokenInactive =
               tokenElement &&
@@ -8156,7 +8278,7 @@ define([
               console.log('✅ Removing cancel handler')
               document.removeEventListener(
                 'click',
-                this._columnClickCancelHandler
+                this._columnClickCancelHandler,
               )
               this._columnClickCancelHandler = null
             }
@@ -8223,7 +8345,7 @@ define([
           const col = document.getElementById(colId)
           if (col) {
             const hasAvailableClass = col.classList.contains(
-              'sprint-column--available'
+              'sprint-column--available',
             )
             console.log(`🔍 Checking column ${colId}:`, {
               exists: !!col,
@@ -8259,7 +8381,7 @@ define([
             isColumnClick = true
             console.log(
               '✅✅✅ Cancel handler detected column click via closest!',
-              { target: target, clickedColumn: clickedColumn }
+              { target: target, clickedColumn: clickedColumn },
             )
           }
         }
@@ -8283,7 +8405,7 @@ define([
               clickedTokenId: clickedToken?.dataset?.tokenId,
               currentSelectionTokenId: this._currentTaskSelection?.tokenId,
               isColumnClick: isColumnClick,
-            }
+            },
           )
           this._clearColumnHighlight()
           document.removeEventListener('click', this._columnClickCancelHandler)
@@ -8310,7 +8432,7 @@ define([
               targetId: target.id,
               targetClasses: target.className,
               targetTag: target.tagName,
-            }
+            },
           )
           this._clearColumnHighlight()
           document.removeEventListener('click', this._columnClickCancelHandler)
@@ -8323,7 +8445,7 @@ define([
               clickedToken: !!clickedToken,
               target: target,
               targetId: target.id,
-            }
+            },
           )
           // Если это клик по колонке, НЕ очищаем подсветку - пусть обработчик на колонке обработает клик
           // НО: если обработчик на колонке не сработал, нужно дать ему время
@@ -8334,7 +8456,7 @@ define([
               // Проверяем, не нужно ли очистить подсветку
               if (this._columnClickCancelHandler) {
                 console.log(
-                  '⚠️ Column click detected but column handler may not have fired, keeping highlight for now'
+                  '⚠️ Column click detected but column handler may not have fired, keeping highlight for now',
                 )
               }
             }, 100)
@@ -8353,7 +8475,7 @@ define([
               capture: false,
             })
             console.log(
-              '✅ Added cancel handler to document (will fire AFTER column click handler, delay: 300ms)'
+              '✅ Added cancel handler to document (will fire AFTER column click handler, delay: 300ms)',
             )
           }
         }, 300) // Увеличиваем задержку еще больше
@@ -8428,7 +8550,7 @@ define([
 
       if (pendingMoves) {
         console.log(
-          '✅✅✅ _moveTaskTokenToColumn - In effect mode, processing move'
+          '✅✅✅ _moveTaskTokenToColumn - In effect mode, processing move',
         )
 
         // ВАЖНО: Проверяем, не было ли уже перемещение этой задачи
@@ -8481,7 +8603,7 @@ define([
               existingMoveFromLocation: existingMove.fromLocation,
               existingMoveToLocation: existingMove.toLocation,
               newLocation: newLocation,
-            }
+            },
           )
 
           // ВАЖНО: Используем исходную локацию из отмененного перемещения для нового расчета
@@ -8497,7 +8619,7 @@ define([
 
           const blocks = this._calculateBlocksBetween(
             actualFromLocation,
-            newLocation
+            newLocation,
           )
 
           console.log('🔍🔍🔍 Checking if canceling move:', {
@@ -8512,7 +8634,7 @@ define([
           // ВАЖНО: Сначала проверяем попытку переместить в то же место - игнорируем
           if (isMovingToSameLocation) {
             console.log(
-              '⚠️ User is trying to move token to the same location - ignoring'
+              '⚠️ User is trying to move token to the same location - ignoring',
             )
             this.showMessage(_('Жетон уже находится в этой колонке'), 'info')
             return
@@ -8522,7 +8644,7 @@ define([
           if (isCancelingMove) {
             // Пользователь перемещает жетон обратно в исходное положение - просто отменяем перемещение
             console.log(
-              '✅✅✅ User is moving token back to original location - canceling move only'
+              '✅✅✅ User is moving token back to original location - canceling move only',
             )
 
             // Отменяем предыдущее перемещение - вычитаем использованные блоки
@@ -8552,11 +8674,11 @@ define([
                     tokenId: m.tokenId,
                     toLocation: m.toLocation,
                   })),
-                }
+                },
               )
             } else {
               console.error(
-                '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!'
+                '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!',
               )
             }
 
@@ -8564,7 +8686,7 @@ define([
             const currentPlayer = this.gamedatas.players[this.player_id]
             if (currentPlayer && currentPlayer.taskTokens) {
               const token = currentPlayer.taskTokens.find(
-                (t) => t.token_id == tokenId
+                (t) => t.token_id == tokenId,
               )
               if (token) {
                 const oldTokenLocation = token.location
@@ -8577,7 +8699,7 @@ define([
               } else {
                 console.warn(
                   '⚠️ Token not found in gamedatas for reversion:',
-                  tokenId
+                  tokenId,
                 )
               }
             }
@@ -8594,7 +8716,7 @@ define([
               console.log('✅ Hidden confirm button after canceling move')
             } else {
               console.warn(
-                '⚠️ Current player or taskTokens not found for reversion'
+                '⚠️ Current player or taskTokens not found for reversion',
               )
             }
 
@@ -8607,7 +8729,7 @@ define([
             // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
             if (pendingMoves.usedMoves < pendingMoves.moveCount) {
               const confirmButton = document.getElementById(
-                'task-moves-confirm-button'
+                'task-moves-confirm-button',
               )
               if (confirmButton) {
                 confirmButton.remove()
@@ -8628,7 +8750,7 @@ define([
           } else {
             // Пользователь перемещает жетон в другое место - отменяем старое и добавляем новое
             console.log(
-              '✅✅✅ User is moving token to different location - canceling old and adding new'
+              '✅✅✅ User is moving token to different location - canceling old and adding new',
             )
 
             // Отменяем предыдущее перемещение - вычитаем использованные блоки
@@ -8658,11 +8780,11 @@ define([
                     tokenId: m.tokenId,
                     toLocation: m.toLocation,
                   })),
-                }
+                },
               )
             } else {
               console.error(
-                '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!'
+                '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after cancel!',
               )
             }
 
@@ -8670,7 +8792,7 @@ define([
             const currentPlayer = this.gamedatas.players[this.player_id]
             if (currentPlayer && currentPlayer.taskTokens) {
               const token = currentPlayer.taskTokens.find(
-                (t) => t.token_id == tokenId
+                (t) => t.token_id == tokenId,
               )
               if (token) {
                 token.location = existingMove.fromLocation
@@ -8679,7 +8801,7 @@ define([
                   {
                     tokenId,
                     newLocation: existingMove.fromLocation,
-                  }
+                  },
                 )
               }
             }
@@ -8693,7 +8815,7 @@ define([
             // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
             if (pendingMoves.usedMoves < pendingMoves.moveCount) {
               const confirmButton = document.getElementById(
-                'task-moves-confirm-button'
+                'task-moves-confirm-button',
               )
               if (confirmButton) {
                 confirmButton.remove()
@@ -8713,14 +8835,14 @@ define([
           }
         } else {
           console.log(
-            '✅ No existing move found for this token, proceeding with new move'
+            '✅ No existing move found for this token, proceeding with new move',
           )
 
           // Проверяем, не пытается ли пользователь переместить жетон в то же место, где он уже находится
           const currentTokenLocation = this._getTokenCurrentLocation(tokenId)
           if (newLocation === currentTokenLocation) {
             console.log(
-              '⚠️ User is trying to move token to the same location - ignoring'
+              '⚠️ User is trying to move token to the same location - ignoring',
             )
             this.showMessage(_('Жетон уже находится в этой колонке'), 'info')
             return
@@ -8731,7 +8853,7 @@ define([
         // Используем actualFromLocation (может быть исходной, если было отменено предыдущее перемещение)
         const blocks = this._calculateBlocksBetween(
           actualFromLocation,
-          newLocation
+          newLocation,
         )
 
         // ВАЖНО: Если перемещаем назад (blocks < 0), это возврат - вычитаем ходы
@@ -8776,7 +8898,7 @@ define([
             })
             this.showMessage(
               _('Можно перемещать только задачи указанного цвета'),
-              'error'
+              'error',
             )
             return
           }
@@ -8834,7 +8956,7 @@ define([
           })
         } else {
           console.error(
-            '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after move!'
+            '❌❌❌ CRITICAL: gamedatas.pendingTaskMoves is null/undefined after move!',
           )
         }
 
@@ -8850,14 +8972,14 @@ define([
         this._updateTaskMoveModeUI()
         console.log(
           '✅ UI updated, counter should show:',
-          `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`
+          `${pendingMoves.usedMoves} / ${pendingMoves.moveCount}`,
         )
 
         // Временно перемещаем жетон визуально (обновляем данные)
         const currentPlayer = this.gamedatas.players[this.player_id]
         if (currentPlayer && currentPlayer.taskTokens) {
           const token = currentPlayer.taskTokens.find(
-            (t) => t.token_id == tokenId
+            (t) => t.token_id == tokenId,
           )
           if (token) {
             console.log('✅ Updating token location in gamedatas:', {
@@ -8870,7 +8992,7 @@ define([
 
             // Также обновляем в DOM сразу для мгновенной визуальной обратной связи
             const tokenElement = document.querySelector(
-              `[data-token-id="${tokenId}"]`
+              `[data-token-id="${tokenId}"]`,
             )
             if (tokenElement) {
               tokenElement.dataset.location = newLocation
@@ -8896,7 +9018,7 @@ define([
         // ВАЖНО: Очищаем подсветку колонок после перемещения, чтобы можно было выбрать другой жетон
         this._clearColumnHighlight()
         console.log(
-          '✅ Cleared column highlight after move - ready for next token selection'
+          '✅ Cleared column highlight after move - ready for next token selection',
         )
 
         // Показываем кнопку подтверждения, если использованы все ходы ИЛИ на треке нет доступных задач для перемещения
@@ -8911,7 +9033,7 @@ define([
               usedMoves: pendingMoves.usedMoves,
               moveCount: pendingMoves.moveCount,
               maxBlocksLeft,
-            }
+            },
           )
           this._showTaskMovesConfirmButton()
         } else {
@@ -8919,7 +9041,7 @@ define([
             '✅ Moves remaining:',
             pendingMoves.moveCount - pendingMoves.usedMoves,
             'maxBlocksLeft:',
-            maxBlocksLeft
+            maxBlocksLeft,
           )
         }
       } else {
@@ -8962,13 +9084,13 @@ define([
         }
         console.log(
           '✅✅✅ Created pendingTaskMoves:',
-          this.gamedatas.pendingTaskMoves
+          this.gamedatas.pendingTaskMoves,
         )
       } else {
         // Обновляем флаг fromEffect, если он не установлен
         console.log(
           '🔍 pendingTaskMoves exists, checking fromEffect:',
-          this.gamedatas.pendingTaskMoves.fromEffect
+          this.gamedatas.pendingTaskMoves.fromEffect,
         )
         if (!this.gamedatas.pendingTaskMoves.fromEffect) {
           console.log('⚠️⚠️⚠️ fromEffect is false, setting it to true')
@@ -8977,20 +9099,20 @@ define([
         } else {
           console.log(
             '✅✅✅ fromEffect is already true, moveSource:',
-            this.gamedatas.pendingTaskMoves.moveSource
+            this.gamedatas.pendingTaskMoves.moveSource,
           )
         }
       }
 
       console.log(
         '✅ pendingTaskMoves after activation:',
-        this.gamedatas.pendingTaskMoves
+        this.gamedatas.pendingTaskMoves,
       )
 
       // Если на треке нет задач (Бэклог, В работе, Тестирование пусты) — сразу показываем кнопку «Подтвердить», чтобы игрок мог продолжить
       if (this._getMaxTaskMoveBlocksAvailable() === 0) {
         console.log(
-          '🎯 No tasks on track — showing confirm button immediately so player can skip move phase'
+          '🎯 No tasks on track — showing confirm button immediately so player can skip move phase',
         )
         this._showTaskMoveModeIndicator(moveCount, moveColor)
         this._showTaskMovesConfirmButton()
@@ -9053,7 +9175,7 @@ define([
 
       console.log(
         '✅ pendingTechnicalDevelopmentMoves set:',
-        this.gamedatas.pendingTechnicalDevelopmentMoves
+        this.gamedatas.pendingTechnicalDevelopmentMoves,
       )
 
       // Делаем строки техотдела кликабельными (как в треке задач)
@@ -9063,18 +9185,18 @@ define([
 
       columns.forEach((columnNum) => {
         const column = document.getElementById(
-          `player-department-technical-development-column-${columnNum}`
+          `player-department-technical-development-column-${columnNum}`,
         )
         console.log('🔧 Looking for column:', columnNum, 'found:', !!column)
 
         if (column) {
           // Ищем все строки в колонке (могут быть в wrapper или напрямую)
           const wrapper = column.querySelector(
-            `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+            `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
           )
           const container = wrapper || column
           const rows = container.querySelectorAll(
-            '.player-department-technical-development__row'
+            '.player-department-technical-development__row',
           )
 
           console.log('🔧 Found rows in column', columnNum, ':', rows.length)
@@ -9083,7 +9205,7 @@ define([
           let currentTokenRowIndex = null
           rows.forEach((row) => {
             const token = row.querySelector(
-              '.player-department-technical-development__token'
+              '.player-department-technical-development__token',
             )
             if (token) {
               tokensFound++
@@ -9092,7 +9214,7 @@ define([
                 '🔧 Found token in column',
                 columnNum,
                 'row',
-                currentTokenRowIndex
+                currentTokenRowIndex,
               )
 
               // НЕ подсвечиваем жетон сразу - только после клика на строку
@@ -9120,9 +9242,9 @@ define([
       // Показываем подсказку
       this.showMessage(
         _(
-          'Выберите колонки техотдела для улучшения (всего ${count} очков)'
+          'Выберите колонки техотдела для улучшения (всего ${count} очков)',
         ).replace('${count}', moveCount),
-        'info'
+        'info',
       )
 
       // Добавляем кнопку подтверждения
@@ -9137,7 +9259,7 @@ define([
 
       // Убираем классы с жетонов
       const tokens = document.querySelectorAll(
-        '.technical-development-token--move-mode'
+        '.technical-development-token--move-mode',
       )
       tokens.forEach((token) => {
         token.classList.remove('technical-development-token--move-mode')
@@ -9145,7 +9267,7 @@ define([
 
       // Убираем классы и обработчики со строк
       const rows = document.querySelectorAll(
-        '.technical-development-row--clickable'
+        '.technical-development-row--clickable',
       )
       rows.forEach((row) => {
         row.classList.remove('technical-development-row--clickable')
@@ -9158,12 +9280,12 @@ define([
       const columns = [1, 2, 3, 4]
       columns.forEach((columnNum) => {
         const column = document.getElementById(
-          `player-department-technical-development-column-${columnNum}`
+          `player-department-technical-development-column-${columnNum}`,
         )
         if (!column) return
 
         const wrapper = column.querySelector(
-          `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+          `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
         )
         const container = wrapper || column
 
@@ -9171,7 +9293,7 @@ define([
           container.removeEventListener(
             'click',
             container._technicalDevClickHandler,
-            true
+            true,
           )
           container._technicalDevClickHandler = null
         }
@@ -9179,7 +9301,7 @@ define([
 
       // Убираем кнопку подтверждения
       const confirmButton = document.getElementById(
-        'technical-development-moves-confirm-button'
+        'technical-development-moves-confirm-button',
       )
       if (confirmButton) {
         confirmButton.remove()
@@ -9195,7 +9317,7 @@ define([
     _handleTechnicalDevelopmentRowClick: function (
       columnNum,
       fromRowIndex,
-      toRowIndex
+      toRowIndex,
     ) {
       console.log('🔧 Technical development row clicked:', {
         columnNum,
@@ -9211,7 +9333,7 @@ define([
 
       // Находим текущую реальную позицию жетона (может измениться после предыдущих кликов)
       const column = document.getElementById(
-        `player-department-technical-development-column-${columnNum}`
+        `player-department-technical-development-column-${columnNum}`,
       )
       if (!column) {
         console.error('❌ Column not found:', columnNum)
@@ -9220,18 +9342,18 @@ define([
 
       // Ищем строки в wrapper или напрямую в колонке
       const wrapper = column.querySelector(
-        `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+        `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
       )
       const container = wrapper || column
       const rows = container.querySelectorAll(
-        '.player-department-technical-development__row'
+        '.player-department-technical-development__row',
       )
 
       // Находим строку, где сейчас находится жетон
       let actualCurrentRowIndex = fromRowIndex
       rows.forEach((row) => {
         const token = row.querySelector(
-          '.player-department-technical-development__token'
+          '.player-department-technical-development__token',
         )
         if (token) {
           actualCurrentRowIndex = parseInt(row.dataset.rowIndex, 10)
@@ -9242,12 +9364,12 @@ define([
         '🔧 Actual current row index:',
         actualCurrentRowIndex,
         'target row:',
-        toRowIndex
+        toRowIndex,
       )
 
       // Проверяем, есть ли уже перемещение для этой колонки
       const existingMove = pendingMoves.moves.find(
-        (m) => m.column === columnNum
+        (m) => m.column === columnNum,
       )
 
       // Если кликнули на исходную позицию (для отмены перемещения)
@@ -9266,14 +9388,14 @@ define([
           'to original row',
           originalRowIndex,
           'amount:',
-          -currentAmount
+          -currentAmount,
         )
 
         this._moveTechnicalDevelopmentToken(
           columnNum,
           actualCurrentRowIndex,
           originalRowIndex,
-          -currentAmount
+          -currentAmount,
         )
 
         // Обновляем подсветку жетонов после отмены
@@ -9298,9 +9420,9 @@ define([
         this.showMessage(
           _('Недостаточно очков для перемещения на ${amount} позиций').replace(
             '${amount}',
-            moveAmount
+            moveAmount,
           ),
-          'error'
+          'error',
         )
         return
       }
@@ -9314,7 +9436,7 @@ define([
           columnNum,
           actualCurrentRowIndex,
           originalRowIndex,
-          -currentAmount
+          -currentAmount,
         )
         // Обновляем actualCurrentRowIndex после отмены
         actualCurrentRowIndex = originalRowIndex
@@ -9325,7 +9447,7 @@ define([
         columnNum,
         actualCurrentRowIndex,
         toRowIndex,
-        moveAmount
+        moveAmount,
       )
 
       // Обновляем подсветку жетонов после перемещения
@@ -9336,7 +9458,7 @@ define([
       columnNum,
       fromRowIndex,
       toRowIndex,
-      amount
+      amount,
     ) {
       console.log('🔧 Moving technical development token:', {
         columnNum,
@@ -9346,7 +9468,7 @@ define([
       })
 
       const column = document.getElementById(
-        `player-department-technical-development-column-${columnNum}`
+        `player-department-technical-development-column-${columnNum}`,
       )
       if (!column) {
         console.error('❌ Column not found:', columnNum)
@@ -9355,7 +9477,7 @@ define([
 
       // Ищем строки в wrapper или напрямую в колонке
       const wrapper = column.querySelector(
-        `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+        `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
       )
       const container = wrapper || column
 
@@ -9363,7 +9485,7 @@ define([
       // fromRowIndex используется только для сохранения исходной позиции в данных
       // Ищем ТОЛЬКО строки (не жетоны!)
       const rows = container.querySelectorAll(
-        '.player-department-technical-development__row'
+        '.player-department-technical-development__row',
       )
       let currentRowIndex = null
       let currentRow = null
@@ -9374,13 +9496,13 @@ define([
         // Проверяем, что это действительно строка, а не жетон
         if (
           !row.classList.contains(
-            'player-department-technical-development__row'
+            'player-department-technical-development__row',
           )
         ) {
           return
         }
         const rowToken = row.querySelector(
-          '.player-department-technical-development__token'
+          '.player-department-technical-development__token',
         )
         if (rowToken) {
           currentRowIndex = parseInt(row.dataset.rowIndex, 10)
@@ -9399,7 +9521,7 @@ define([
             id: r.id,
             rowIndex: r.dataset.rowIndex,
             className: r.className,
-          }))
+          })),
         )
         return
       }
@@ -9408,13 +9530,13 @@ define([
       let toRow = null
       // Сначала ищем по ID строки
       toRow = document.getElementById(
-        `player-department-technical-development-column-${columnNum}-row-${toRowIndex}`
+        `player-department-technical-development-column-${columnNum}-row-${toRowIndex}`,
       )
       // Проверяем, что это действительно строка
       if (
         toRow &&
         !toRow.classList.contains(
-          'player-department-technical-development__row'
+          'player-department-technical-development__row',
         )
       ) {
         console.warn('⚠️ Element found by ID is not a row, searching again')
@@ -9427,7 +9549,7 @@ define([
           // Проверяем, что это действительно строка, а не жетон
           if (
             !row.classList.contains(
-              'player-department-technical-development__row'
+              'player-department-technical-development__row',
             )
           ) {
             return
@@ -9443,7 +9565,7 @@ define([
       if (
         toRow &&
         !toRow.classList.contains(
-          'player-department-technical-development__row'
+          'player-department-technical-development__row',
         )
       ) {
         console.error('❌ Target element is not a row!', {
@@ -9467,7 +9589,7 @@ define([
             id: r.id,
             rowIndex: r.dataset.rowIndex,
             className: r.className,
-          }))
+          })),
         )
         return
       }
@@ -9480,7 +9602,7 @@ define([
             id: r.id,
             rowIndex: r.dataset.rowIndex,
             className: r.className,
-          }))
+          })),
         )
         return
       }
@@ -9488,7 +9610,7 @@ define([
       // Финальная проверка: toRow должен быть строкой, а не жетоном
       if (
         !toRow.classList.contains(
-          'player-department-technical-development__row'
+          'player-department-technical-development__row',
         )
       ) {
         console.error('❌ Target element is not a row! It is:', {
@@ -9519,11 +9641,11 @@ define([
         '✅ Moving token from row',
         currentRowIndex,
         'to row',
-        toRowIndex
+        toRowIndex,
       )
       console.log(
         '✅ Current row element:',
-        currentRow.id || currentRow.className
+        currentRow.id || currentRow.className,
       )
       console.log('✅ Target row element:', toRow.id || toRow.className)
 
@@ -9552,7 +9674,7 @@ define([
       if (pendingMoves) {
         // Ищем существующее перемещение для этой колонки
         const existingMove = pendingMoves.moves.find(
-          (m) => m.column === columnNum
+          (m) => m.column === columnNum,
         )
         if (existingMove) {
           // Если перемещение уже есть, изменяем amount и обновляем toRowIndex
@@ -9605,7 +9727,7 @@ define([
     _updateTechnicalDevelopmentTokenHighlights: function () {
       // Убираем подсветку со всех жетонов
       const allTokens = document.querySelectorAll(
-        '.technical-development-token--move-mode'
+        '.technical-development-token--move-mode',
       )
       allTokens.forEach((token) => {
         token.classList.remove('technical-development-token--move-mode')
@@ -9618,21 +9740,21 @@ define([
       pendingMoves.moves.forEach((move) => {
         const columnNum = move.column
         const column = document.getElementById(
-          `player-department-technical-development-column-${columnNum}`
+          `player-department-technical-development-column-${columnNum}`,
         )
         if (!column) return
 
         const wrapper = column.querySelector(
-          `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+          `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
         )
         const container = wrapper || column
         const rows = container.querySelectorAll(
-          '.player-department-technical-development__row'
+          '.player-department-technical-development__row',
         )
 
         rows.forEach((row) => {
           const token = row.querySelector(
-            '.player-department-technical-development__token'
+            '.player-department-technical-development__token',
           )
           if (token) {
             token.classList.add('technical-development-token--move-mode')
@@ -9656,16 +9778,16 @@ define([
       }
 
       const column = document.getElementById(
-        `player-department-technical-development-column-${columnNum}`
+        `player-department-technical-development-column-${columnNum}`,
       )
       if (!column) return
 
       const wrapper = column.querySelector(
-        `.player-department-technical-development-column-${columnNum}__rows-wrapper`
+        `.player-department-technical-development-column-${columnNum}__rows-wrapper`,
       )
       const container = wrapper || column
       const rows = container.querySelectorAll(
-        '.player-department-technical-development__row'
+        '.player-department-technical-development__row',
       )
 
       // Удаляем старый обработчик делегирования, если есть
@@ -9673,7 +9795,7 @@ define([
         container.removeEventListener(
           'click',
           container._technicalDevClickHandler,
-          true
+          true,
         )
         container._technicalDevClickHandler = null
       }
@@ -9682,7 +9804,7 @@ define([
       let currentTokenRowIndex = null
       rows.forEach((row) => {
         const token = row.querySelector(
-          '.player-department-technical-development__token'
+          '.player-department-technical-development__token',
         )
         if (token) {
           currentTokenRowIndex = parseInt(row.dataset.rowIndex, 10)
@@ -9703,7 +9825,7 @@ define([
 
       // Проверяем, есть ли активное перемещение для этой колонки (для отмены)
       const existingMove = pendingMoves.moves.find(
-        (m) => m.column === columnNum
+        (m) => m.column === columnNum,
       )
       const originalRowIndex = existingMove ? existingMove.fromRowIndex : null
 
@@ -9745,13 +9867,13 @@ define([
       })
 
       const clickableCount = container.querySelectorAll(
-        '[data-clickable="true"]'
+        '[data-clickable="true"]',
       ).length
       console.log(
         '🔴 Total clickable rows in column',
         columnNum,
         ':',
-        clickableCount
+        clickableCount,
       )
 
       // Обработчик клика
@@ -9760,7 +9882,7 @@ define([
 
         // Находим строку, на которую кликнули
         let clickedRow = e.target.closest(
-          '.player-department-technical-development__row'
+          '.player-department-technical-development__row',
         )
         console.log('🔴 clickedRow:', clickedRow)
 
@@ -9773,7 +9895,7 @@ define([
           '🔴 Row found, checking clickable:',
           clickedRow.hasAttribute('data-clickable'),
           'rowIndex:',
-          clickedRow.dataset.rowIndex
+          clickedRow.dataset.rowIndex,
         )
 
         // Проверяем, что строка кликабельна
@@ -9790,19 +9912,19 @@ define([
           '🔴✅ CLICK PROCESSED! column:',
           columnNum,
           'targetRow:',
-          targetRowIndex
+          targetRowIndex,
         )
 
         // Вычисляем текущую позицию жетона заново при клике
         const currentRows = container.querySelectorAll(
-          '.player-department-technical-development__row'
+          '.player-department-technical-development__row',
         )
         let actualCurrentRowIndex = null
 
         // Убираем подсветку со всех жетонов и находим текущую позицию
         currentRows.forEach((r) => {
           const t = r.querySelector(
-            '.player-department-technical-development__token'
+            '.player-department-technical-development__token',
           )
           if (t) {
             t.classList.remove('technical-development-token--move-mode')
@@ -9814,7 +9936,7 @@ define([
         if (actualCurrentRowIndex !== null) {
           currentRows.forEach((r) => {
             const t = r.querySelector(
-              '.player-department-technical-development__token'
+              '.player-department-technical-development__token',
             )
             if (
               t &&
@@ -9828,7 +9950,7 @@ define([
           self._handleTechnicalDevelopmentRowClick(
             columnNum,
             actualCurrentRowIndex,
-            targetRowIndex
+            targetRowIndex,
           )
         }
       }
@@ -9839,7 +9961,7 @@ define([
         function (e) {
           console.log('🔴 MOUSEDOWN on container, target:', e.target)
           const clickedRow = e.target.closest(
-            '.player-department-technical-development__row'
+            '.player-department-technical-development__row',
           )
           if (clickedRow && clickedRow.hasAttribute('data-clickable')) {
             console.log('🔴✅ MOUSEDOWN on clickable row!')
@@ -9847,7 +9969,7 @@ define([
             clickHandler(e)
           }
         },
-        true
+        true,
       )
 
       container.addEventListener('click', clickHandler, true)
@@ -9857,14 +9979,14 @@ define([
         '🔴✅ Event listeners added to container:',
         container,
         'column:',
-        columnNum
+        columnNum,
       )
     },
 
     _addTechnicalDevelopmentConfirmButton: function () {
       // Удаляем существующую кнопку, если есть
       const existingButton = document.getElementById(
-        'technical-development-moves-confirm-button'
+        'technical-development-moves-confirm-button',
       )
       if (existingButton) {
         existingButton.remove()
@@ -9896,7 +10018,7 @@ define([
 
     _updateTechnicalDevelopmentConfirmButton: function () {
       const button = document.getElementById(
-        'technical-development-moves-confirm-button'
+        'technical-development-moves-confirm-button',
       )
       if (!button) return
 
@@ -9915,7 +10037,7 @@ define([
 
       if (remaining > 0) {
         button.textContent = _(
-          'Подтвердить улучшения (осталось ${count} очков)'
+          'Подтвердить улучшения (осталось ${count} очков)',
         ).replace('${count}', remaining)
       } else {
         button.textContent = _('Подтвердить улучшения')
@@ -9933,7 +10055,7 @@ define([
         finishButton.disabled = true
         finishButton.setAttribute('title', _('Завершите улучшение техотдела'))
         console.log(
-          '🔒 Finish turn button disabled - technical development moves pending'
+          '🔒 Finish turn button disabled - technical development moves pending',
         )
       } else if (!pendingMoves) {
         // Если нет ожидающих перемещений, проверяем другие условия
@@ -9969,7 +10091,7 @@ define([
 
       console.log(
         '🔧 Confirming technical development moves:',
-        pendingMoves.moves
+        pendingMoves.moves,
       )
 
       // Отправляем данные на сервер (преобразуем массив в JSON строку)
@@ -9993,14 +10115,14 @@ define([
           } else {
             console.error(
               '❌ Failed to confirm technical development moves:',
-              result
+              result,
             )
             this.showMessage(
               result?.error || _('Ошибка при подтверждении'),
-              'error'
+              'error',
             )
           }
-        }
+        },
       )
     },
 
@@ -10067,7 +10189,7 @@ define([
      */
     _positionTaskMoveIndicator: function () {
       const founderHint = document.getElementById(
-        'founder-effect-sequence-hint'
+        'founder-effect-sequence-hint',
       )
       const taskIndicator = document.getElementById('task-move-mode-indicator')
 
@@ -10150,7 +10272,7 @@ define([
         })
       } else {
         console.warn(
-          '⚠️ _updateTaskMoveModeUI: Element task-move-mode-used not found'
+          '⚠️ _updateTaskMoveModeUI: Element task-move-mode-used not found',
         )
       }
     },
@@ -10161,7 +10283,7 @@ define([
     _showTaskMovesConfirmButton: function () {
       // Убираем предыдущую кнопку, если есть
       const existingButton = document.getElementById(
-        'task-moves-confirm-button'
+        'task-moves-confirm-button',
       )
       if (existingButton) {
         existingButton.remove()
@@ -10224,7 +10346,7 @@ define([
             usedMoves: pendingMoves.usedMoves,
             moveCount: pendingMoves.moveCount,
             maxBlocksLeft,
-          }
+          },
         )
         this.showMessage(
           _(
@@ -10232,9 +10354,9 @@ define([
             {
               used: pendingMoves.usedMoves,
               total: pendingMoves.moveCount,
-            }
+            },
           ),
-          'error'
+          'error',
         )
         return
       }
@@ -10297,11 +10419,11 @@ define([
             } else {
               this.showMessage(
                 _('Ошибка при подтверждении перемещений'),
-                'error'
+                'error',
               )
             }
           }
-        }
+        },
       ).catch((error) => {
         console.error('❌ Exception during task moves confirmation:', error)
 
@@ -10326,7 +10448,7 @@ define([
       const currentPlayer = this.gamedatas.players[this.player_id]
       if (currentPlayer && currentPlayer.taskTokens) {
         const token = currentPlayer.taskTokens.find(
-          (t) => t.token_id == tokenId
+          (t) => t.token_id == tokenId,
         )
         if (token && token.location) {
           console.log('🔍 _getTokenCurrentLocation from gamedatas:', {
@@ -10379,7 +10501,7 @@ define([
     _showFounderEffectSequenceHint: function (
       founderName,
       taskAmount,
-      movesData
+      movesData,
     ) {
       // Убираем предыдущую подсказку, если есть
       this._hideFounderEffectSequenceHint()
@@ -10400,7 +10522,7 @@ define([
             }">
               <span class="founder-effect-sequence-hint__step-number">1</span>
               <span class="founder-effect-sequence-hint__step-text">${_(
-                'Выберите'
+                'Выберите',
               )} ${taskAmount} ${_('задач')}</span>
             </div>
             <div class="founder-effect-sequence-hint__step ${
@@ -10410,7 +10532,7 @@ define([
             }">
               <span class="founder-effect-sequence-hint__step-number">2</span>
               <span class="founder-effect-sequence-hint__step-text">${_(
-                'Передвиньте задачи на'
+                'Передвиньте задачи на',
               )} ${movesData.moveCount} ${_('блока')}</span>
             </div>
           </div>
@@ -10453,7 +10575,7 @@ define([
 
       if (!container) {
         console.warn(
-          '⚠️ parts-of-projects__body not found, trying again in 500ms...'
+          '⚠️ parts-of-projects__body not found, trying again in 500ms...',
         )
         console.log('Available elements:', {
           partsOfProjects: !!document.querySelector('.parts-of-projects'),
@@ -10470,7 +10592,7 @@ define([
             this._renderTaskInputs()
           } else {
             console.error(
-              '❌ parts-of-projects__body still not found after retry'
+              '❌ parts-of-projects__body still not found after retry',
             )
           }
         }, 500)
@@ -10479,7 +10601,7 @@ define([
 
       console.log(
         '✅ parts-of-projects__body found, rendering inputs...',
-        container
+        container,
       )
 
       // Очищаем контейнер
@@ -10575,7 +10697,7 @@ define([
       console.log(
         '✅ _renderTaskInputs: Completed, added',
         taskColors.length,
-        'inputs'
+        'inputs',
       )
     },
 
@@ -10589,7 +10711,7 @@ define([
 
       taskColors.forEach((color) => {
         const input = document.querySelector(
-          `.task-input__field[data-color="${color}"]`
+          `.task-input__field[data-color="${color}"]`,
         )
         if (input) {
           const quantity = parseInt(input.value) || 0
@@ -10616,7 +10738,7 @@ define([
       playerId,
       tasks,
       location = 'backlog',
-      callback
+      callback,
     ) {
       if (!tasks || tasks.length === 0) {
         if (callback) callback()
@@ -10638,7 +10760,7 @@ define([
             console.error('❌ Failed to add tasks:', result)
             if (callback) callback(result)
           }
-        }
+        },
       )
     },
 
@@ -10653,7 +10775,7 @@ define([
       playerId,
       tasks,
       location = null,
-      callback
+      callback,
     ) {
       if (!tasks || tasks.length === 0) {
         if (callback) callback()
@@ -10675,7 +10797,7 @@ define([
             console.error('❌ Failed to remove tasks:', result)
             if (callback) callback(result)
           }
-        }
+        },
       )
     },
 
@@ -10690,7 +10812,7 @@ define([
       tokenId,
       location,
       rowIndex = null,
-      callback
+      callback,
     ) {
       this.bgaPerformAction(
         'actUpdateTaskTokenLocation',
@@ -10707,7 +10829,7 @@ define([
             console.error('❌ Failed to update task location:', result)
             if (callback) callback(result)
           }
-        }
+        },
       )
     },
 
@@ -10723,7 +10845,7 @@ define([
       // Активируем все input'ы и устанавливаем максимальное значение
       taskColors.forEach((color) => {
         const input = document.querySelector(
-          `.task-input__field[data-color="${color}"]`
+          `.task-input__field[data-color="${color}"]`,
         )
         if (input) {
           input.disabled = false
@@ -10734,10 +10856,10 @@ define([
 
         // Активируем кнопки
         const decreaseBtn = input?.parentElement?.querySelector(
-          '.task-input__button--decrease'
+          '.task-input__button--decrease',
         )
         const increaseBtn = input?.parentElement?.querySelector(
-          '.task-input__button--increase'
+          '.task-input__button--increase',
         )
         if (decreaseBtn) decreaseBtn.disabled = false
         if (increaseBtn) increaseBtn.disabled = false
@@ -10761,7 +10883,7 @@ define([
       // Деактивируем все input'ы
       taskColors.forEach((color) => {
         const input = document.querySelector(
-          `.task-input__field[data-color="${color}"]`
+          `.task-input__field[data-color="${color}"]`,
         )
         if (input) {
           input.disabled = true
@@ -10772,10 +10894,10 @@ define([
 
         // Деактивируем кнопки
         const decreaseBtn = input?.parentElement?.querySelector(
-          '.task-input__button--decrease'
+          '.task-input__button--decrease',
         )
         const increaseBtn = input?.parentElement?.querySelector(
-          '.task-input__button--increase'
+          '.task-input__button--increase',
         )
         if (decreaseBtn) decreaseBtn.disabled = true
         if (increaseBtn) increaseBtn.disabled = true
@@ -10783,7 +10905,7 @@ define([
 
       // Удаляем кнопку "Готово"
       const confirmButton = document.getElementById(
-        'task-selection-confirm-button'
+        'task-selection-confirm-button',
       )
       if (confirmButton) {
         confirmButton.remove()
@@ -10797,7 +10919,7 @@ define([
     _addTaskSelectionConfirmButton: function (maxTasks) {
       // Удаляем существующую кнопку, если есть
       const existingButton = document.getElementById(
-        'task-selection-confirm-button'
+        'task-selection-confirm-button',
       )
       if (existingButton) {
         existingButton.remove()
@@ -10835,14 +10957,14 @@ define([
     _setupTaskSelectionValidation: function (maxTasks) {
       const taskColors = ['cyan', 'orange', 'pink', 'purple']
       const confirmButton = document.getElementById(
-        'task-selection-confirm-button'
+        'task-selection-confirm-button',
       )
 
       const validateSelection = () => {
         let total = 0
         taskColors.forEach((color) => {
           const input = document.querySelector(
-            `.task-input__field[data-color="${color}"]`
+            `.task-input__field[data-color="${color}"]`,
           )
           if (input && !input.disabled) {
             total += parseInt(input.value) || 0
@@ -10866,7 +10988,7 @@ define([
         // Обновляем максимальное значение для каждого input'а
         taskColors.forEach((color) => {
           const input = document.querySelector(
-            `.task-input__field[data-color="${color}"]`
+            `.task-input__field[data-color="${color}"]`,
           )
           if (input && !input.disabled) {
             const currentValue = parseInt(input.value) || 0
@@ -10885,7 +11007,7 @@ define([
       // Добавляем обработчики на все input'ы
       taskColors.forEach((color) => {
         const input = document.querySelector(
-          `.task-input__field[data-color="${color}"]`
+          `.task-input__field[data-color="${color}"]`,
         )
         if (input) {
           input.addEventListener('input', validateSelection)
@@ -10908,7 +11030,7 @@ define([
       if (total !== maxTasks) {
         this.showMessage(
           _('Вы должны выбрать ровно ${amount} задач', { amount: maxTasks }),
-          'error'
+          'error',
         )
         return
       }
@@ -10944,10 +11066,10 @@ define([
             console.error('❌ Failed to confirm task selection:', result)
             this.showMessage(
               _('Ошибка при подтверждении выбора задач'),
-              'error'
+              'error',
             )
           }
-        }
+        },
       )
     },
 
@@ -11029,21 +11151,24 @@ define([
       return null
     },
     _extractActivePlayerId: function (args) {
-      // Идентификатор активного игрока
+      // Идентификатор активного игрока (проверяем args и args.args — BGA может передавать обёртку)
       if (!args) return null
-      if (
-        typeof args.activePlayerId !== 'undefined' &&
-        args.activePlayerId !== null
-      ) {
-        const value = Number(args.activePlayerId)
-        return Number.isNaN(value) ? null : value
-      }
-      if (
-        typeof args.active_player !== 'undefined' &&
-        args.active_player !== null
-      ) {
-        const value = Number(args.active_player)
-        return Number.isNaN(value) ? null : value
+      const inner = args.args || args
+      for (const source of [inner, args]) {
+        if (
+          typeof source.activePlayerId !== 'undefined' &&
+          source.activePlayerId !== null
+        ) {
+          const value = Number(source.activePlayerId)
+          if (!Number.isNaN(value)) return value
+        }
+        if (
+          typeof source.active_player !== 'undefined' &&
+          source.active_player !== null
+        ) {
+          const value = Number(source.active_player)
+          if (!Number.isNaN(value)) return value
+        }
       }
       return null
     },
@@ -11071,7 +11196,7 @@ define([
         if (!isTutorialMode) {
           // В основном режиме проверяем активного игрока
           const activePlayerId = this._getActivePlayerIdFromDatas(
-            this.gamedatas
+            this.gamedatas,
           )
           if (
             !activePlayerId ||
@@ -11102,7 +11227,7 @@ define([
 
         // Проверяем, что карта принадлежит текущему игроку
         const cardOwnerId = Number(
-          card.dataset.playerId || handContainer?.dataset.playerId || 0
+          card.dataset.playerId || handContainer?.dataset.playerId || 0,
         )
         if (cardOwnerId !== Number(this.player_id)) {
           return // Карта не принадлежит текущему игроку
@@ -11154,7 +11279,7 @@ define([
             if (!isTutorialMode) {
               // В основном режиме проверяем активного игрока
               const activePlayerId = this._getActivePlayerIdFromDatas(
-                this.gamedatas
+                this.gamedatas,
               )
               if (
                 !activePlayerId ||
@@ -11172,14 +11297,14 @@ define([
               if (!isFounderSelection && !isPlayerTurn) {
                 console.log(
                   'Not in valid state for placing card:',
-                  currentState
+                  currentState,
                 )
                 return
               }
             }
 
             const activeCard = handContainer?.querySelector(
-              '.founder-card--active'
+              '.founder-card--active',
             )
             if (!activeCard) {
               console.log('No active card found')
@@ -11194,7 +11319,7 @@ define([
             const ownerId = Number(
               activeCard.dataset.playerId ||
                 handContainer?.dataset.playerId ||
-                0
+                0,
             )
 
             // Проверяем, что карта принадлежит текущему игроку
@@ -11236,14 +11361,14 @@ define([
               this._renderFounderCardInDepartment(
                 founder,
                 this.player_id,
-                department
+                department,
               )
             }
 
             // Проверяем, не выполняется ли уже действие
             if (this._placingFounder) {
               console.warn(
-                '⚠️ actPlaceFounder already in progress, ignoring duplicate call'
+                '⚠️ actPlaceFounder already in progress, ignoring duplicate call',
               )
               return
             }
@@ -11274,7 +11399,7 @@ define([
           // Сохраняем ссылку на обработчик для возможности удаления
           container._deptClickHandler = deptClickHandler
           container.addEventListener('click', deptClickHandler)
-        }
+        },
       )
     },
     _setDepartmentHighlight: function (enabled) {
@@ -11289,13 +11414,13 @@ define([
             container.classList.add('department-highlight')
             container.setAttribute(
               'data-highlight-label',
-              this._getDepartmentLabel(department)
+              this._getDepartmentLabel(department),
             )
           } else {
             container.classList.remove('department-highlight')
             container.removeAttribute('data-highlight-label')
           }
-        }
+        },
       )
     },
     _getDepartmentLabel: function (department) {
@@ -11357,6 +11482,9 @@ define([
       })
     },
   })
+  const g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this
+  if (g) g.bgagame = { itarenagame: GameClass }
+  return GameClass
 })
 
 function _updateHandSelection(handContainer, enabled) {

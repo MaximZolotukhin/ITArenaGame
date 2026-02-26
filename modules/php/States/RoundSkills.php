@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
+use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
 use Bga\Games\itarenagame\Game;
@@ -16,7 +17,7 @@ use Bga\Games\itarenagame\TaskTokensData;
  * Игрок выбирает навык (жетон из round-panel__skill-token-column размещает в round-panel__skill-column).
  * Навык сохраняется на раунд и применяется эффект.
  */
-class RoundSkills extends \Bga\GameFramework\States\GameState
+class RoundSkills extends GameState
 {
     function __construct(
         protected Game $game,
@@ -70,9 +71,15 @@ class RoundSkills extends \Bga\GameFramework\States\GameState
                 $occupiedSkillKeys[] = $tok;
             }
         }
+        $badgers = $this->game->getPlayerBadgersForCheck($activePlayerId);
+        $roundOrder = $this->game->getCurrentRoundPlayerOrder();
+
         return [
             'phaseKey' => 'skills',
             'phaseName' => $this->game->getPhaseName('skills'),
+            'activePlayerId' => $activePlayerId,
+            'badgers' => $badgers,
+            'currentRoundPlayerOrder' => $roundOrder,
             'skillOptions' => SkillsData::getSkillsForSelection(),
             'taskTokenColors' => $taskTokenColors,
             'skillEffectPending' => $skillEffectPending,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Bga\Games\itarenagame\States;
 
 use Bga\GameFramework\StateType;
+use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
 use Bga\Games\itarenagame\Game;
@@ -14,7 +15,7 @@ use Bga\Games\itarenagame\SpecialistsData;
  * Фаза «Найм» (Hiring) раунда.
  * Действия: 1) Рекрутинг — взять карты из колоды найма по треку найма в бэк-офисе; 2–3) позже.
  */
-class RoundHiring extends \Bga\GameFramework\States\GameState
+class RoundHiring extends GameState
 {
     function __construct(
         protected Game $game,
@@ -60,10 +61,12 @@ class RoundHiring extends \Bga\GameFramework\States\GameState
 
         $hiringConfirmed = $this->game->globals->get('hiring_confirmed_' . $activePlayerId, '') === '1';
         $hiringHiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $activePlayerId, '0');
+        $roundOrder = $this->game->getCurrentRoundPlayerOrder();
 
         return [
             'phaseKey' => 'hiring',
             'phaseName' => $this->game->getPhaseName('hiring'),
+            'currentRoundPlayerOrder' => $roundOrder,
             'hiringTrackValue' => $hiringTrackValue,
             'recruitingDone' => $recruitingDone,
             'hiringTrackHire' => $hiringTrackHire,
@@ -204,6 +207,11 @@ class RoundHiring extends \Bga\GameFramework\States\GameState
         $this->game->hireOneSpecialistFromHand($playerId, (int) $cardId, $department);
         $newHiredCount = $hiredCount + 1;
         $this->game->globals->set('hiring_hired_count_' . $playerId, (string) $newHiredCount);
+        // Если у карты есть эффект — применяем его (те же типы, что у основателей: badger, updateTrack, move_task и т.д.)
+        $appliedEffects = [];
+        if (isset($card['effect']) && $card['effect'] !== null && is_array($card['effect'])) {
+            $appliedEffects = $this->game->applySpecialistEffect($playerId, (int) $cardId);
+        }
         $price = (int) ($card['price'] ?? 0);
         $maxHire = $this->game->getHiringTrackHireCount($playerId);
         $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает специалиста за ${badgers} баджерсов'), [
@@ -216,6 +224,8 @@ class RoundHiring extends \Bga\GameFramework\States\GameState
             'playerHiredSpecialistsDetails' => $this->game->getPlayerHiredSpecialistsDetails($playerId),
             'hiringHiredCount' => $newHiredCount,
             'maxHireCount' => $maxHire,
+            'specialistEffectApplied' => !empty($appliedEffects),
+            'appliedEffects' => $appliedEffects,
             'i18n' => ['badgers'],
         ]);
         return null;
@@ -268,10 +278,14 @@ class RoundHiring extends \Bga\GameFramework\States\GameState
             $newHiredCount = $prevHired + count($selectedCardIds);
             $this->game->globals->set('hiring_hired_count_' . $playerId, (string) $newHiredCount);
             $totalPrice = 0;
+            $allAppliedEffects = [];
             foreach ($selectedCardIds as $cid) {
                 $c = SpecialistsData::getCard($cid);
                 if ($c) {
                     $totalPrice += (int) ($c['price'] ?? 0);
+                    if (isset($c['effect']) && $c['effect'] !== null && is_array($c['effect'])) {
+                        $allAppliedEffects = array_merge($allAppliedEffects, $this->game->applySpecialistEffect($playerId, (int) $cid));
+                    }
                 }
             }
             $maxHire = $this->game->getHiringTrackHireCount($playerId);
@@ -285,6 +299,8 @@ class RoundHiring extends \Bga\GameFramework\States\GameState
                 'playerHiredSpecialistsDetails' => $this->game->getPlayerHiredSpecialistsDetails($playerId),
                 'hiringHiredCount' => $newHiredCount,
                 'maxHireCount' => $maxHire,
+                'specialistEffectApplied' => !empty($allAppliedEffects),
+                'appliedEffects' => $allAppliedEffects,
                 'i18n' => ['badgers'],
             ]);
         }

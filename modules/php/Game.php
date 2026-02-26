@@ -718,6 +718,8 @@ class Game extends \Bga\GameFramework\Table
         
         // Добавляем массив всех фаз для клиента
         $result['roundPhases'] = $this->getRoundPhases();
+        $roundOrder = $this->getCurrentRoundPlayerOrder();
+        $result['currentRoundPlayerOrder'] = $roundOrder !== null ? $roundOrder : array_map('intval', array_keys($this->loadPlayersBasicInfos()));
         // ВАЖНО: НЕ отправляем все карты событий в getAllDatas() - это слишком большой JSON
         // Клиент получает только текущие карты раунда через roundEventCards
         // $result['eventCards'] = EventCardsData::getAllCards();
@@ -1693,13 +1695,14 @@ class Game extends \Bga\GameFramework\Table
      */
     private function getEffectHandler(string $effectType): ?EffectHandlerInterface
     {
-        // Сначала проверяем специальные обработчики (включая updateTrack)
+        // Сначала проверяем специальные обработчики (включая updateTrack и updateTrackDepartmentTechnical)
         $specialHandler = match ($effectType) {
             'badger' => new BadgerEffectHandler($this),
             'card' => new CardEffectHandler($this),
             'task' => new TaskEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
+            'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
             default => null,
         };
         
@@ -1726,41 +1729,63 @@ class Game extends \Bga\GameFramework\Table
      */
     private function processFounderEffectType(int $playerId, string $effectType, $effectValue, array $founderCard): ?array
     {
+        return $this->processCardEffectType($playerId, $effectType, $effectValue, $founderCard);
+    }
+
+    /**
+     * Обрабатывает один тип эффекта по данным карты (основатель или специалист).
+     * @param int $playerId ID игрока
+     * @param string $effectType Тип эффекта (badger, card, task, move_task, updateTrack и т.д.)
+     * @param mixed $effectValue Значение эффекта
+     * @param array $cardData Данные карты (effect/effects передаются в handler->apply)
+     * @return array|null Результат применения эффекта или null
+     */
+    private function processCardEffectType(int $playerId, string $effectType, $effectValue, array $cardData): ?array
+    {
         $effectValueStr = is_array($effectValue) ? json_encode($effectValue) : (string)$effectValue;
-        error_log("processFounderEffectType - Player: $playerId, Type: $effectType, Value: $effectValueStr");
-        
-        // Специальная проверка для updateTrack
-        if ($effectType === 'updateTrack' && is_array($effectValue)) {
-            error_log("🔧🔧🔧 processFounderEffectType - updateTrack BEFORE handler: Count: " . count($effectValue));
-            error_log("🔧 processFounderEffectType - updateTrack BEFORE handler: Full: " . json_encode($effectValue));
-            foreach ($effectValue as $idx => $track) {
-                error_log("🔧 processFounderEffectType - updateTrack BEFORE handler Track #$idx: " . json_encode($track));
-            }
-        }
-        
+        error_log("processCardEffectType - Player: $playerId, Type: $effectType, Value: $effectValueStr");
+
         $handler = $this->getEffectHandler($effectType);
-        
         if ($handler === null) {
-            error_log("processFounderEffectType - Unknown effect type: $effectType, skipping");
+            error_log("processCardEffectType - Unknown effect type: $effectType, skipping");
             return null;
         }
-        
-        error_log("processFounderEffectType - Applying $effectType effect: $effectValueStr");
-        
-        // Для треков передаем ключ эффекта через cardData
         if (str_ends_with($effectType, 'Track')) {
-            $founderCard['_effectKey'] = $effectType;
+            $cardData['_effectKey'] = $effectType;
         }
-        
-        $result = $handler->apply($playerId, $effectValue, $founderCard);
-        
-        // Специальная проверка для updateTrack после обработки
-        if ($effectType === 'updateTrack' && is_array($result) && isset($result['tracks'])) {
-            error_log("🔧🔧🔧 processFounderEffectType - updateTrack AFTER handler: Tracks count: " . count($result['tracks']));
-            error_log("🔧 processFounderEffectType - updateTrack AFTER handler: Tracks: " . json_encode($result['tracks']));
+        return $handler->apply($playerId, $effectValue, $cardData);
+    }
+
+    /**
+     * Применяет эффект карты специалиста при найме (если effect != null).
+     * effect — массив [ effectType => effectValue, ... ], те же типы, что у основателей (badger, updateTrack, move_task и т.д.).
+     *
+     * @param int $playerId ID игрока, нанявшего специалиста
+     * @param int $cardId ID карты специалиста
+     * @return array Результаты применённых эффектов (для уведомлений)
+     */
+    public function applySpecialistEffect(int $playerId, int $cardId): array
+    {
+        $card = SpecialistsData::getCard($cardId);
+        if ($card === null) {
+            error_log("applySpecialistEffect - Specialist card not found: $cardId");
+            return [];
         }
-        
-        return $result;
+        $effect = $card['effect'] ?? null;
+        if ($effect === null || !is_array($effect)) {
+            return [];
+        }
+        $appliedEffects = [];
+        foreach ($effect as $effectType => $effectValue) {
+            if (is_array($effectValue) && $effectType !== 'updateTrack' && $effectType !== 'updateTrackDepartmentTechnical') {
+                $effectValue = json_encode($effectValue);
+            }
+            $result = $this->processCardEffectType($playerId, $effectType, $effectValue, $card);
+            if ($result !== null) {
+                $appliedEffects[] = $result;
+            }
+        }
+        return $appliedEffects;
     }
 
     /**
@@ -2872,7 +2897,6 @@ class Game extends \Bga\GameFramework\Table
         if ($price > $badgers) {
             throw new \Bga\GameFramework\UserException(clienttranslate('Not enough badgers to hire this specialist'));
         }
-
         $this->deductPlayerBadgers($playerId, $price);
         $remainingHand = array_values(array_diff($hand, [$cardId]));
         $this->globals->set('player_specialists_' . $playerId, json_encode($remainingHand));
@@ -2893,7 +2917,7 @@ class Game extends \Bga\GameFramework\Table
 
     /**
      * Возвращает количество баджерсов игрока для проверок.
-     * Используется максимум из БД и счётчика, чтобы не было расхождений после эффектов/обновлений.
+     * Источник истины — player_game_data.badgers; счётчик синхронизируется с БД при расхождении.
      */
     public function getPlayerBadgersForCheck(int $playerId): int
     {
@@ -2901,11 +2925,15 @@ class Game extends \Bga\GameFramework\Table
         $gameData = $this->getPlayerGameData($playerId);
         $dbBadgers = $gameData !== null ? (int) ($gameData['badgers'] ?? 0) : 0;
         $counterBadgers = (int) $this->playerBadgers->get($playerId);
-        return max($dbBadgers, $counterBadgers);
+        if ($counterBadgers !== $dbBadgers) {
+            $this->playerBadgers->set($playerId, $dbBadgers);
+        }
+        return $dbBadgers;
     }
 
     /**
      * Списывает баджерсы у игрока: обновляет БД и счётчик от одной и той же «эффективной» суммы.
+     * Не списывает больше, чем есть у игрока (защита от расхождений в подсчёте).
      */
     public function deductPlayerBadgers(int $playerId, int $amount): void
     {
@@ -2913,7 +2941,10 @@ class Game extends \Bga\GameFramework\Table
             return;
         }
         $current = $this->getPlayerBadgersForCheck($playerId);
-        $newValue = max(0, $current - $amount);
+        if ($amount > $current) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Not enough badgers to hire this specialist'));
+        }
+        $newValue = $current - $amount;
         $this->DbQuery("
             UPDATE `player_game_data`
             SET `badgers` = $newValue

@@ -34,7 +34,7 @@ class SpecialistsData
             'name' => 'Дмитрий', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Веб–программист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'pink-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 розовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер

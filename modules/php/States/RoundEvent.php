@@ -1,11 +1,12 @@
 <?php
 
-declare(strict_types=1); // Строгий режим типов
+declare(strict_types=1);
 
-namespace Bga\Games\itarenagame\States; // Пространство имен состояний игры
+namespace Bga\Games\itarenagame\States;
 
-use Bga\GameFramework\StateType; // Тип состояния
-use Bga\Games\itarenagame\Game; // Класс игры
+use Bga\GameFramework\StateType;
+use Bga\GameFramework\States\GameState;
+use Bga\Games\itarenagame\Game;
 
 /**
  * Фаза «Событие» (Event) раунда.
@@ -18,7 +19,7 @@ use Bga\Games\itarenagame\Game; // Класс игры
  *
  * Значение кости и карты событий сохраняются и используются в течение всего раунда при срабатывании эффектов.
  */
-class RoundEvent extends \Bga\GameFramework\States\GameState
+class RoundEvent extends GameState
 {
     function __construct( // Конструктор состояния "Событие"
         protected Game $game, // Класс игры
@@ -175,6 +176,10 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
         $phaseName = $phase ? $phase['name'] : '';
         $phaseNumber = $phase ? $phase['number'] : null;
         
+        $currentOrder = $this->game->getCurrentRoundPlayerOrder();
+        if ($currentOrder === null || $currentOrder === []) {
+            $currentOrder = array_map('intval', array_keys($this->game->loadPlayersBasicInfos()));
+        }
         $this->notify->all('roundStart', clienttranslate('Начало раунда ${round}'), [ // Уведомление о начале раунда
             'round' => $round, // Текущий раунд
             'roundName' => $this->game->getRoundName($round), // Название этапа
@@ -186,6 +191,7 @@ class RoundEvent extends \Bga\GameFramework\States\GameState
             'roundEventCards' => $eventCards,
             'eventCard' => $eventCards[0] ?? null,
             'founders' => $this->game->getFoundersByPlayer(),
+            'currentRoundPlayerOrder' => $currentOrder, // Порядок хода в раунде (слева направо на треке жетонов)
             'i18n' => ['roundName', 'phaseName'], // Название раунда и фазы
         ]); // Уведомление о начале раунда
         error_log('🎲 RoundEvent::onEnteringState() - roundStart notification sent! cubeFace: ' . $cubeFace . ', cards: ' . count($eventCards));
