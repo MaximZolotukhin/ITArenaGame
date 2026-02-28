@@ -312,7 +312,7 @@
   }
 }
 
-/* Карты основателей в отделах — в одной линии со специалистами, перекрывать нельзя */
+/* Карты основателей в отделах — ведут себя как карты сотрудников: один уровень с ними, карты могут перекрывать друг друга при увеличении */
 .sales-department__body .founder-card,
 .back-office__body .founder-card,
 .technical-department__body .founder-card {
@@ -322,7 +322,7 @@
   min-width: 180px;
   height: 254px;
   flex-shrink: 0;
-  z-index: 1001; /* выше, чем у специалистов при hover (1000) — карту основателя не перекрывать */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -333,7 +333,7 @@
 .back-office__body .founder-card:hover,
 .technical-department__body .founder-card:hover {
   transform: scale(2);
-  z-index: 1001;
+  z-index: 1000;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(76, 175, 80, 0.4);
 }
 
@@ -3396,7 +3396,7 @@
 .sales-department__body .hired-specialist-card:hover,
 .back-office__body .hired-specialist-card:hover,
 .technical-department__body .hired-specialist-card:hover {
-  z-index: 1000; /* поверх других специалистов, но ниже основателя (1001) */
+  z-index: 1000; /* как у карты основателя — при наведении любая карта поверх остальных */
 }
 .sales-department__body,
 .back-office__body,

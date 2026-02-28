@@ -52,7 +52,7 @@ class SpecialistsData
             'name' => 'Камилла', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'SEO–специалист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'orange-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 оранжевый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -70,7 +70,7 @@ class SpecialistsData
             'name' => 'Медина', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'SММ–специалист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на трек спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -88,7 +88,7 @@ class SpecialistsData
             'name' => 'Алексей', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Frontend–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'pink-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 розовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -98,7 +98,6 @@ class SpecialistsData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/specialists/technical-department/4.png', // Изображение
         ],
-        // TODO: посомтреть где и почему не залили фото картчоки дял алексея если чо его img 4.png пока оставим чтоб не было путаницы
         5 => [
             'id' => 5,
             'type' => 'specialist', // Тип карты
@@ -107,7 +106,7 @@ class SpecialistsData
             'name' => 'Степан', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Link–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -125,7 +124,7 @@ class SpecialistsData
             'name' => 'Татьяна', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Контент–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cayn-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 голубой трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -135,6 +134,7 @@ class SpecialistsData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/specialists/technical-department/6.png', // Изображение
         ],
+        // TODO: Закончил тут
         7 => [
             'id' => 7,
             'type' => 'specialist', // Тип карты

@@ -111,9 +111,17 @@ class RoundEvent extends GameState
             $firstPlayerId = $nextRoundOrder[0];
             $this->game->gamestate->changeActivePlayer($firstPlayerId);
             error_log('🎲 RoundEvent - Порядок хода по треку навыков: ' . json_encode($nextRoundOrder) . ', первый: ' . $firstPlayerId);
+        } else {
+            // Первый раунд: порядка ещё нет — задаём по порядку стола, чтобы фаза навыков не пропускала игроков
+            $tableOrder = array_map('intval', array_keys($this->game->loadPlayersBasicInfos()));
+            $this->game->setCurrentRoundPlayerOrder($tableOrder);
+            $firstPlayerId = $tableOrder[0];
+            $this->game->gamestate->changeActivePlayer($firstPlayerId);
+            error_log('🎲 RoundEvent - Первый раунд, порядок по столу: ' . json_encode($tableOrder) . ', первый: ' . $firstPlayerId);
         }
-        // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции
+        // В начале раунда (фаза «Событие») жетоны навыков возвращаются на начальные позиции и сбрасываем временные выборы фазы навыков
         $this->game->clearAllSkillTokens();
+        $this->game->clearSkillsPhaseChoices();
 
         $playersLeftInRound = (int)$this->game->getGameStateValue('players_left_in_round');
         $playersCount = count($this->game->loadPlayersBasicInfos());

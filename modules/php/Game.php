@@ -152,6 +152,13 @@ class Game extends \Bga\GameFramework\Table
                 'state' => \Bga\Games\itarenagame\States\RoundHiring::class,
                 'transition' => 'toRoundHiring',
             ],
+            [
+                'key' => 'sales',
+                'number' => 4,
+                'name' => clienttranslate('Продажи'),
+                'state' => \Bga\Games\itarenagame\States\RoundSales::class,
+                'transition' => 'toRoundSales',
+            ],
         ];
     }
 
@@ -1796,9 +1803,10 @@ class Game extends \Bga\GameFramework\Table
      * @param string $skillKey Ключ навыка (eloquence, discipline, intellect, frugality)
      */
     /**
+     * @param bool $persistToken Сохранять ли навык в БД (false в фазе навыков — сохраняем при выходе из фазы)
      * @return array<int, array> Результаты применённых эффектов (для уведомлений)
      */
-    public function applySkillEffects(int $playerId, string $skillKey): array
+    public function applySkillEffects(int $playerId, string $skillKey, bool $persistToken = true): array
     {
         if (!SkillsData::isValidKey($skillKey)) {
             throw new \InvalidArgumentException("Invalid skill key: $skillKey");
@@ -1807,7 +1815,9 @@ class Game extends \Bga\GameFramework\Table
         if ($skill === null) {
             return [];
         }
-        $this->setSkillToken($playerId, $skillKey);
+        if ($persistToken) {
+            $this->setSkillToken($playerId, $skillKey);
+        }
         if (empty($skill['effects'])) {
             return [];
         }
@@ -3032,7 +3042,7 @@ class Game extends \Bga\GameFramework\Table
                 ) VALUES (
                     $playerId, $incomeTrack, $badgers,
                     1, 1, 1,
-                    1, 1, 1, 1
+                    1, 0, 1, 0
                 )
             ");
         }
@@ -3065,6 +3075,54 @@ class Game extends \Bga\GameFramework\Table
         ");
     }
     
+    /**
+     * Соответствие цветовых треков техотдела колонкам (1=pink, 2=orange, 3=cyan, 4=purple).
+     * Единое место для эффектов updateTrack / updateTrackDepartmentTechnical (основатели и сотрудники).
+     */
+    public static function getTechnicalDepartmentTrackColumn(string $trackId): ?int
+    {
+        return match ($trackId) {
+            'pink-track' => 1,
+            'orange-track' => 2,
+            'cyan-track' => 3,
+            'purple-track' => 4,
+            default => null,
+        };
+    }
+
+    /**
+     * Универсальное применение улучшения трека техотдела по данным эффекта карты.
+     * Вызывается из UpdateTrackEffectHandler для эффектов updateTrack / updateTrackDepartmentTechnical.
+     *
+     * @param int $playerId ID игрока
+     * @param string $trackId Цвет трека: pink-track, orange-track, cyan-track, purple-track
+     * @param int $amount На сколько изменить (положительное — улучшить)
+     * @return array|null Данные обновления для уведомления или null, если трек не техотдела
+     */
+    public function applyTechnicalDepartmentTrackUpdate(int $playerId, string $trackId, int $amount): ?array
+    {
+        $column = self::getTechnicalDepartmentTrackColumn($trackId);
+        if ($column === null || $amount === 0) {
+            return null;
+        }
+        $colName = 'tech_dev_col' . $column;
+        // Атомарное обновление: один запрос читает и увеличивает, без гонки между вызовами
+        $this->DbQuery("
+            UPDATE `player_game_data` 
+            SET `$colName` = COALESCE(`$colName`, 0) + " . (int) $amount . " 
+            WHERE `player_id` = " . (int) $playerId
+        );
+        $row = $this->getObjectFromDb("SELECT `$colName` FROM `player_game_data` WHERE `player_id` = $playerId");
+        $newValue = ($row && $row[$colName] !== null) ? (int) $row[$colName] : $amount;
+        $oldValue = $newValue - $amount;
+        return [
+            'trackId' => $trackId,
+            'amount' => $amount,
+            'oldValue' => $oldValue,
+            'newValue' => $newValue,
+        ];
+    }
+
     /**
      * Обновляет позицию на треке технического развития
      * @param int $playerId ID игрока
@@ -3138,6 +3196,54 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Выбор позиции в фазе навыков (временное хранилище до выхода из фазы).
+     * Порядок хода в фазе определяется «текущими позициями» (current_round_player_order), не меняется до выхода.
+     */
+    public function getSkillsPhaseChoice(int $playerId): ?string
+    {
+        $json = $this->globals->get('skills_phase_choices', '');
+        if ($json === '' || $json === null) {
+            return null;
+        }
+        $data = json_decode($json, true);
+        return is_array($data) && isset($data[(string) $playerId]) ? (string) $data[(string) $playerId] : null;
+    }
+
+    public function setSkillsPhaseChoice(int $playerId, string $skillKey): void
+    {
+        $json = $this->globals->get('skills_phase_choices', '{}');
+        $data = is_string($json) ? json_decode($json, true) : [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $data[(string) $playerId] = $skillKey;
+        $this->globals->set('skills_phase_choices', json_encode($data));
+    }
+
+    /** @return array<int, string> playerId => skillKey */
+    public function getAllSkillsPhaseChoices(): array
+    {
+        $json = $this->globals->get('skills_phase_choices', '');
+        if ($json === '' || $json === null) {
+            return [];
+        }
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return [];
+        }
+        $out = [];
+        foreach ($data as $pid => $skillKey) {
+            $out[(int) $pid] = (string) $skillKey;
+        }
+        return $out;
+    }
+
+    public function clearSkillsPhaseChoices(): void
+    {
+        $this->globals->delete('skills_phase_choices');
+    }
+
+    /**
      * Порядок навыков на треке (слева направо = раньше ход в следующем раунде).
      * Используется для определения очереди хода в следующем раунде по положению на треке навыков.
      */
@@ -3207,14 +3313,18 @@ class Game extends \Bga\GameFramework\Table
 
     /**
      * Устанавливает порядок хода для текущего раунда (используется в фазах раунда).
+     * Нормализует: добавляет в конец отсутствующих игроков, чтобы никто не пропускал ход.
      */
     public function setCurrentRoundPlayerOrder(array $playerIds): void
     {
-        $this->globals->set('current_round_player_order', json_encode(array_map('intval', $playerIds)));
+        $order = array_values(array_map('intval', $playerIds));
+        $order = $this->ensureAllPlayersInRoundOrder($order);
+        $this->globals->set('current_round_player_order', json_encode($order));
     }
 
     /**
      * Возвращает порядок хода для текущего раунда.
+     * Нормализует порядок: добавляет в конец всех игроков, которых нет в списке (защита от пропуска хода в фазе навыков).
      *
      * @return list<int>|null Массив player_id или null (тогда используется порядок стола)
      */
@@ -3225,7 +3335,29 @@ class Game extends \Bga\GameFramework\Table
             return null;
         }
         $decoded = json_decode($json, true);
-        return is_array($decoded) ? array_map('intval', $decoded) : null;
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $order = array_values(array_map('intval', $decoded));
+        return $this->ensureAllPlayersInRoundOrder($order);
+    }
+
+    /**
+     * Добавляет в конец порядка всех игроков, отсутствующих в списке (чтобы никто не пропускал ход в фазе навыков).
+     *
+     * @param list<int> $order Текущий порядок
+     * @return list<int> Порядок с добавленными в конец отсутствующими игроками
+     */
+    private function ensureAllPlayersInRoundOrder(array $order): array
+    {
+        $allPlayerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
+        $inOrder = array_flip($order);
+        foreach ($allPlayerIds as $pid) {
+            if (!isset($inOrder[$pid])) {
+                $order[] = $pid;
+            }
+        }
+        return array_values($order);
     }
 
     /**

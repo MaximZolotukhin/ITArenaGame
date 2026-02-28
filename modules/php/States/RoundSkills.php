@@ -45,8 +45,7 @@ class RoundSkills extends GameState
             ];
         }
         $activePlayerId = (int) $this->game->getActivePlayerId();
-        $gameData = $this->game->getPlayerGameData($activePlayerId);
-        $activeSkillKey = $gameData['skillToken'] ?? null;
+        $activeSkillKey = $this->game->getSkillsPhaseChoice($activePlayerId);
         $skillEffectPending = false;
         $skillEffectHint = '';
         if ($activeSkillKey === SkillsData::SKILL_INTELLECT) {
@@ -56,20 +55,14 @@ class RoundSkills extends GameState
                 $skillEffectHint = clienttranslate('Примените эффект: передвиньте задачи на треке и нажмите «Подтвердить»');
             }
         }
-        // Ячейки навыков, уже занятые другими игроками в этом раунде (текущий не может их выбрать)
+        // Ячейки навыков, уже занятые другими игроками в этой фазе (временные выборы, не БД)
+        $allChoices = $this->game->getAllSkillsPhaseChoices();
         $occupiedSkillKeys = [];
-        foreach (array_keys($this->game->loadPlayersBasicInfos()) as $pid) {
+        foreach ($allChoices as $pid => $skillKey) {
             if ((int) $pid === $activePlayerId) {
                 continue;
             }
-            $otherData = $this->game->getPlayerGameData((int) $pid);
-            if ($otherData === null) {
-                continue;
-            }
-            $tok = $otherData['skillToken'] ?? null;
-            if ($tok !== null && $tok !== '') {
-                $occupiedSkillKeys[] = $tok;
-            }
+            $occupiedSkillKeys[] = $skillKey;
         }
         $badgers = $this->game->getPlayerBadgersForCheck($activePlayerId);
         $roundOrder = $this->game->getCurrentRoundPlayerOrder();
@@ -106,31 +99,24 @@ class RoundSkills extends GameState
     {
         $this->game->checkAction('actSelectSkill');
         $playerId = (int)$this->game->getActivePlayerId();
-        $gameData = $this->game->getPlayerGameData($playerId);
-        if ($gameData && ($gameData['skillToken'] ?? null) !== null && $gameData['skillToken'] !== '') {
+        if ($this->game->getSkillsPhaseChoice($playerId) !== null) {
             throw new UserException(clienttranslate('You have already chosen a skill for this round'));
         }
         if (!SkillsData::isValidKey($skillKey)) {
             throw new UserException(clienttranslate('Invalid skill selected'));
         }
-        // Ячейка на треке навыков уже занята другим игроком — выбирать нельзя
+        $allChoices = $this->game->getAllSkillsPhaseChoices();
         $occupiedSkillKeys = [];
-        foreach (array_keys($this->game->loadPlayersBasicInfos()) as $pid) {
+        foreach ($allChoices as $pid => $sk) {
             if ((int) $pid === $playerId) {
                 continue;
             }
-            $otherData = $this->game->getPlayerGameData((int) $pid);
-            if ($otherData === null) {
-                continue;
-            }
-            $tok = $otherData['skillToken'] ?? null;
-            if ($tok !== null && $tok !== '') {
-                $occupiedSkillKeys[] = $tok;
-            }
+            $occupiedSkillKeys[] = $sk;
         }
         if (in_array($skillKey, $occupiedSkillKeys, true)) {
             throw new UserException(clienttranslate('This skill slot is already taken by another player'));
         }
+        $this->game->setSkillsPhaseChoice($playerId, $skillKey);
         $skill = SkillsData::getSkill($skillKey);
 
         // Дисциплина: один жетон задачи в бэклог, игрок выбирает цвет
@@ -150,7 +136,7 @@ class RoundSkills extends GameState
             ]);
         }
 
-        $effectResults = $this->game->applySkillEffects($playerId, $skillKey);
+        $effectResults = $this->game->applySkillEffects($playerId, $skillKey, false);
 
         // Уведомление о картах (Красноречие)
         foreach ($effectResults as $result) {
@@ -218,8 +204,7 @@ class RoundSkills extends GameState
     {
         $this->game->checkAction('actCompleteSkillsPhase');
         $playerId = (int) $this->game->getActivePlayerId();
-        $gameData = $this->game->getPlayerGameData($playerId);
-        $skillKey = $gameData['skillToken'] ?? null;
+        $skillKey = $this->game->getSkillsPhaseChoice($playerId);
         if ($skillKey === SkillsData::SKILL_INTELLECT) {
             $pendingJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
             if ($pendingJson !== '' && $pendingJson !== null) {

@@ -63,6 +63,18 @@ class RoundHiring extends GameState
         $hiringHiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $activePlayerId, '0');
         $roundOrder = $this->game->getCurrentRoundPlayerOrder();
 
+        $pendingTaskJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, '');
+        $pendingTaskSelection = null;
+        if ($pendingTaskJson !== null && $pendingTaskJson !== '') {
+            $decoded = json_decode($pendingTaskJson, true);
+            if (is_array($decoded) && isset($decoded['amount']) && (int) $decoded['amount'] > 0) {
+                $pendingTaskSelection = [
+                    'amount' => (int) $decoded['amount'],
+                    'founder_name' => $decoded['founder_name'] ?? '',
+                ];
+            }
+        }
+
         return [
             'phaseKey' => 'hiring',
             'phaseName' => $this->game->getPhaseName('hiring'),
@@ -75,6 +87,7 @@ class RoundHiring extends GameState
             'maxHireCount' => $hiringTrackHire,
             'hiringConfirmed' => $hiringConfirmed,
             'hiringHiredCount' => $hiringHiredCount,
+            'pendingTaskSelection' => $pendingTaskSelection,
         ];
     }
 
@@ -84,6 +97,8 @@ class RoundHiring extends GameState
         $activePlayerId = (int) $this->game->getActivePlayerId();
         $this->game->globals->delete('hiring_confirmed_' . $activePlayerId);
         $this->game->globals->set('hiring_hired_count_' . $activePlayerId, '0');
+        // Сбрасываем ожидание выбора задач при входе в фазу найма — блокировка только после найма карты с эффектом task
+        $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
         $this->game->ensureSpecialistDeckInitialized();
 
         // Этап «собеседование»: при входе в фазу найма выдаём игроку hiringTrackInterview карт из колоды
@@ -214,6 +229,16 @@ class RoundHiring extends GameState
         }
         $price = (int) ($card['price'] ?? 0);
         $maxHire = $this->game->getHiringTrackHireCount($playerId);
+        $pendingTaskSelection = null;
+        foreach ($appliedEffects as $eff) {
+            if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount']) && (int) $eff['amount'] > 0) {
+                $pendingTaskSelection = [
+                    'amount' => (int) $eff['amount'],
+                    'founder_name' => $card['name'] ?? '',
+                ];
+                break;
+            }
+        }
         $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает специалиста за ${badgers} баджерсов'), [
             'player_id' => $playerId,
             'player_name' => $this->game->getPlayerNameById($playerId),
@@ -226,8 +251,16 @@ class RoundHiring extends GameState
             'maxHireCount' => $maxHire,
             'specialistEffectApplied' => !empty($appliedEffects),
             'appliedEffects' => $appliedEffects,
+            'pendingTaskSelection' => $pendingTaskSelection,
             'i18n' => ['badgers'],
         ]);
+        if ($pendingTaskSelection !== null) {
+            $this->notify->player($playerId, 'taskSelectionRequired', '', [
+                'player_id' => $playerId,
+                'amount' => $pendingTaskSelection['amount'],
+                'founder_name' => $pendingTaskSelection['founder_name'],
+            ]);
+        }
         return null;
     }
 
@@ -279,14 +312,39 @@ class RoundHiring extends GameState
             $this->game->globals->set('hiring_hired_count_' . $playerId, (string) $newHiredCount);
             $totalPrice = 0;
             $allAppliedEffects = [];
+            // Эффект применяем один раз на уникальный id карты (защита от дубликатов в selectedCardIds и от +2 вместо +1)
+            $uniqueCardIds = array_unique($selectedCardIds);
             foreach ($selectedCardIds as $cid) {
                 $c = SpecialistsData::getCard($cid);
                 if ($c) {
                     $totalPrice += (int) ($c['price'] ?? 0);
-                    if (isset($c['effect']) && $c['effect'] !== null && is_array($c['effect'])) {
-                        $allAppliedEffects = array_merge($allAppliedEffects, $this->game->applySpecialistEffect($playerId, (int) $cid));
-                    }
                 }
+            }
+            foreach ($uniqueCardIds as $cid) {
+                $c = SpecialistsData::getCard($cid);
+                if ($c && isset($c['effect']) && $c['effect'] !== null && is_array($c['effect'])) {
+                    $allAppliedEffects = array_merge($allAppliedEffects, $this->game->applySpecialistEffect($playerId, (int) $cid));
+                }
+            }
+            $taskAmountSum = 0;
+            foreach ($allAppliedEffects as $eff) {
+                if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount'])) {
+                    $taskAmountSum += (int) $eff['amount'];
+                }
+            }
+            $pendingTaskSelection = null;
+            if ($taskAmountSum > 0) {
+                $pendingJson = $this->game->globals->get('pending_task_selection_' . $playerId, '');
+                $pending = is_string($pendingJson) ? json_decode($pendingJson, true) : [];
+                if (is_array($pending)) {
+                    $pending['amount'] = $taskAmountSum;
+                    $this->game->globals->set('pending_task_selection_' . $playerId, json_encode($pending));
+                }
+                $founderName = is_array($pending) ? ($pending['founder_name'] ?? '') : '';
+                $pendingTaskSelection = [
+                    'amount' => $taskAmountSum,
+                    'founder_name' => $founderName,
+                ];
             }
             $maxHire = $this->game->getHiringTrackHireCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
@@ -301,8 +359,16 @@ class RoundHiring extends GameState
                 'maxHireCount' => $maxHire,
                 'specialistEffectApplied' => !empty($allAppliedEffects),
                 'appliedEffects' => $allAppliedEffects,
+                'pendingTaskSelection' => $pendingTaskSelection,
                 'i18n' => ['badgers'],
             ]);
+            if ($pendingTaskSelection !== null) {
+                $this->notify->player($playerId, 'taskSelectionRequired', '', [
+                    'player_id' => $playerId,
+                    'amount' => $pendingTaskSelection['amount'],
+                    'founder_name' => $pendingTaskSelection['founder_name'],
+                ]);
+            }
         }
 
         $this->game->globals->set('hiring_confirmed_' . $playerId, '1');
@@ -317,9 +383,67 @@ class RoundHiring extends GameState
     {
         $this->game->checkAction('actCompleteHiringPhase');
         $playerId = (int) $this->game->getActivePlayerId();
+        $pendingSelectionJson = $this->game->globals->get('pending_task_selection_' . $playerId, null);
+        if ($pendingSelectionJson !== null) {
+            $pendingSelection = json_decode($pendingSelectionJson, true);
+            $amount = (int) ($pendingSelection['amount'] ?? 0);
+            $msg = clienttranslate('Вы должны выбрать ${amount} задач в бэклог перед завершением фазы найма');
+            throw new UserException(str_replace('${amount}', (string) $amount, $msg));
+        }
         $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('hiring_phase_just_finished', '1');
         return 'toNextPlayer';
+    }
+
+    /**
+     * Подтверждение выбора задач от эффекта специалиста (effect task).
+     */
+    #[PossibleAction]
+    public function actConfirmTaskSelection(string $selectedTasksJson): void
+    {
+        $this->game->checkAction('actConfirmTaskSelection');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+        $pendingSelectionJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, null);
+        if ($pendingSelectionJson === null) {
+            throw new UserException(clienttranslate('Нет ожидающего выбора задач'));
+        }
+        $pendingSelection = json_decode($pendingSelectionJson, true);
+        if (!is_array($pendingSelection) || !isset($pendingSelection['amount'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающего выбора задач'));
+        }
+        $requiredAmount = (int) $pendingSelection['amount'];
+        $selectedTasks = json_decode($selectedTasksJson, true);
+        if (!is_array($selectedTasks)) {
+            throw new UserException(clienttranslate('Неверный формат данных выбранных задач'));
+        }
+        $totalSelected = 0;
+        foreach ($selectedTasks as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+            $quantity = (int) ($task['quantity'] ?? 0);
+            if ($quantity < 0) {
+                throw new UserException(clienttranslate('Количество задач не может быть отрицательным'));
+            }
+            $totalSelected += $quantity;
+        }
+        if ($totalSelected !== $requiredAmount) {
+            throw new UserException(clienttranslate('Вы должны выбрать ровно ${amount} задач', [
+                'amount' => $requiredAmount,
+            ]));
+        }
+        $addedTokens = $this->game->addTaskTokens($activePlayerId, $selectedTasks, 'backlog');
+        $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
+        $founderName = $pendingSelection['founder_name'] ?? '';
+        $this->notify->all('tasksSelected', clienttranslate('${player_name} выбрал ${amount} задач от эффекта ${founder_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'amount' => $totalSelected,
+            'founder_name' => $founderName,
+            'selected_tasks' => $selectedTasks,
+            'added_tokens' => $addedTokens,
+            'i18n' => ['founder_name'],
+        ]);
     }
 
     public function zombie(int $playerId): string

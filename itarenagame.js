@@ -1,7 +1,6 @@
 /**
- *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * ITArenaGame implementation : © <Your name here> <Your email address here>
+ * ITArenaGame implementation
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -14,6 +13,15 @@
  * In this file, you are describing the logic of your user interface, in Javascript language.
  *
  */
+
+;(function () {
+  var bag = {}
+  try {
+    if (typeof globalThis !== 'undefined') globalThis.bgagame = globalThis.bgagame || bag
+    if (typeof window !== 'undefined') window.bgagame = window.bgagame || bag
+    if (typeof self !== 'undefined') self.bgagame = self.bgagame || bag
+  } catch (e) {}
+})()
 
 define([
   'dojo',
@@ -711,24 +719,26 @@ define([
         this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
       }, 200)
 
-      // ВАЖНО: Кубик и карты событий НЕ отрисовываются в setup()
-      // Они отрисовываются только в RoundEvent (этап 2, round > 0)
-      // Сохраняем данные из getAllDatas() в gamedatas для будущего использования
+      // Кубик PAEI и карты событий: данные приходят из getAllDatas (БД: round_cube_face, колода event_card в location table)
+      // Сохраняем в gamedatas и сразу отрисовываем при перезагрузке страницы (этап 2)
       const currentRound = gamedatas.round || 0
       if (currentRound > 0) {
-        // Только если мы уже на этапе 2, сохраняем данные
+        // Этап 2: сохраняем и отрисовываем кубик и карты событий из БД
         if (gamedatas.cubeFace) {
           this.gamedatas.cubeFace = gamedatas.cubeFace
+          this._updateCubeFace(gamedatas.cubeFace)
           console.log(
-            '🎲 setup: Saved cubeFace to gamedatas (Stage 2):',
+            '🎲 setup: Saved and rendered cubeFace from DB (Stage 2):',
             gamedatas.cubeFace,
           )
         }
         if (gamedatas.roundEventCards && gamedatas.roundEventCards.length > 0) {
           this.gamedatas.roundEventCards = gamedatas.roundEventCards
           this.gamedatas.roundEventCard = gamedatas.roundEventCards[0] || null
+          this._renderEventCards(gamedatas.roundEventCards)
+          this._renderRoundEventCards(gamedatas.roundEventCards)
           console.log(
-            '🎴 setup: Saved roundEventCards to gamedatas (Stage 2):',
+            '🎴 setup: Saved and rendered roundEventCards from DB (Stage 2):',
             gamedatas.roundEventCards.length,
           )
         }
@@ -744,6 +754,16 @@ define([
       const initialActiveId =
         this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
+
+      // После перезагрузки в фазах Продажи/Найм: подставляем руку из players[id].specialists, если playerSpecialists пусто
+      const stateName = gamedatas?.gamestate?.name
+      if (
+        (stateName === 'RoundSales' || stateName === 'RoundHiring') &&
+        (!gamedatas.playerSpecialists || gamedatas.playerSpecialists.length === 0) &&
+        gamedatas.players?.[this.player_id]?.specialists?.length > 0
+      ) {
+        gamedatas.playerSpecialists = gamedatas.players[this.player_id].specialists
+      }
 
       // Сохраняем данные карт специалистов для использования в уведомлениях
       if (
@@ -1628,6 +1648,8 @@ define([
           this._clearDepartmentsForNewPlayer(skillsActiveId)
           this._renderPlayerMoney(this.gamedatas.players, skillsActiveId)
           this._renderFounderCard(this.gamedatas.players, skillsActiveId)
+          this._toggleActivePlayerHand(skillsActiveId)
+          this._renderPlayerSpecialists()
           const roundPanel = document.querySelector('.round-panel__wrapper')
           if (roundPanel) this._renderPlayerIndicators(roundPanel)
           break
@@ -1659,6 +1681,42 @@ define([
           this._renderFounderCard(this.gamedatas.players, hiringActiveId)
           this._toggleActivePlayerHand(hiringActiveId)
           this._renderPlayerSpecialists()
+          break
+        }
+        case 'RoundSales': {
+          if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
+          if (args?.args?.phaseName) this.gamedatas.phaseName = args.args.phaseName
+          this.gamedatas.phaseNumber = 4
+          const salesActiveId =
+            args?.args?.activePlayerId ??
+            this._getActivePlayerIdFromDatas(this.gamedatas) ??
+            this.player_id
+          const salesBadgersOverride =
+            args?.args?.activePlayerBadgers !== undefined
+              ? Number(args.args.activePlayerBadgers)
+              : undefined
+          if (
+            salesBadgersOverride !== undefined &&
+            this.gamedatas.players &&
+            this.gamedatas.players[salesActiveId]
+          ) {
+            this.gamedatas.players[salesActiveId].badgers = salesBadgersOverride
+          }
+          this._renderPlayerMoney(
+            this.gamedatas.players,
+            salesActiveId,
+            salesBadgersOverride,
+          )
+          this._toggleActivePlayerHand(salesActiveId)
+          this._renderPlayerSpecialists()
+          this._updateStageBanner()
+          const self = this
+          setTimeout(function () {
+            self._renderPlayerMoney(self.gamedatas.players, salesActiveId)
+          }, 150)
+          setTimeout(function () {
+            self._renderPlayerMoney(self.gamedatas.players, salesActiveId)
+          }, 500)
           break
         }
       }
@@ -1759,6 +1817,17 @@ define([
               .replace('${player}', activeName),
           )
         }
+      }
+      // Фаза продаж: автоматическое начисление баджерсов по треку продаж
+      if (stateName === 'RoundSales') {
+        const phaseNameSales =
+          args?.args?.phaseName ||
+          (typeof _ !== 'undefined' ? _('Продажи') : 'Продажи')
+        const salesTitle = (typeof _ !== 'undefined'
+          ? _('Фаза «${phase}» — получение баджерсов по треку продаж')
+          : 'Фаза «' + phaseNameSales + '» — получение баджерсов по треку продаж'
+        ).replace('${phase}', phaseNameSales)
+        this.statusBar.setTitle(salesTitle)
       }
 
       // FounderSelection, NextPlayer (при pendingRoundEvent), RoundEvent — не только активный игрок.
@@ -1936,19 +2005,72 @@ define([
                 )
               }
 
+              // Блокируем «Завершить фазу найм» только когда сработал эффект task у нанятого специалиста (сервер прислал pendingTaskSelection)
+              if (args?.args?.pendingTaskSelection != null) {
+                this.gamedatas.pendingTaskSelection =
+                  args.args.pendingTaskSelection
+              } else {
+                this.gamedatas.pendingTaskSelection = null
+              }
+              const hiringPendingTask = args?.args?.pendingTaskSelection ?? null
+              const mustSelectTasks =
+                hiringPendingTask &&
+                Number(hiringPendingTask.amount || 0) > 0
+              const completeHiringTooltip = mustSelectTasks
+                ? (
+                    typeof _ !== 'undefined'
+                      ? _(
+                          'Сначала выберите ${n} задач в бэклог (эффект специалиста)',
+                        )
+                      : 'Сначала выберите ' +
+                        (hiringPendingTask?.amount ?? 0) +
+                        ' задач в бэклог (эффект специалиста)'
+                  ).replace('${n}', String(hiringPendingTask?.amount ?? 0))
+                : _(
+                    'Нажмите, когда закончите нанимать (или если не нанимаете)',
+                  )
               this.statusBar.addActionButton(
                 _('Завершить фазу найм'),
                 () => this.bgaPerformAction('actCompleteHiringPhase'),
                 {
                   primary: true,
                   id: 'complete-hiring-phase-button',
+                  disabled: !!mustSelectTasks,
+                  tooltip: completeHiringTooltip,
+                },
+              )
+            }
+            break
+          case 'RoundSales': {
+            this._updateStageBanner()
+            const salesActiveId =
+              args?.args?.activePlayerId ??
+              this._getActivePlayerIdFromDatas(this.gamedatas) ??
+              this.player_id
+            const salesBadgers =
+              args?.args?.activePlayerBadgers !== undefined
+                ? Number(args.args.activePlayerBadgers)
+                : undefined
+            this._renderPlayerMoney(
+              this.gamedatas.players,
+              salesActiveId,
+              salesBadgers,
+            )
+            if (this.isCurrentPlayerActive()) {
+              this.statusBar.addActionButton(
+                _('Завершить фазу «Продажи»'),
+                () => this.bgaPerformAction('actCompleteSalesPhase'),
+                {
+                  primary: true,
+                  id: 'complete-sales-phase-button',
                   tooltip: _(
-                    'Нажмите, когда закончите нанимать (или если не нанимаете)',
+                    'Подтвердите получение баджерсов по треку продаж и завершите фазу',
                   ),
                 },
               )
             }
             break
+          }
           case 'FounderSelection':
             // В состоянии выбора карты основателя
             // ВАЖНО: Этот блок выполняется для всех игроков, но кнопка показывается только активному
@@ -2264,6 +2386,7 @@ define([
       dojo.subscribe('initialPlayerValues', this, 'notif_initialPlayerValues')
       dojo.subscribe('skillSelected', this, 'notif_skillSelected')
       dojo.subscribe('skillTaskTokenAdded', this, 'notif_skillTaskTokenAdded')
+      dojo.subscribe('salesPhasePayout', this, 'notif_salesPhasePayout')
 
       console.log(
         '✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected, skillTaskTokenAdded',
@@ -2872,6 +2995,27 @@ define([
         }
       } else if (amount !== 0) {
         this.showMessage(`${founderName}: ${actionText}${amount}Б`, 'info')
+      }
+    },
+
+    notif_salesPhasePayout: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const amount = Number(args.amount || 0)
+      const salesTrackValue = Number(args.salesTrackValue ?? args.track ?? 0)
+      const newValue = Number(args.newValue)
+      if (playerId <= 0 || !this.gamedatas.players[playerId]) return
+      this.gamedatas.players[playerId].badgers =
+        Number.isFinite(newValue) && newValue >= 0
+          ? newValue
+          : (this.gamedatas.players[playerId].badgers ?? 0) + amount
+      this._renderPlayerMoney(this.gamedatas.players, playerId)
+      if (amount > 0) {
+        const msg = (typeof _ !== 'undefined' ? _('${player_name}: +${amount} Б (трек продаж: ${track})') : `${args.player_name || ''}: +${amount} Б (трек продаж: ${salesTrackValue})`)
+          .replace(/\$\{player_name\}/g, args.player_name || '')
+          .replace(/\$\{amount\}/g, String(amount))
+          .replace(/\$\{track\}/g, String(salesTrackValue))
+        this.showMessage(msg, 'info')
       }
     },
 
@@ -4031,11 +4175,46 @@ define([
           this._hiringMaxCount = Number(args.maxHireCount)
         }
         this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) - spent)
+        // Эффект task с любой карты (специалист/основатель): синхронизируем pendingTaskSelection из уведомления
+        if (args.pendingTaskSelection != null && Number(args.pendingTaskSelection.amount || 0) > 0) {
+          this.gamedatas.pendingTaskSelection = {
+            amount: args.pendingTaskSelection.amount,
+            founder_name: args.pendingTaskSelection.founder_name,
+          }
+        } else {
+          this.gamedatas.pendingTaskSelection = null
+        }
         this._toggleActivePlayerHand(this.player_id)
         this._renderPlayerSpecialists()
       }
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       this._renderHiredSpecialistsInDepartments(playerId)
+
+      // Применяем эффекты специалистов: обновление треков техотдела (pink-, orange-, cyan-, purple-track)
+      const colorTrackToColumn = {
+        'pink-track': 1,
+        'orange-track': 2,
+        'cyan-track': 3,
+        'purple-track': 4,
+      }
+      const appliedEffects = args.appliedEffects || []
+      appliedEffects.forEach((eff) => {
+        if ((eff.type || '') !== 'updateTrack' || !Array.isArray(eff.tracks)) return
+        eff.tracks.forEach((track) => {
+          const trackId = track.trackId || track.track_id
+          const col = colorTrackToColumn[trackId]
+          if (col == null) return
+          const oldVal = Number(track.oldValue ?? 0)
+          const newVal = Number(track.newValue ?? 0)
+          const amount = Number(track.amount ?? 0)
+          if (amount === 0) return
+          const pl = this.gamedatas.players[playerId]
+          if (pl) {
+            pl['techDevCol' + col] = newVal
+          }
+          this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
+        })
+      })
     },
 
     notif_debugUpdateTrack: async function (notif) {
@@ -4174,21 +4353,45 @@ define([
 
       // Если это текущий игрок, активируем выбор задач
       if (Number(playerId) === Number(this.player_id)) {
-        // Сохраняем информацию о ожидающем выборе
+        // Сохраняем информацию о ожидающем выборе (тот же формат, что у основателя и специалиста)
         this.gamedatas.pendingTaskSelection = {
           amount: amount,
-          founderName: founderName,
+          founder_name: founderName,
         }
 
-        // Проверяем, есть ли также эффект move_task (для карты Дмитрий)
+        // Эффекты только из свойства effect карты: сбрасываем старые move_task от предыдущей карты
+        this.gamedatas.pendingTaskMovesJson = null
+        this.gamedatas.pendingTaskMoves = null
+
+        // В фазе найма блокируем кнопку «Завершить фазу найм», пока не выбраны задачи
+        const stateName = this.gamedatas?.gamestate?.name
+        if (stateName === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = true
+            completeBtn.setAttribute(
+              'title',
+              (
+                typeof _ !== 'undefined'
+                  ? _('Сначала выберите ${n} задач в бэклог (эффект специалиста)')
+                  : 'Сначала выберите ' + amount + ' задач в бэклог (эффект специалиста)'
+              ).replace('${n}', String(amount)),
+            )
+          }
+        }
+
+        // Подсказка только по эффектам текущей карты: шаг 2 — только если сервер пришлёт taskMovesRequired (move_task)
         const pendingMovesJson = this.gamedatas?.pendingTaskMovesJson
         if (pendingMovesJson) {
-          // Показываем подсказку о последовательности действий
           this._showFounderEffectSequenceHint(
             founderName,
             amount,
             JSON.parse(pendingMovesJson),
           )
+        } else {
+          this._showFounderEffectSequenceHint(founderName, amount, null)
         }
 
         // Активируем input'ы для выбора задач
@@ -4428,6 +4631,20 @@ define([
       if (Number(playerId) === Number(this.player_id)) {
         this.gamedatas.pendingTaskSelection = null
         this._deactivateTaskSelection()
+
+        // В фазе найма разблокируем кнопку «Завершить фазу найм» после выбора задач
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = false
+            completeBtn.setAttribute(
+              'title',
+              _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+            )
+          }
+        }
 
         // Убираем подсказку о выборе задач
         const hint = document.getElementById('founder-effect-sequence-hint')
@@ -5438,6 +5655,18 @@ define([
               ? _('Найм')
               : 'Найм'
         }
+        // В состоянии RoundSales баннер показывает фазу «Продажи»
+        if (currentState === 'RoundSales') {
+          phaseKey = 'sales'
+          const salesPhase = roundPhases.find((p) => p.key === 'sales')
+          phaseNumber = salesPhase ? salesPhase.number : 4
+          phaseNameFromState = salesPhase
+            ? salesPhase.name ||
+              (typeof _ !== 'undefined' ? _('Продажи') : 'Продажи')
+            : typeof _ !== 'undefined'
+              ? _('Продажи')
+              : 'Продажи'
+        }
 
         // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
         if (phaseNumber === null) {
@@ -6251,9 +6480,8 @@ define([
 
       panelBody.innerHTML = html
     },
-    _renderPlayerMoney: function (players, targetPlayerId) {
-      // Обновляем деньги игрока
-      const panelBody = document.querySelector('.player-money-panel__body') // Обновляем деньги игрока
+    _renderPlayerMoney: function (players, targetPlayerId, overrideAmount) {
+      const panelBody = document.querySelector('.player-money-panel__body')
       if (!panelBody) {
         console.warn('⚠️ _renderPlayerMoney: panelBody not found')
         return
@@ -6261,45 +6489,60 @@ define([
 
       const fallbackId =
         this._getActivePlayerIdFromDatas(this.gamedatas) ?? this.player_id
-      const playerId = targetPlayerId ?? fallbackId // Идентификатор игрока
+      const playerId = targetPlayerId ?? fallbackId ?? this.player_id
       if (!playerId) {
-        // Если игрок не найден, очищаем панель
-        console.warn(
-          '⚠️ _renderPlayerMoney: playerId not found, clearing panel',
-        )
-        panelBody.innerHTML = '' // Очищаем панель
+        panelBody.innerHTML = `<div class="player-money-panel__balance"><span class="player-money-panel__amount">0</span></div>`
         return
       }
 
-      // ВАЖНО: Обновляем данные из gamedatas.players, если они есть
-      // Это гарантирует, что мы используем актуальные данные
-      let playerData = this._findPlayerData(players, playerId) // Получаем данные игрока
+      let playerData = this._findPlayerData(players, playerId)
 
-      // Если данных нет в переданном объекте players, пробуем взять из gamedatas
-      if (
-        !playerData &&
-        this.gamedatas &&
-        this.gamedatas.players &&
-        this.gamedatas.players[playerId]
-      ) {
-        playerData = this.gamedatas.players[playerId]
-        console.log(
-          '💰 _renderPlayerMoney: Using data from gamedatas.players for player:',
-          playerId,
-        )
+      if (!playerData && this.gamedatas?.players) {
+        playerData = this._findPlayerData(this.gamedatas.players, playerId)
+        if (playerData) {
+          console.log(
+            '💰 _renderPlayerMoney: Using data from gamedatas.players for player:',
+            playerId,
+          )
+        }
       }
 
-      if (!playerData) {
-        // Если игрок не найден, очищаем панель
+      if (!playerData && this.gamedatas?.players) {
+        const cur = this._findPlayerData(this.gamedatas.players, this.player_id)
+        if (cur) {
+          playerData = cur
+          console.log(
+            '💰 _renderPlayerMoney: Using current player data as fallback:',
+            this.player_id,
+          )
+        }
+      }
+
+      if (!playerData && overrideAmount === undefined) {
         console.warn(
           '⚠️ _renderPlayerMoney: playerData not found for player:',
           playerId,
+          '- showing 0',
         )
-        panelBody.innerHTML = ''
+        panelBody.innerHTML = `<div class="player-money-panel__balance"><span class="player-money-panel__amount">0</span></div>`
         return
       }
 
-      const amount = Number(playerData.badgers ?? 0) || 0 // Количество баджерсов
+      if (!playerData && this.gamedatas?.players?.[playerId]) {
+        playerData = this.gamedatas.players[playerId]
+      }
+      if (!playerData) {
+        playerData = { color: '#ffffff', badgers: 0 }
+      }
+
+      const fromData = Number(playerData.badgers ?? 0) || 0
+      const amount =
+        overrideAmount !== undefined && Number.isFinite(Number(overrideAmount))
+          ? Math.max(0, Number(overrideAmount))
+          : fromData
+      if (this.gamedatas?.players?.[playerId] && overrideAmount !== undefined) {
+        this.gamedatas.players[playerId].badgers = amount
+      }
       console.log(
         '💰 _renderPlayerMoney: Rendering money for player:',
         playerId,
@@ -6955,8 +7198,13 @@ define([
 
     _findPlayerData: function (players, playerId) {
       if (!players) return null
+      const numId = Number(playerId)
+      if (Array.isArray(players)) {
+        const p = players.find((pl) => Number(pl?.id) === numId)
+        return p ?? null
+      }
       const stringId = String(playerId)
-      return players[stringId] || players[playerId] || null
+      return players[stringId] ?? players[playerId] ?? players[numId] ?? null
     },
     _getBestCoinForAmount: function (amount) {
       if (!this.badgersData || !this.badgersData.length || amount <= 0) {
@@ -10506,15 +10754,15 @@ define([
       // Убираем предыдущую подсказку, если есть
       this._hideFounderEffectSequenceHint()
 
-      const hint = document.createElement('div')
-      hint.id = 'founder-effect-sequence-hint'
-      hint.className = 'founder-effect-sequence-hint'
-      hint.innerHTML = `
-        <div class="founder-effect-sequence-hint__content">
-          <div class="founder-effect-sequence-hint__title">
-            ${_('Эффект карты')} "${founderName}"
-          </div>
-          <div class="founder-effect-sequence-hint__steps">
+      // Показываем только те шаги, которые есть в эффекте карты (свойство effect): task и/или move_task
+      const hasMoveTask =
+        movesData &&
+        (Number(movesData.moveCount) || Number(movesData.move_count)) > 0
+      const moveCount = hasMoveTask
+        ? Number(movesData.moveCount || movesData.move_count)
+        : 0
+
+      const step1Html = `
             <div class="founder-effect-sequence-hint__step ${
               this.gamedatas.pendingTaskSelection
                 ? 'founder-effect-sequence-hint__step--active'
@@ -10524,7 +10772,9 @@ define([
               <span class="founder-effect-sequence-hint__step-text">${_(
                 'Выберите',
               )} ${taskAmount} ${_('задач')}</span>
-            </div>
+            </div>`
+      const step2Html = hasMoveTask
+        ? `
             <div class="founder-effect-sequence-hint__step ${
               this.gamedatas.pendingTaskMoves
                 ? 'founder-effect-sequence-hint__step--active'
@@ -10533,8 +10783,21 @@ define([
               <span class="founder-effect-sequence-hint__step-number">2</span>
               <span class="founder-effect-sequence-hint__step-text">${_(
                 'Передвиньте задачи на',
-              )} ${movesData.moveCount} ${_('блока')}</span>
-            </div>
+              )} ${moveCount} ${_('блока')}</span>
+            </div>`
+        : ''
+
+      const hint = document.createElement('div')
+      hint.id = 'founder-effect-sequence-hint'
+      hint.className = 'founder-effect-sequence-hint'
+      hint.innerHTML = `
+        <div class="founder-effect-sequence-hint__content">
+          <div class="founder-effect-sequence-hint__title">
+            ${_('Эффект карты')} "${founderName}"
+          </div>
+          <div class="founder-effect-sequence-hint__steps">
+            ${step1Html}
+            ${step2Html}
           </div>
         </div>
       `
@@ -11482,8 +11745,11 @@ define([
       })
     },
   })
-  const g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this
-  if (g) g.bgagame = { itarenagame: GameClass }
+  var g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this
+  if (g) {
+    g.bgagame = g.bgagame || {}
+    g.bgagame.itarenagame = GameClass
+  }
   return GameClass
 })
 

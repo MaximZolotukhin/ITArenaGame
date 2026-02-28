@@ -29,6 +29,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 'toEndScore' => 98,
                 'toRoundSkills' => 16,
                 'toRoundHiring' => 17,
+                'toRoundSales' => 18,
             ],
         );
     }
@@ -358,11 +359,16 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     error_log('NextPlayer - Фаза Событие завершена, следующей фазы в массиве нет → следующий раунд');
                     return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
                 }
-                // Есть следующая фаза — загружаем её (первый игрок)
+                // Есть следующая фаза — загружаем её (первый игрок по порядку раунда, не по столу)
                 $nextPhase = $phases[$nextPhaseIndex];
                 $nextTransition = $nextPhase['transition'] ?? null;
                 error_log('NextPlayer - Фаза Событие завершена, загружаем следующую фазу: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
-                $this->game->advanceToNextPlayerInRound();
+                $roundOrder = $this->game->getCurrentRoundPlayerOrder();
+                if ($roundOrder !== null && $roundOrder !== []) {
+                    $this->game->gamestate->changeActivePlayer($roundOrder[0]);
+                } else {
+                    $this->game->advanceToNextPlayerInRound();
+                }
                 return (string)($nextTransition ?: 'toRoundSkills');
             }
             // Ещё не все закончили ход — следующий игрок в PlayerTurn (по порядку трека навыков)
@@ -371,10 +377,39 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             return 'toPlayerTurn';
         }
 
-        // --- Фаза «Навыки» (skills), «Найм» (hiring) и любые будущие фазы: ждём, пока все игроки закончат ход в фазе ---
-        // ВАЖНО: Сначала проверяем hiring — иначе при current_phase_index=1 можем ошибочно уйти в RoundSkills
+        // --- Фаза «Навыки» (skills), «Найм» (hiring), «Продажи» (sales): ждём завершения фазы ---
+        // ВАЖНО: Сначала проверяем hiring, затем sales — иначе при current_phase_index=1 можем ошибочно уйти в RoundSkills
         $hiringJustFinished = $this->game->globals->get('hiring_phase_just_finished', '') === '1';
+        $salesJustFinished = $this->game->globals->get('sales_phase_just_finished', '') === '1';
         $skillsJustFinished = $this->game->globals->get('skills_phase_just_finished', '') === '1';
+
+        if ($salesJustFinished) {
+            $this->game->globals->delete('sales_phase_just_finished');
+            $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+            $playersCompletedCurrentPhase++;
+            $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
+            error_log('NextPlayer - Фаза SALES: закончили ход ' . $playersCompletedCurrentPhase . '/' . $playersCount);
+            if ($playersCompletedCurrentPhase < $playersCount) {
+                $this->game->advanceToNextPlayerInRound();
+                return 'toRoundSales';
+            }
+            // Критично для фазы «Продажи»: выходим только если завершивший ход — последний в порядке раунда (как в найме/навыках)
+            $order = $this->game->getCurrentRoundPlayerOrder();
+            if ($order !== null && $order !== []) {
+                $lastInOrder = $order[array_key_last($order)];
+                $activeId = (int) $this->game->getActivePlayerId();
+                if ($activeId !== $lastInOrder) {
+                    error_log('NextPlayer - Фаза SALES: завершил не последний в порядке (active=' . $activeId . ', last=' . $lastInOrder . ') — передаём ход следующему');
+                    $this->game->advanceToNextPlayerInRound();
+                    return 'toRoundSales';
+                }
+            }
+            $nextPhaseIndex = $currentPhaseIndex + 1;
+            $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
+            error_log('NextPlayer - Фаза SALES завершена → следующий раунд');
+            return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+        }
 
         if ($hiringJustFinished) {
             $this->game->globals->delete('hiring_phase_just_finished');
@@ -394,13 +429,19 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
             }
             $nextPhase = $phases[$nextPhaseIndex];
-            $nextTransition = $nextPhase['transition'] ?? 'toRoundEvent';
+            $nextTransition = $nextPhase['transition'] ?? 'toRoundSales';
             error_log('NextPlayer - Фаза HIRING завершена → ' . $nextTransition);
-            $this->game->advanceToNextPlayerInRound();
+            // Первый в фазе «Продажи» — по порядку раунда (как в фазе «Навыки»), не по столу
+            $roundOrder = $this->game->getCurrentRoundPlayerOrder();
+            if ($roundOrder !== null && $roundOrder !== [] && ($nextTransition === 'toRoundSales' || ($nextPhase['key'] ?? '') === 'sales')) {
+                $this->game->gamestate->changeActivePlayer($roundOrder[0]);
+            } else {
+                $this->game->advanceToNextPlayerInRound();
+            }
             return (string)$nextTransition;
         }
 
-        if ($phaseKey === 'skills' || $phaseKey === 'hiring' || $phaseTransition !== null) {
+        if ($phaseKey === 'skills' || $phaseKey === 'hiring' || $phaseKey === 'sales' || $phaseTransition !== null) {
             if ($skillsJustFinished) {
                 $this->game->globals->delete('skills_phase_just_finished');
                 $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
@@ -411,8 +452,25 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     // Не все закончили — следующий игрок в эту же фазу (по порядку трека навыков)
                     $this->game->advanceToNextPlayerInRound();
                     // Явно по ключу фазы, чтобы не путать 16 и 17 (transition (16) impossible at state (90))
-                    $transition = $phaseKey === 'hiring' ? 'toRoundHiring' : 'toRoundSkills';
+                    $transition = match ($phaseKey) {
+                        'hiring' => 'toRoundHiring',
+                        'sales' => 'toRoundSales',
+                        default => 'toRoundSkills',
+                    };
                     return $transition;
+                }
+                // Критично для фазы «Навыки»: выходим только если завершивший ход — последний в порядке раунда
+                if ($phaseKey === 'skills') {
+                    $order = $this->game->getCurrentRoundPlayerOrder();
+                    if ($order !== null && $order !== []) {
+                        $lastInOrder = $order[array_key_last($order)];
+                        $activeId = (int) $this->game->getActivePlayerId();
+                        if ($activeId !== $lastInOrder) {
+                            error_log('NextPlayer - Фаза SKILLS: завершил не последний в порядке (active=' . $activeId . ', last=' . $lastInOrder . ') — передаём ход следующему');
+                            $this->game->advanceToNextPlayerInRound();
+                            return 'toRoundSkills';
+                        }
+                    }
                 }
                 // Все игроки закончили ход в этой фазе. Смотрим в массив: есть ли следующая фаза?
                 $nextPhaseIndex = $currentPhaseIndex + 1;
@@ -426,8 +484,13 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $nextPhase = $phases[$nextPhaseIndex];
                 $nextTransition = $nextPhase['transition'] ?? null;
                 error_log('NextPlayer - Фаза ' . $phaseKey . ' завершена, загружаем следующую: ' . ($nextPhase['key'] ?? $nextPhaseIndex));
-                // После фазы «Навыки» очередность хода меняется с следующей фазы (по треку навыков)
+                // После фазы «Навыки»: переносим «выбор позиции в фазе навыков» в «текущие позиции» (БД), затем обновляем порядок хода
                 if ($phaseKey === 'skills') {
+                    $choices = $this->game->getAllSkillsPhaseChoices();
+                    foreach ($choices as $pid => $skillKey) {
+                        $this->game->setSkillToken($pid, $skillKey);
+                    }
+                    $this->game->clearSkillsPhaseChoices();
                     $newOrder = $this->game->getSkillOrderForNextRound();
                     $this->game->setCurrentRoundPlayerOrder($newOrder);
                     $this->game->gamestate->changeActivePlayer($newOrder[0]);
@@ -435,11 +498,21 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 } else {
                     $this->game->advanceToNextPlayerInRound();
                 }
-                return (string)($nextTransition ?? ($nextPhase['key'] === 'hiring' ? 'toRoundHiring' : 'toRoundSkills'));
+                $fallbackTransition = match ($nextPhase['key'] ?? '') {
+                    'hiring' => 'toRoundHiring',
+                    'sales' => 'toRoundSales',
+                    default => 'toRoundSkills',
+                };
+                return (string)($nextTransition ?? $fallbackTransition);
             }
-            // Первый заход в эту фазу в раунде — переходим в состояние фазы по порядку трека навыков
-            $transition = $phaseKey === 'hiring' ? 'toRoundHiring' : 'toRoundSkills';
+            // Первый заход в эту фазу в раунде — сбрасываем счётчик и переходим к первому игроку по порядку
+            $transition = match ($phaseKey) {
+                'hiring' => 'toRoundHiring',
+                'sales' => 'toRoundSales',
+                default => 'toRoundSkills',
+            };
             error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . $transition);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
             $this->game->advanceToNextPlayerInRound();
             return $transition;
         }
@@ -485,6 +558,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             'event' => 'toRoundEvent',
             'skills' => 'toRoundSkills',
             'hiring' => 'toRoundHiring',
+            'sales' => 'toRoundSales',
             default => 'toRoundSkills',
         };
     }

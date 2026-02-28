@@ -45,6 +45,10 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
             'player-department-back-office-evolution-column-2' => 'трек найма в бэк-офисе',
             'player-department-back-office-evolution-column-3' => 'трек задач в бэк-офисе',
             'player-department-technical-development' => 'развитие техотдела',
+            'pink-track' => 'розовый трек в техотделе',
+            'orange-track' => 'оранжевый трек в техотделе',
+            'cyan-track' => 'голубой трек в техотделе',
+            'purple-track' => 'фиолетовый трек в техотделе',
             // В будущем можно добавить другие треки:
             // 'sprint-track' => 'трек спринта',
             // 'task-track' => 'трек задач',
@@ -104,25 +108,24 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
             ];
         }
 
-        error_log("UpdateTrackEffectHandler::apply - Player: $playerId, Tracks count: " . count($effectValue));
-        error_log("🔧🔧🔧 UpdateTrackEffectHandler::apply - Full effectValue: " . json_encode($effectValue));
-        error_log("🔧 UpdateTrackEffectHandler::apply - effectValue type: " . gettype($effectValue));
-        error_log("🔧 UpdateTrackEffectHandler::apply - effectValue is_array: " . (is_array($effectValue) ? 'YES' : 'NO'));
-        
-        if (is_array($effectValue)) {
-            error_log("🔧 UpdateTrackEffectHandler::apply - effectValue count: " . count($effectValue));
-            foreach ($effectValue as $idx => $track) {
-                error_log("🔧 UpdateTrackEffectHandler::apply - Track #$idx in effectValue: " . json_encode($track));
+        // Нормализация: один объект { track, amount } или массив таких объектов — всегда список для одного прохода по каждому
+        if (isset($effectValue['track']) && isset($effectValue['amount'])) {
+            $effectValue = [$effectValue];
+        }
+
+        // Для треков техотдела: один эффект карты = одно применение (защита от дублирования и багов данных)
+        $effectValue = array_values($effectValue);
+        if (count($effectValue) > 1) {
+            $first = $effectValue[0];
+            if (is_array($first) && isset($first['track']) && Game::getTechnicalDepartmentTrackColumn((string) $first['track']) !== null) {
+                $effectValue = [$first];
             }
         }
-        
+
         $updatedTracks = [];
         $totalAmount = 0;
-
-        // Обрабатываем каждый трек в массиве
-        // ВАЖНО: Отслеживаем, какие треки уже обработаны, чтобы избежать двойной обработки
         $processedTracks = [];
-        
+
         foreach ($effectValue as $index => $trackUpdate) {
             error_log("🔧 UpdateTrackEffectHandler::apply - Processing track #$index: " . json_encode($trackUpdate));
             error_log("🔧 UpdateTrackEffectHandler::apply - Track #$index type: " . gettype($trackUpdate));
@@ -151,56 +154,44 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
                 continue;
             }
             
-            $rawAmount = $trackUpdate['amount'] ?? 'N/A';
-            error_log("UpdateTrackEffectHandler::apply - BEFORE parseAmount: trackId=$trackId, rawAmount=" . var_export($rawAmount, true));
-            $amount = $this->parseAmount($trackUpdate['amount']);
-            error_log("UpdateTrackEffectHandler::apply - AFTER parseAmount: trackId=$trackId, parsedAmount=$amount");
-            
-            error_log("UpdateTrackEffectHandler::apply - Processing track: $trackId, amount: $amount");
-
+            $amount = $this->parseAmount($trackUpdate['amount'] ?? 0);
             if ($amount === 0) {
                 continue;
             }
 
-            // Получаем PlayerCounter для этого трека
-            error_log("UpdateTrackEffectHandler::apply - Getting track counter for: $trackId");
+            // Треки техотдела (pink-, orange-, cyan-, purple-track): единая функция в Game — применяется ровно один раз
+            if (Game::getTechnicalDepartmentTrackColumn($trackId) !== null) {
+                $processedTracks[$trackId] = true; // Сразу помечаем, чтобы не применять тот же трек повторно
+                $result = $this->game->applyTechnicalDepartmentTrackUpdate($playerId, $trackId, $amount);
+                if ($result !== null) {
+                    $updatedTracks[] = [
+                        'trackId' => $result['trackId'],
+                        'trackName' => $this->getTrackName($result['trackId']),
+                        'amount' => $result['amount'],
+                        'oldValue' => $result['oldValue'],
+                        'newValue' => $result['newValue'],
+                    ];
+                    $totalAmount += abs($result['amount']);
+                }
+                continue;
+            }
+
             $trackCounter = $this->getTrackCounter($trackId);
-            error_log("UpdateTrackEffectHandler::apply - Track counter result: " . ($trackCounter === null ? 'NULL' : get_class($trackCounter)));
-            
             if ($trackCounter === null) {
-                // Проверяем, требуется ли выбор колонки (column => 'any')
                 $column = $trackUpdate['column'] ?? null;
-                
                 if ($trackId === 'player-department-technical-development' && $column === 'any') {
-                    // Это эффект с выбором колонки - не обрабатываем здесь, будет обработан в FounderSelection
-                    error_log("🔧🔧🔧 UpdateTrackEffectHandler::apply - Track $trackId requires column selection (column='any'), will be handled in FounderSelection");
-                    error_log("🔧 UpdateTrackEffectHandler::apply - Adding track to updatedTracks with column='any'");
-                    
                     $updatedTracks[] = [
                         'trackId' => $trackId,
                         'trackName' => $this->getTrackName($trackId),
                         'amount' => $amount,
-                        'column' => 'any', // Флаг для выбора колонки
+                        'column' => 'any',
                         'oldValue' => 0,
-                        'newValue' => 0, // Значение будет установлено после выбора игрока
+                        'newValue' => 0,
                     ];
-                    
-                    error_log("🔧 UpdateTrackEffectHandler::apply - Added track to updatedTracks: " . json_encode($updatedTracks[count($updatedTracks) - 1]));
-                    
                     $totalAmount += abs($amount);
-                    $processedTracks[$trackId] = true; // Отмечаем как обработанный
+                    $processedTracks[$trackId] = true;
                     continue;
                 }
-                
-                // Для других визуальных треков (например, 'player-department-back-office-evolution-column-1')
-                // это визуальный трек, который обрабатывается на клиенте
-                // НО теперь мы сохраняем его в БД в таблице player_game_data
-                error_log("UpdateTrackEffectHandler::apply - Track $trackId is a visual track (no PlayerCounter), updating in player_game_data table");
-                
-                // Определяем тип трека и колонку
-                $oldValue = 0;
-                $newValue = 0;
-                
                 if (preg_match('/player-department-back-office-evolution-column-(\d+)/', $trackId, $matches)) {
                     $column = (int)$matches[1];
                     $gameData = $this->game->getPlayerGameData($playerId);
