@@ -869,6 +869,10 @@ class FounderSelection extends GameState
         }
         
         $requiredMoves = (int)$pendingMoves['move_count'];
+        $moveColor = $pendingMoves['move_color'] ?? 'any';
+        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
+            $moveColor = 'cyan';
+        }
         
         // Декодируем JSON строку перемещений
         $moves = json_decode($movesJson, true);
@@ -876,20 +880,32 @@ class FounderSelection extends GameState
             throw new UserException(clienttranslate('Неверный формат данных перемещений'));
         }
         
-        // Подсчитываем количество блоков в отправленных перемещениях
+        // Подсчитываем количество блоков и проверяем цвет жетонов при move_color !== 'any'
         $totalBlocks = 0;
         foreach ($moves as $move) {
             if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
                 continue;
             }
+            if ($moveColor !== 'any') {
+                $tokenId = (int)($move['tokenId'] ?? 0);
+                $tokenColor = $this->game->getTaskTokenColor($activePlayerId, $tokenId);
+                if ($tokenColor === null) {
+                    throw new UserException(clienttranslate('Жетон не найден'));
+                }
+                $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
+                $expected = $moveColor === 'cayn' ? 'cyan' : strtolower($moveColor);
+                if ($normalized !== $expected) {
+                    throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
+                }
+            }
             $blocks = (int)($move['blocks'] ?? 0);
             $totalBlocks += $blocks;
         }
         
-        // Принимаем, если использованы все требуемые ходы ИЛИ на треке не было больше задач для перемещения
-        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId);
+        // Учитываем цвет: для Леонида и др. — только блоки жетонов нужного цвета
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId, $moveColor);
         $allRequiredUsed = ($totalBlocks === $requiredMoves);
-        $noMoreAvailable = ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
+        $noMoreAvailable = ($maxBlocksAvailable === 0 && $totalBlocks === 0) || ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
         if (!$allRequiredUsed && !$noMoreAvailable) {
             throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов или переместить все доступные задачи на треке', [
                 'amount' => $requiredMoves

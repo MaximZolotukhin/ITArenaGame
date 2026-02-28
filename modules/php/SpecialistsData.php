@@ -124,7 +124,7 @@ class SpecialistsData
             'name' => 'Татьяна', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Контент–менеджер', // Специальность специалиста
-            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cayn-track', 'amount' => '+ 1']]], // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cyan-track', 'amount' => '+ 1']]], // Эффект — голубой трек в техотделе
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 голубой трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -134,7 +134,7 @@ class SpecialistsData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/specialists/technical-department/6.png', // Изображение
         ],
-        // TODO: Закончил тут
+        // TODO: Тест
         7 => [
             'id' => 7,
             'type' => 'specialist', // Тип карты
@@ -143,7 +143,7 @@ class SpecialistsData
             'name' => 'Леонид', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Веб–копирайтер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 4, 'move_color' => 'cyan']], // Эффект — голубые жетоны, до 4 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте голубые жетоны задач на 4 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -153,6 +153,7 @@ class SpecialistsData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/specialists/technical-department/7.png', // Изображение
         ],
+        // TODO: Закончил тут
         8 => [
             'id' => 8,
             'type' => 'specialist', // Тип карты

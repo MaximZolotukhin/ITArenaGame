@@ -75,6 +75,19 @@ class RoundHiring extends GameState
             }
         }
 
+        $pendingTaskMoves = null;
+        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
+        if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+            $decoded = json_decode($pendingMovesJson, true);
+            if (is_array($decoded) && isset($decoded['move_count']) && (int) $decoded['move_count'] > 0) {
+                $pendingTaskMoves = [
+                    'move_count' => (int) $decoded['move_count'],
+                    'move_color' => $decoded['move_color'] ?? 'any',
+                    'founder_name' => $decoded['founder_name'] ?? '',
+                ];
+            }
+        }
+
         return [
             'phaseKey' => 'hiring',
             'phaseName' => $this->game->getPhaseName('hiring'),
@@ -88,6 +101,7 @@ class RoundHiring extends GameState
             'hiringConfirmed' => $hiringConfirmed,
             'hiringHiredCount' => $hiringHiredCount,
             'pendingTaskSelection' => $pendingTaskSelection,
+            'pendingTaskMoves' => $pendingTaskMoves,
         ];
     }
 
@@ -261,6 +275,18 @@ class RoundHiring extends GameState
                 'founder_name' => $pendingTaskSelection['founder_name'],
             ]);
         }
+        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
+        if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+            $pendingMoves = json_decode($pendingMovesJson, true);
+            if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
+                $this->notify->player($playerId, 'taskMovesRequired', '', [
+                    'player_id' => $playerId,
+                    'move_count' => (int) $pendingMoves['move_count'],
+                    'move_color' => $pendingMoves['move_color'] ?? 'any',
+                    'founder_name' => $pendingMoves['founder_name'] ?? '',
+                ]);
+            }
+        }
         return null;
     }
 
@@ -369,6 +395,18 @@ class RoundHiring extends GameState
                     'founder_name' => $pendingTaskSelection['founder_name'],
                 ]);
             }
+            $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
+            if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+                $pendingMoves = json_decode($pendingMovesJson, true);
+                if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
+                    $this->notify->player($playerId, 'taskMovesRequired', '', [
+                        'player_id' => $playerId,
+                        'move_count' => (int) $pendingMoves['move_count'],
+                        'move_color' => $pendingMoves['move_color'] ?? 'any',
+                        'founder_name' => $pendingMoves['founder_name'] ?? '',
+                    ]);
+                }
+            }
         }
 
         $this->game->globals->set('hiring_confirmed_' . $playerId, '1');
@@ -389,6 +427,13 @@ class RoundHiring extends GameState
             $amount = (int) ($pendingSelection['amount'] ?? 0);
             $msg = clienttranslate('Вы должны выбрать ${amount} задач в бэклог перед завершением фазы найма');
             throw new UserException(str_replace('${amount}', (string) $amount, $msg));
+        }
+        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, null);
+        if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+            $pendingMoves = json_decode($pendingMovesJson, true);
+            if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
+                throw new UserException(clienttranslate('Сначала подтвердите перемещение задач по треку спринта (эффект карты)'));
+            }
         }
         $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('hiring_phase_just_finished', '1');
@@ -442,6 +487,81 @@ class RoundHiring extends GameState
             'founder_name' => $founderName,
             'selected_tasks' => $selectedTasks,
             'added_tokens' => $addedTokens,
+            'i18n' => ['founder_name'],
+        ]);
+    }
+
+    /**
+     * Подтверждение перемещений задач (эффект move_task специалиста, напр. Леонид).
+     */
+    #[PossibleAction]
+    public function actConfirmTaskMoves(int $activePlayerId, string $movesJson): void
+    {
+        $this->game->checkAction('actConfirmTaskMoves');
+        $globalsKey = 'pending_task_moves_' . $activePlayerId;
+        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
+        if ($pendingMovesJson === null || $pendingMovesJson === '') {
+            throw new UserException(clienttranslate('Нет ожидающих перемещений задач'));
+        }
+        $pendingMoves = json_decode($pendingMovesJson, true);
+        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
+            throw new UserException(clienttranslate('Неверные данные ожидающих перемещений'));
+        }
+        $requiredMoves = (int) $pendingMoves['move_count'];
+        $moveColor = $pendingMoves['move_color'] ?? 'any';
+        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
+            $moveColor = 'cyan';
+        }
+        $moves = json_decode($movesJson, true);
+        if (!is_array($moves)) {
+            throw new UserException(clienttranslate('Неверный формат данных перемещений'));
+        }
+        $totalBlocks = 0;
+        foreach ($moves as $move) {
+            if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
+                continue;
+            }
+            if ($moveColor !== 'any') {
+                $tokenId = (int) ($move['tokenId'] ?? 0);
+                $tokenColor = $this->game->getTaskTokenColor($activePlayerId, $tokenId);
+                if ($tokenColor === null) {
+                    throw new UserException(clienttranslate('Жетон не найден'));
+                }
+                $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
+                $expected = strtolower($moveColor) === 'cayn' ? 'cyan' : strtolower($moveColor);
+                if ($normalized !== $expected) {
+                    throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
+                }
+            }
+            $totalBlocks += (int) ($move['blocks'] ?? 0);
+        }
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId, $moveColor);
+        $allRequiredUsed = ($totalBlocks === $requiredMoves);
+        $noMoreAvailable = ($maxBlocksAvailable === 0 && $totalBlocks === 0) || ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
+        if (!$allRequiredUsed && !$noMoreAvailable) {
+            throw new UserException(clienttranslate('Вы должны использовать до ${amount} ходов или переместить все доступные задачи указанного цвета', [
+                'amount' => $requiredMoves,
+            ]));
+        }
+        $movedTokens = [];
+        foreach ($moves as $move) {
+            $tokenId = (int) ($move['tokenId'] ?? 0);
+            $toLocation = $move['toLocation'] ?? '';
+            if ($tokenId > 0 && $toLocation !== '') {
+                $success = $this->game->updateTaskTokenLocation($tokenId, $toLocation, null);
+                if ($success) {
+                    $movedTokens[] = $tokenId;
+                }
+            }
+        }
+        $this->game->globals->set($globalsKey, null);
+        $sourceName = $pendingMoves['founder_name'] ?? '';
+        $this->notify->all('taskMovesCompleted', clienttranslate('${player_name} переместил задачи от эффекта ${founder_name}'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->game->getPlayerNameById($activePlayerId),
+            'founder_name' => $sourceName,
+            'moves' => $moves,
+            'moved_tokens' => $movedTokens,
             'i18n' => ['founder_name'],
         ]);
     }

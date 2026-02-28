@@ -263,6 +263,10 @@ class RoundSkills extends GameState
         }
 
         $requiredMoves = (int)$pendingMoves['move_count'];
+        $moveColor = $pendingMoves['move_color'] ?? 'any';
+        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
+            $moveColor = 'cyan';
+        }
         $moves = json_decode($movesJson, true);
         if (!is_array($moves)) {
             throw new UserException(clienttranslate('Неверный формат данных перемещений'));
@@ -273,13 +277,24 @@ class RoundSkills extends GameState
             if (!is_array($move) || !isset($move['tokenId']) || !isset($move['toLocation'])) {
                 continue;
             }
+            if ($moveColor !== 'any') {
+                $tokenId = (int)($move['tokenId'] ?? 0);
+                $tokenColor = $this->game->getTaskTokenColor($activePlayerId, $tokenId);
+                if ($tokenColor !== null) {
+                    $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
+                    $expected = strtolower($moveColor) === 'cayn' ? 'cyan' : strtolower($moveColor);
+                    if ($normalized !== $expected) {
+                        throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
+                    }
+                }
+            }
             $totalBlocks += (int)($move['blocks'] ?? 0);
         }
 
-        // Принимаем, если использованы все ходы ИЛИ на треке не было больше задач для перемещения
-        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId);
+        // Учитываем цвет: при move_color только блоки жетонов нужного цвета
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($activePlayerId, $moveColor);
         $allRequiredUsed = ($totalBlocks === $requiredMoves);
-        $noMoreAvailable = ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
+        $noMoreAvailable = ($maxBlocksAvailable === 0 && $totalBlocks === 0) || ($maxBlocksAvailable <= $totalBlocks && $totalBlocks <= $requiredMoves);
         if (!$allRequiredUsed && !$noMoreAvailable) {
             throw new UserException(clienttranslate('Вы должны использовать ровно ${amount} ходов или переместить все доступные задачи на треке', [
                 'amount' => $requiredMoves,

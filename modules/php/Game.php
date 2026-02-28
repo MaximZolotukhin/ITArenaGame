@@ -2462,6 +2462,22 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Возвращает цвет жетона задачи по ID (для проверки move_color в actConfirmTaskMoves).
+     * @return string|null Цвет жетона или null если не найден
+     */
+    public function getTaskTokenColor(int $playerId, int $tokenId): ?string
+    {
+        $tokens = $this->getTaskTokensByPlayer($playerId);
+        foreach ($tokens as $t) {
+            if ((int)($t['token_id'] ?? 0) === $tokenId) {
+                $c = $t['color'] ?? '';
+                return $c === '' ? null : strtolower(trim($c));
+            }
+        }
+        return null;
+    }
+
+    /**
      * Добавляет задачи игроку
      * @param int $playerId ID игрока
      * @param array $tasks Массив задач в формате [['color' => 'cyan', 'quantity' => 2], ...]
@@ -2618,14 +2634,31 @@ class Game extends \Bga\GameFramework\Table
     /**
      * Возвращает максимальное количество блоков, которые игрок может переместить по треку задач
      * в текущем состоянии (backlog → 3, in-progress → 2, testing → 1, completed → 0).
-     * Используется для проверки: если на треке меньше задач, чем требуется эффектом, принимаем меньше ходов.
+     * @param int $playerId ID игрока
+     * @param string|null $moveColor Цвет жетонов ('any' или null = все; иначе только жетоны этого цвета — для Леонида и т.п.)
      */
-    public function getMaxTaskMoveBlocksForPlayer(int $playerId): int
+    public function getMaxTaskMoveBlocksForPlayer(int $playerId, ?string $moveColor = 'any'): int
     {
         $tokens = $this->getTaskTokensByPlayer($playerId);
+        $colorFilter = null;
+        if ($moveColor !== null && $moveColor !== '' && $moveColor !== 'any') {
+            $colorFilter = strtolower(trim($moveColor));
+            if ($colorFilter === 'cayn') {
+                $colorFilter = 'cyan';
+            }
+        }
         $blocksByLocation = ['backlog' => 3, 'in-progress' => 2, 'testing' => 1, 'completed' => 0];
         $total = 0;
         foreach ($tokens as $token) {
+            if ($colorFilter !== null) {
+                $tokenColor = strtolower(trim($token['color'] ?? ''));
+                if ($tokenColor === 'cayn') {
+                    $tokenColor = 'cyan';
+                }
+                if ($tokenColor !== $colorFilter) {
+                    continue;
+                }
+            }
             $loc = $token['location'] ?? 'backlog';
             $total += $blocksByLocation[$loc] ?? 0;
         }

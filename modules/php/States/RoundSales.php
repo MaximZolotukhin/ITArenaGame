@@ -39,10 +39,14 @@ class RoundSales extends GameState
         $phaseName = $phase ? $phase['name'] : '';
         $phaseNumber = $phase ? $phase['number'] : 4;
 
+        // Данные только из БД (player_game_data), как и в getAllDatas — чтобы рендер совпадал с состоянием персонажа
         $playerPayouts = [];
         foreach (array_keys($this->game->loadPlayersBasicInfos()) as $playerId) {
             $playerId = (int) $playerId;
-            $salesTrackValue = (int) $this->game->playerEnergy->get($playerId);
+            $gameData = $this->game->getPlayerGameData($playerId);
+            $salesTrackValue = $gameData !== null && isset($gameData['incomeTrack'])
+                ? (int) $gameData['incomeTrack']
+                : (int) $this->game->playerEnergy->get($playerId);
             $playerPayouts[$playerId] = [
                 'salesTrackValue' => $salesTrackValue,
                 'player_name' => $this->game->getPlayerNameById($playerId),
@@ -73,7 +77,11 @@ class RoundSales extends GameState
         $this->game->globals->set('current_phase_name', 'sales');
 
         $activePlayerId = (int) $this->game->getActivePlayerId();
-        $salesTrackValue = (int) $this->game->playerEnergy->get($activePlayerId);
+        // Трек продаж из БД (player_game_data.income_track), как и в getArgs
+        $gameData = $this->game->getPlayerGameData($activePlayerId);
+        $salesTrackValue = $gameData !== null && isset($gameData['incomeTrack'])
+            ? (int) $gameData['incomeTrack']
+            : (int) $this->game->playerEnergy->get($activePlayerId);
 
         if ($salesTrackValue <= 0) {
             $newBadgers = $this->game->getPlayerBadgersForCheck($activePlayerId);

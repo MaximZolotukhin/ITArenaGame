@@ -63,6 +63,9 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
         
         $moveCount = (int)($moveConfig['move_count'] ?? 0);
         $moveColor = $moveConfig['move_color'] ?? 'any';
+        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
+            $moveColor = 'cyan';
+        }
         
         error_log("🎯🎯🎯 MoveTaskEffectHandler::apply - Player: $playerId, MoveCount: $moveCount, MoveColor: $moveColor");
         
@@ -74,15 +77,11 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
             ];
         }
         
-        // Если на треке спринта нет задач (Бэклог, В работе, Тестирование пусты) — пропускаем этап перемещения
-        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($playerId);
+        // Учитываем цвет: для Леонида и др. считаем только блоки жетонов нужного цвета
+        $maxBlocksAvailable = $this->game->getMaxTaskMoveBlocksForPlayer($playerId, $moveColor);
         if ($maxBlocksAvailable === 0) {
-            error_log("🎯 MoveTaskEffectHandler::apply - No tasks on track (maxBlocks=0), skipping move_task requirement");
-            return [
-                'type' => 'move_task',
-                'move_count' => 0,
-                'message' => 'На треке нет задач для перемещения — этап пропущен',
-            ];
+            error_log("🎯 MoveTaskEffectHandler::apply - No tasks of color '$moveColor' on track — still set pending so player can confirm (0 moves)");
+            // Не пропускаем: сохраняем pending, чтобы клиент показал UI и игрок мог нажать «Подтвердить» без ходов
         }
         
         // Сохраняем информацию о необходимости перемещения задач

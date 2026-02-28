@@ -916,6 +916,11 @@ define([
         }
       }, 200)
 
+      // Позиции жетонов техотдела из БД (gamedatas) — чтобы после обновления страницы треки не сбрасывались
+      setTimeout(() => {
+        this._positionTechnicalDevelopmentTokensFromGamedatas(initialActiveId)
+      }, 250)
+
       // Рендерим input'ы для выбора задач в parts-of-projects__body
       // Вызываем сразу и с задержкой для надежности
       console.log('🔄 setup: Calling _renderTaskInputs immediately...')
@@ -1702,11 +1707,22 @@ define([
           ) {
             this.gamedatas.players[salesActiveId].badgers = salesBadgersOverride
           }
+          // Синхронизируем данные из БД (playerPayouts): трек продаж и отображение по всем игрокам
+          const playerPayouts = args?.args?.playerPayouts || {}
+          for (const pid in playerPayouts) {
+            const payout = playerPayouts[pid]
+            if (this.gamedatas.players && this.gamedatas.players[pid] && payout && typeof payout.salesTrackValue === 'number') {
+              this.gamedatas.players[pid].energy = payout.salesTrackValue
+              this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
+            }
+          }
+          this._clearDepartmentsForNewPlayer(salesActiveId)
           this._renderPlayerMoney(
             this.gamedatas.players,
             salesActiveId,
             salesBadgersOverride,
           )
+          this._renderFounderCard(this.gamedatas.players, salesActiveId)
           this._toggleActivePlayerHand(salesActiveId)
           this._renderPlayerSpecialists()
           this._updateStageBanner()
@@ -2005,17 +2021,41 @@ define([
                 )
               }
 
-              // Блокируем «Завершить фазу найм» только когда сработал эффект task у нанятого специалиста (сервер прислал pendingTaskSelection)
+              // Блокируем «Завершить фазу найм» когда сработал эффект task или move_task у нанятого специалиста
               if (args?.args?.pendingTaskSelection != null) {
                 this.gamedatas.pendingTaskSelection =
                   args.args.pendingTaskSelection
               } else {
                 this.gamedatas.pendingTaskSelection = null
               }
+              const pendingTaskMovesArg = args?.args?.pendingTaskMoves ?? null
+              if (pendingTaskMovesArg && Number(pendingTaskMovesArg.move_count || 0) > 0) {
+                this.gamedatas.pendingTaskMoves = {
+                  moveCount: Number(pendingTaskMovesArg.move_count) || 0,
+                  moveColor: pendingTaskMovesArg.move_color || 'any',
+                  usedMoves: 0,
+                  moves: [],
+                  fromEffect: true,
+                  moveSource: 'founder_effect',
+                  founderName: pendingTaskMovesArg.founder_name || '',
+                }
+                this.gamedatas.pendingTaskMovesJson = JSON.stringify({
+                  moveCount: this.gamedatas.pendingTaskMoves.moveCount,
+                  moveColor: this.gamedatas.pendingTaskMoves.moveColor,
+                  founderName: this.gamedatas.pendingTaskMoves.founderName,
+                })
+                this._activateTaskMoveMode(
+                  this.gamedatas.pendingTaskMoves.moveCount,
+                  this.gamedatas.pendingTaskMoves.moveColor,
+                )
+              }
               const hiringPendingTask = args?.args?.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask &&
                 Number(hiringPendingTask.amount || 0) > 0
+              const mustConfirmTaskMoves =
+                pendingTaskMovesArg &&
+                Number(pendingTaskMovesArg.move_count || 0) > 0
               const completeHiringTooltip = mustSelectTasks
                 ? (
                     typeof _ !== 'undefined'
@@ -2026,16 +2066,20 @@ define([
                         (hiringPendingTask?.amount ?? 0) +
                         ' задач в бэклог (эффект специалиста)'
                   ).replace('${n}', String(hiringPendingTask?.amount ?? 0))
-                : _(
-                    'Нажмите, когда закончите нанимать (или если не нанимаете)',
-                  )
+                : mustConfirmTaskMoves
+                  ? _(
+                      'Сначала подтвердите перемещение задач по треку (эффект специалиста)',
+                    )
+                  : _(
+                      'Нажмите, когда закончите нанимать (или если не нанимаете)',
+                    )
               this.statusBar.addActionButton(
                 _('Завершить фазу найм'),
                 () => this.bgaPerformAction('actCompleteHiringPhase'),
                 {
                   primary: true,
                   id: 'complete-hiring-phase-button',
-                  disabled: !!mustSelectTasks,
+                  disabled: !!mustSelectTasks || !!mustConfirmTaskMoves,
                   tooltip: completeHiringTooltip,
                 },
               )
@@ -2051,11 +2095,24 @@ define([
               args?.args?.activePlayerBadgers !== undefined
                 ? Number(args.args.activePlayerBadgers)
                 : undefined
+            const playerPayouts = args?.args?.playerPayouts || {}
+            for (const pid in playerPayouts) {
+              const payout = playerPayouts[pid]
+              if (this.gamedatas.players && this.gamedatas.players[pid] && payout && typeof payout.salesTrackValue === 'number') {
+                this.gamedatas.players[pid].energy = payout.salesTrackValue
+                this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
+              }
+            }
+            if (salesBadgers !== undefined && this.gamedatas.players && this.gamedatas.players[salesActiveId]) {
+              this.gamedatas.players[salesActiveId].badgers = salesBadgers
+            }
+            this._clearDepartmentsForNewPlayer(salesActiveId)
             this._renderPlayerMoney(
               this.gamedatas.players,
               salesActiveId,
               salesBadgers,
             )
+            this._renderFounderCard(this.gamedatas.players, salesActiveId)
             if (this.isCurrentPlayerActive()) {
               this.statusBar.addActionButton(
                 _('Завершить фазу «Продажи»'),
@@ -3629,6 +3686,7 @@ define([
             badgers,
           )
           this._renderPlayerMoney(this.gamedatas.players, activePlayerId)
+          this._positionTechnicalDevelopmentTokensFromGamedatas(activePlayerId)
         } else {
           console.warn(
             '⚠️ _clearDepartmentsForNewPlayer: Player data not found in gamedatas.players for player:',
@@ -4191,6 +4249,8 @@ define([
       this._renderHiredSpecialistsInDepartments(playerId)
 
       // Применяем эффекты специалистов: обновление треков техотдела (pink-, orange-, cyan-, purple-track)
+      // ВАЖНО: Сначала двигаем жетон в DOM (по oldValue → newValue), потом обновляем gamedatas,
+      // иначе при перерисовке жетон уже окажется в newValue и «Token is already at target row»
       const colorTrackToColumn = {
         'pink-track': 1,
         'orange-track': 2,
@@ -4208,11 +4268,11 @@ define([
           const newVal = Number(track.newValue ?? 0)
           const amount = Number(track.amount ?? 0)
           if (amount === 0) return
+          this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
           const pl = this.gamedatas.players[playerId]
           if (pl) {
             pl['techDevCol' + col] = newVal
           }
-          this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
         })
       })
     },
@@ -9562,6 +9622,57 @@ define([
       this._updateFinishTurnButtonForTechnicalDevelopment()
     },
 
+    /**
+     * Расставляет жетоны техотдела по позициям из gamedatas (из БД).
+     * Вызывать после загрузки страницы и при смене активного игрока, чтобы после обновления страницы треки не сбрасывались.
+     * @param {number} playerId ID игрока, чей планшет отображается
+     */
+    _positionTechnicalDevelopmentTokensFromGamedatas: function (playerId) {
+      const pl = this.gamedatas?.players?.[playerId]
+      if (!pl) return
+      const columns = [
+        { num: 1, key: 'techDevCol1', defaultRow: 1 },
+        { num: 2, key: 'techDevCol2', defaultRow: 0 },
+        { num: 3, key: 'techDevCol3', defaultRow: 1 },
+        { num: 4, key: 'techDevCol4', defaultRow: 0 },
+      ]
+      columns.forEach(({ num, key, defaultRow }) => {
+        const targetRow = pl[key] != null ? Number(pl[key]) : defaultRow
+        const column = document.getElementById(
+          `player-department-technical-development-column-${num}`,
+        )
+        if (!column) return
+        const wrapper = column.querySelector(
+          `.player-department-technical-development-column-${num}__rows-wrapper`,
+        )
+        const container = wrapper || column
+        const rows = container.querySelectorAll(
+          '.player-department-technical-development__row',
+        )
+        let token = null
+        let currentRow = null
+        let targetRowEl = null
+        rows.forEach((row) => {
+          const t = row.querySelector(
+            '.player-department-technical-development__token',
+          )
+          if (t) {
+            token = t
+            currentRow = row
+          }
+          const rowIndex = parseInt(row.dataset.rowIndex, 10)
+          if (rowIndex === targetRow) targetRowEl = row
+        })
+        if (!token || !targetRowEl || currentRow === targetRowEl) return
+        try {
+          currentRow.removeChild(token)
+          targetRowEl.appendChild(token)
+        } catch (e) {
+          console.warn('_positionTechnicalDevelopmentTokensFromGamedatas:', e)
+        }
+      })
+    },
+
     _handleTechnicalDevelopmentRowClick: function (
       columnNum,
       fromRowIndex,
@@ -10480,10 +10591,17 @@ define([
      * Возвращает максимальное количество блоков, которые ещё можно переместить по треку задач
      * (backlog → 3 блока до completed, in-progress → 2, testing → 1, completed → 0).
      * Учитывает текущее состояние жетонов в gamedatas (в т.ч. после локальных перемещений в режиме move_task).
+     * При move_color !== 'any' (напр. Леонид — голубые) считает только жетоны указанного цвета.
      */
     _getMaxTaskMoveBlocksAvailable: function () {
       const player = this.gamedatas?.players?.[this.player_id]
       const taskTokens = player?.taskTokens || []
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      const moveColor = pendingMoves?.moveColor
+      const colorFilter =
+        moveColor && moveColor !== 'any'
+          ? (moveColor === 'cayn' ? 'cyan' : moveColor.toLowerCase())
+          : null
       const blocksByLocation = {
         backlog: 3,
         'in-progress': 2,
@@ -10492,6 +10610,11 @@ define([
       }
       let total = 0
       taskTokens.forEach(function (t) {
+        if (colorFilter) {
+          const tokenColor = (t.color || '').toLowerCase()
+          const normalized = tokenColor === 'cayn' ? 'cyan' : tokenColor
+          if (normalized !== colorFilter) return
+        }
         const loc = t.location || 'backlog'
         total += blocksByLocation[loc] || 0
       })
