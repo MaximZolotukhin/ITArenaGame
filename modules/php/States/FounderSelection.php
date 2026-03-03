@@ -870,10 +870,13 @@ class FounderSelection extends GameState
         
         $requiredMoves = (int)$pendingMoves['move_count'];
         $moveColor = $pendingMoves['move_color'] ?? 'any';
-        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
-            $moveColor = 'cyan';
+        if ($moveColor !== 'any') {
+            $moveColor = strtolower(trim((string) $moveColor));
+            if ($moveColor === 'cayn') {
+                $moveColor = 'cyan';
+            }
         }
-        
+
         // Декодируем JSON строку перемещений
         $moves = json_decode($movesJson, true);
         if (!is_array($moves)) {
@@ -892,8 +895,8 @@ class FounderSelection extends GameState
                 if ($tokenColor === null) {
                     throw new UserException(clienttranslate('Жетон не найден'));
                 }
-                $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
-                $expected = $moveColor === 'cayn' ? 'cyan' : strtolower($moveColor);
+                $normalized = ($tokenColor === 'cayn' ? 'cyan' : $tokenColor);
+                $expected = ($moveColor === 'cayn' ? 'cyan' : $moveColor);
                 if ($normalized !== $expected) {
                     throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
                 }

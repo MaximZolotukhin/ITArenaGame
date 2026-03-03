@@ -431,6 +431,7 @@ class Game extends \Bga\GameFramework\Table
      */
     protected function getAllDatas(): array
     {
+        self::ensureDataClassesLoaded();
         $result = [];
 
         // WARNING: We must only return information visible by the current player.
@@ -1033,6 +1034,7 @@ class Game extends \Bga\GameFramework\Table
      */
     protected function setupNewGame($players, $options = [])
     {
+        self::ensureDataClassesLoaded();
         $playerIds = array_keys($players); // Идентификаторы игроков
         $this->playerEnergy->initDb($playerIds, initialValue: 1); // Начальное значение трека доходов = 1
         $this->playerBadgers->initDb($playerIds, initialValue: 0);
@@ -1784,6 +1786,17 @@ class Game extends \Bga\GameFramework\Table
         }
         $appliedEffects = [];
         foreach ($effect as $effectType => $effectValue) {
+            // Короткий тип эффекта: трек спринта (sprint-column-tasks) — вертикальный трек на панели спринта
+            if ($effectType === 'updateTrackSprints' || $effectType === 'updateTrackSprintColumnTasks') {
+                $effectType = 'updateTrack';
+                $trackId = 'sprint-column-tasks';
+                $items = is_array($effectValue) && isset($effectValue[0]) ? $effectValue : [ $effectValue ];
+                $effectValue = [];
+                foreach ($items as $item) {
+                    $amount = (is_array($item) && isset($item['amount'])) ? $item['amount'] : '+ 1';
+                    $effectValue[] = [ 'track' => $trackId, 'amount' => $amount ];
+                }
+            }
             if (is_array($effectValue) && $effectType !== 'updateTrack' && $effectType !== 'updateTrackDepartmentTechnical') {
                 $effectValue = json_encode($effectValue);
             }
@@ -2450,14 +2463,19 @@ class Game extends \Bga\GameFramework\Table
         
         $result = [];
         foreach ($tokens as $token) {
+            $color = $token['color'] ?? '';
+            $color = $color !== '' ? strtolower(trim($color)) : $color;
+            if ($color === 'cayn') {
+                $color = 'cyan';
+            }
             $result[] = [
                 'token_id' => (int)$token['token_id'],
-                'color' => $token['color'],
+                'color' => $color,
                 'location' => $token['location'],
                 'row_index' => $token['row_index'] !== null ? (int)$token['row_index'] : null,
             ];
         }
-        
+
         return $result;
     }
 
@@ -3107,6 +3125,39 @@ class Game extends \Bga\GameFramework\Table
             WHERE `player_id` = $playerId
         ");
     }
+
+    /**
+     * Номер колонки бэк-офиса «трек задач» (sprint-column-tasks).
+     * Используется в эффектах карт: updateTrack с track id player-department-back-office-evolution-column-3.
+     */
+    public const BACK_OFFICE_COLUMN_TASKS = 3;
+
+    /**
+     * Универсальное применение улучшения колонки бэк-офиса (трек найма = 2, трек задач = 3 и т.д.).
+     * Один вызов — одно изменение в БД, возвращает данные для уведомлений.
+     *
+     * @param int $playerId ID игрока
+     * @param int $column Номер колонки (1, 2, 3)
+     * @param int $amount На сколько изменить (положительное — улучшить)
+     * @return array{trackId: string, amount: int, oldValue: int, newValue: int}|null
+     */
+    public function applyBackOfficeColumnUpdate(int $playerId, int $column, int $amount): ?array
+    {
+        if ($column < 1 || $column > 3) {
+            return null;
+        }
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $oldValue = $gameData ? (int)($gameData['backOfficeCol' . $column] ?? 1) : 1;
+        $newValue = max(1, min(6, $oldValue + $amount));
+        $this->setBackOfficeColumn($playerId, $column, $newValue);
+        return [
+            'trackId' => 'player-department-back-office-evolution-column-' . $column,
+            'amount' => $amount,
+            'oldValue' => $oldValue,
+            'newValue' => $newValue,
+        ];
+    }
     
     /**
      * Соответствие цветовых треков техотдела колонкам (1=pink, 2=orange, 3=cyan, 4=purple).
@@ -3114,6 +3165,7 @@ class Game extends \Bga\GameFramework\Table
      */
     public static function getTechnicalDepartmentTrackColumn(string $trackId): ?int
     {
+        $trackId = strtolower(trim($trackId));
         return match ($trackId) {
             'pink-track' => 1,
             'orange-track' => 2,
@@ -3424,6 +3476,31 @@ class Game extends \Bga\GameFramework\Table
         }
     }
     
+    /**
+     * Универсальное применение улучшения трека спринта (sprint-column-tasks).
+     * Один вызов — одно изменение в БД, возвращает данные для уведомлений.
+     *
+     * @param int $playerId ID игрока
+     * @param int $amount На сколько изменить (положительное — улучшить, диапазон 1–6)
+     * @return array{trackId: string, amount: int, oldValue: int, newValue: int}|null
+     */
+    public function applySprintColumnTasksProgressUpdate(int $playerId, int $amount): ?array
+    {
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $oldValue = $gameData && isset($gameData['sprintColumnTasksProgress']) && $gameData['sprintColumnTasksProgress'] !== null
+            ? max(1, min(6, (int)$gameData['sprintColumnTasksProgress']))
+            : 1;
+        $newValue = max(1, min(6, $oldValue + $amount));
+        $this->setSprintColumnTasksProgress($playerId, $newValue);
+        return [
+            'trackId' => 'sprint-column-tasks',
+            'amount' => $amount,
+            'oldValue' => $oldValue,
+            'newValue' => $newValue,
+        ];
+    }
+
     /**
      * Устанавливает прогресс трека задач
      * @param int $playerId ID игрока
@@ -4049,6 +4126,21 @@ class Game extends \Bga\GameFramework\Table
     // МЕТОДЫ ДЛЯ РАБОТЫ С КАРТАМИ СОТРУДНИКОВ
     // ========================================
     // Управление колодами специалистов
+
+    /**
+     * Подгружает Data-классы (турнирный сервер не автозагружает modules/php/*.php).
+     */
+    private static function ensureDataClassesLoaded(): void
+    {
+        $dir = __DIR__;
+        require_once $dir . '/BadgersData.php';
+        require_once $dir . '/EventCardsData.php';
+        require_once $dir . '/FoundersData.php';
+        require_once $dir . '/SkillsData.php';
+        require_once $dir . '/SpecialistsData.php';
+        require_once $dir . '/TaskTokensData.php';
+        require_once $dir . '/ProjectTokensData.php';
+    }
 
     /**
      * Инициализирует основную колоду специалистов всеми 110 картами

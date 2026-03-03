@@ -919,6 +919,7 @@ define([
       // Позиции жетонов техотдела из БД (gamedatas) — чтобы после обновления страницы треки не сбрасывались
       setTimeout(() => {
         this._positionTechnicalDevelopmentTokensFromGamedatas(initialActiveId)
+        this._positionSprintColumnTasksTokenFromGamedatas(initialActiveId)
       }, 250)
 
       // Рендерим input'ы для выбора задач в parts-of-projects__body
@@ -3687,6 +3688,7 @@ define([
           )
           this._renderPlayerMoney(this.gamedatas.players, activePlayerId)
           this._positionTechnicalDevelopmentTokensFromGamedatas(activePlayerId)
+          this._positionSprintColumnTasksTokenFromGamedatas(activePlayerId)
         } else {
           console.warn(
             '⚠️ _clearDepartmentsForNewPlayer: Player data not found in gamedatas.players for player:',
@@ -4248,6 +4250,30 @@ define([
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       this._renderHiredSpecialistsInDepartments(playerId)
 
+      // Эффект 'card' (карты в руку от карты специалиста): добавляем выданные карты в playerSpecialists
+      const appliedEffects = args.appliedEffects || []
+      appliedEffects.forEach((eff) => {
+        if ((eff.type || '') === 'card' && Array.isArray(eff.cardIds) && eff.cardIds.length > 0) {
+          const allSpecialists = this.gamedatas.specialists || []
+          const currentSpecialists = this.gamedatas.playerSpecialists || []
+          const existingIds = new Set(currentSpecialists.map((c) => Number(c.id)))
+          const newCards = eff.cardIds
+            .map((id) => {
+              const numId = Number(id)
+              if (existingIds.has(numId)) return null
+              const data = allSpecialists.find((s) => Number(s.id) === numId)
+              return data ? { id: numId, ...data } : { id: numId }
+            })
+            .filter(Boolean)
+          if (newCards.length > 0) {
+            this.gamedatas.playerSpecialists = [...currentSpecialists, ...newCards]
+            if (Number(this.player_id) === Number(playerId)) {
+              this._renderPlayerSpecialists()
+            }
+          }
+        }
+      })
+
       // Применяем эффекты специалистов: обновление треков техотдела (pink-, orange-, cyan-, purple-track)
       // ВАЖНО: Сначала двигаем жетон в DOM (по oldValue → newValue), потом обновляем gamedatas,
       // иначе при перерисовке жетон уже окажется в newValue и «Token is already at target row»
@@ -4257,21 +4283,36 @@ define([
         'cyan-track': 3,
         'purple-track': 4,
       }
-      const appliedEffects = args.appliedEffects || []
       appliedEffects.forEach((eff) => {
         if ((eff.type || '') !== 'updateTrack' || !Array.isArray(eff.tracks)) return
         eff.tracks.forEach((track) => {
           const trackId = track.trackId || track.track_id
-          const col = colorTrackToColumn[trackId]
-          if (col == null) return
           const oldVal = Number(track.oldValue ?? 0)
           const newVal = Number(track.newValue ?? 0)
           const amount = Number(track.amount ?? 0)
-          if (amount === 0) return
-          this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
           const pl = this.gamedatas.players[playerId]
-          if (pl) {
-            pl['techDevCol' + col] = newVal
+          // Техотдел: pink/orange/cyan/purple — двигаем жетон и обновляем gamedatas
+          const col = colorTrackToColumn[trackId]
+          if (col != null) {
+            if (amount === 0) return
+            this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
+            if (pl) pl['techDevCol' + col] = newVal
+            return
+          }
+          // Бэк-офис: колонки 2 и 3 (трек найма, трек задач) — только обновляем gamedatas
+          const backOfficeMatch = (trackId || '').match(/player-department-back-office-evolution-column-(\d+)/)
+          if (backOfficeMatch && pl) {
+            const columnNum = parseInt(backOfficeMatch[1], 10)
+            if (columnNum >= 2 && columnNum <= 3) {
+              pl['backOfficeCol' + columnNum] = newVal
+              if (!pl.backOfficeEvolution) pl.backOfficeEvolution = {}
+              pl.backOfficeEvolution['column' + columnNum] = newVal
+            }
+          }
+          // Трек спринта (sprint-column-tasks) — обновляем gamedatas и позицию жетона
+          if ((trackId || '') === 'sprint-column-tasks' && pl) {
+            pl.sprintColumnTasksProgress = newVal
+            this._positionSprintColumnTasksTokenFromGamedatas(playerId)
           }
         })
       })
@@ -7585,12 +7626,13 @@ define([
           token.className = 'task-token'
           token.dataset.playerId = currentPlayerId
           token.dataset.tokenId = tokenData?.token_id || ''
-          token.dataset.color = tokenData?.color || ''
+          const tokenColorLower = (tokenData?.color || '').toString().toLowerCase()
+          token.dataset.color = tokenColorLower
           token.dataset.location = tokenData?.location || location
 
-          // Добавляем класс для цвета жетона
-          if (tokenData?.color) {
-            token.classList.add(`task-token--${tokenData.color}`)
+          // Добавляем класс для цвета жетона (всегда нижний регистр)
+          if (tokenColorLower) {
+            token.classList.add(`task-token--${tokenColorLower}`)
           }
 
           // Создаем изображение жетона
@@ -7847,13 +7889,11 @@ define([
             token.addEventListener('click', clickHandler)
             token._clickHandler = clickHandler // Сохраняем для удаления
 
-            // В режиме move_task добавляем специальный класс
+            // В режиме move_task добавляем специальный класс (сравнение без учёта регистра)
             if (isMoveMode) {
-              const tokenColor = tokenData?.color
-              if (
-                pendingMoves.moveColor === 'any' ||
-                tokenColor === pendingMoves.moveColor
-              ) {
+              const tokenColor = (tokenData?.color || '').toString().toLowerCase()
+              const moveColor = (pendingMoves.moveColor || 'any').toString().toLowerCase()
+              if (moveColor === 'any' || tokenColor === moveColor) {
                 token.classList.add('task-token--move-mode')
               }
             }
@@ -8102,11 +8142,10 @@ define([
         }
 
         // Режим перемещения задач от эффекта карты
-        // Проверяем цвет, если указан
-        if (
-          pendingMoves.moveColor !== 'any' &&
-          color !== pendingMoves.moveColor
-        ) {
+        // Проверяем цвет, если указан (сравнение без учёта регистра: purple/Purple)
+        const normalizedColor = (color || '').toString().toLowerCase()
+        const normalizedMoveColor = (pendingMoves.moveColor || 'any').toString().toLowerCase()
+        if (normalizedMoveColor !== 'any' && normalizedColor !== normalizedMoveColor) {
           this.showMessage(
             _('Можно перемещать только задачи указанного цвета'),
             'error',
@@ -9196,12 +9235,18 @@ define([
           return
         }
 
-        // Проверяем цвет, если указан
-        if (pendingMoves.moveColor !== 'any') {
-          const tokenColor = this._getTokenColor(tokenId)
-          if (tokenColor !== pendingMoves.moveColor) {
+        // Проверяем цвет, если указан (сравнение без учёта регистра).
+        // Берём цвет из DOM (_getTokenColor); если пусто — из переданного параметра color (при клике по колонке он известен из контекста выбора жетона).
+        if ((pendingMoves.moveColor || '').toString().toLowerCase() !== 'any') {
+          const fromDom = (this._getTokenColor(tokenId) || '').toString().toLowerCase()
+          const fromParam = (color || '').toString().toLowerCase()
+          const tokenColor = fromDom || fromParam
+          const requiredColor = (pendingMoves.moveColor || '').toString().toLowerCase()
+          if (!tokenColor || tokenColor !== requiredColor) {
             console.warn('❌ Color mismatch:', {
               tokenColor,
+              fromDom,
+              fromParam,
               requiredColor: pendingMoves.moveColor,
             })
             this.showMessage(
@@ -9220,7 +9265,7 @@ define([
           fromLocation: actualFromLocation, // Используем исходную локацию
           toLocation: newLocation,
           blocks: blocksToUse, // Сохраняем абсолютное значение
-          color: color,
+          color: (color || '').toString().toLowerCase(),
         })
         console.log('✅ Added move to pendingMoves.moves:', {
           tokenId: normalizedTokenId,
@@ -9434,15 +9479,16 @@ define([
         'sprint-column-testing',
       ]
 
+      const normalizedMoveColor = (moveColor || 'any').toString().toLowerCase()
       columns.forEach((columnId) => {
         const column = document.getElementById(columnId)
         if (column) {
           const tokens = column.querySelectorAll('.task-token')
           tokens.forEach((token) => {
-            const tokenColor = token.dataset.color
+            const tokenColor = (token.dataset.color || '').toString().toLowerCase()
 
-            // Проверяем цвет, если указан
-            if (moveColor !== 'any' && tokenColor !== moveColor) {
+            // Проверяем цвет, если указан (сравнение без учёта регистра)
+            if (normalizedMoveColor !== 'any' && tokenColor !== normalizedMoveColor) {
               return // Пропускаем жетоны другого цвета
             }
 
@@ -9623,8 +9669,41 @@ define([
     },
 
     /**
+     * Позиционирует жетон трека спринта (sprint-column-tasks) по данным из gamedatas.sprintColumnTasksProgress.
+     */
+    _positionSprintColumnTasksTokenFromGamedatas: function (playerId) {
+      const pl = this.gamedatas?.players?.[playerId]
+      if (!pl) return
+      const targetRow = pl.sprintColumnTasksProgress != null
+        ? Math.max(1, Math.min(6, Number(pl.sprintColumnTasksProgress)))
+        : 1
+      const column = document.getElementById('sprint-column-tasks')
+      if (!column) return
+      const container = column.querySelector('.player-sprint-panel__rows-container') || column
+      const rows = container.querySelectorAll('.player-sprint-panel__row')
+      let token = null
+      let currentRow = null
+      let targetRowEl = null
+      rows.forEach((row) => {
+        const t = row.querySelector('.player-sprint-panel__token')
+        if (t) {
+          token = t
+          currentRow = row
+        }
+        const rowIndex = parseInt(row.dataset.rowIndex, 10)
+        if (rowIndex === targetRow) targetRowEl = row
+      })
+      if (!token || !targetRowEl || currentRow === targetRowEl) return
+      try {
+        currentRow.removeChild(token)
+        targetRowEl.appendChild(token)
+      } catch (e) {
+        console.warn('_positionSprintColumnTasksTokenFromGamedatas:', e)
+      }
+    },
+
+    /**
      * Расставляет жетоны техотдела по позициям из gamedatas (из БД).
-     * Вызывать после загрузки страницы и при смене активного игрока, чтобы после обновления страницы треки не сбрасывались.
      * @param {number} playerId ID игрока, чей планшет отображается
      */
     _positionTechnicalDevelopmentTokensFromGamedatas: function (playerId) {
@@ -10841,11 +10920,17 @@ define([
     },
 
     /**
-     * Получает цвет жетона
+     * Получает цвет жетона: сначала из DOM (data-color), при отсутствии — из gamedatas.players[].taskTokens.
      */
     _getTokenColor: function (tokenId) {
       const token = document.querySelector(`[data-token-id="${tokenId}"]`)
-      return token?.dataset.color || ''
+      let color = (token?.dataset.color || '').toString().toLowerCase()
+      if (color) return color
+      const player = this.gamedatas?.players?.[this.player_id]
+      const taskTokens = player?.taskTokens || []
+      const t = taskTokens.find((tok) => tok.token_id == tokenId)
+      color = (t?.color || '').toString().toLowerCase()
+      return color || ''
     },
 
     /**
@@ -11009,10 +11094,11 @@ define([
         }
         console.log(`✅ Creating input for color: ${color}`, colorData)
 
-        // Контейнер для одного input'а
+        // Контейнер для одного input'а (цвет всегда в нижнем регистре)
+        const colorLower = (color || '').toString().toLowerCase()
         const inputWrapper = document.createElement('div')
-        inputWrapper.className = `task-input-wrapper task-input-wrapper--${color}`
-        inputWrapper.dataset.color = color
+        inputWrapper.className = `task-input-wrapper task-input-wrapper--${colorLower}`
+        inputWrapper.dataset.color = colorLower
 
         // Картинка над input'ом
         const image = document.createElement('img')
@@ -11040,8 +11126,8 @@ define([
         input.min = 0
         input.value = 0
         input.className = 'task-input__field'
-        input.dataset.color = color
-        input.id = `task-input-${color}`
+        input.dataset.color = colorLower
+        input.id = `task-input-${colorLower}`
 
         // Кнопка увеличения
         const increaseBtn = document.createElement('button')

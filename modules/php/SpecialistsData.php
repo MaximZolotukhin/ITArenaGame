@@ -11,6 +11,7 @@ namespace Bga\Games\itarenagame;
  */
 class SpecialistsData
 {
+    // v1 - ensure deploy: line 202 effect fixed
 
     /*
     Отделы: 
@@ -134,7 +135,7 @@ class SpecialistsData
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/specialists/technical-department/6.png', // Изображение
         ],
-        // TODO: Тест
+
         7 => [
             'id' => 7,
             'type' => 'specialist', // Тип карты
@@ -154,6 +155,7 @@ class SpecialistsData
             'img' => 'img/specialists/technical-department/7.png', // Изображение
         ],
         // TODO: Закончил тут
+        // TODO: Тест
         8 => [
             'id' => 8,
             'type' => 'specialist', // Тип карты
@@ -162,9 +164,9 @@ class SpecialistsData
             'name' => 'Святослав', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Backend–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'technical-department', // Отдел
-            'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
+            'effectDescription' => 'Улучшите на 1 пункт трек задач на панели спринта', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => null, // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
@@ -180,7 +182,7 @@ class SpecialistsData
             'name' => 'Артем', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Программист 1С', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 4, 'move_color' => 'purple']], // Эффект — голубые жетоны, до 4 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте фиолетовые жетоны задач на 4 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -198,7 +200,7 @@ class SpecialistsData
             'name' => 'Игорь', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'QA–инженер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -208,6 +210,7 @@ class SpecialistsData
             'victoryPoints' => 1, // Очки победы
             'img' => 'img/specialists/technical-department/10.png', // Изображение
         ],
+
         11 => [
             'id' => 11,
             'type' => 'specialist', // Тип карты
@@ -216,7 +219,7 @@ class SpecialistsData
             'name' => 'Виктория', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Администратор сайта', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 4, 'move_color' => 'pink']], // Эффект — розовые жетоны, до 4 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте розовые жетоны задач на 4 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -234,7 +237,7 @@ class SpecialistsData
             'name' => 'Лилия', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Тестировщик ПО', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -252,7 +255,7 @@ class SpecialistsData
             'name' => 'Тимофей', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Системный администратор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -270,7 +273,7 @@ class SpecialistsData
             'name' => 'Ильмир', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Программист JavaScript', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'pink-track', 'amount' => '+ 1']]], // Эффект — голубой трек в техотделе
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 розовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -288,7 +291,7 @@ class SpecialistsData
             'name' => 'Петр', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Разработчик баз данных', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'purple-track', 'amount' => '+ 1']]], // Эффект — голубой трек в техотделе
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 фиолетовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -306,7 +309,7 @@ class SpecialistsData
             'name' => 'Игнат', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Программист Python', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'purple-track', 'amount' => '+ 1']]], // Эффект — голубой трек в техотделе
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 фиолетовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -324,7 +327,7 @@ class SpecialistsData
             'name' => 'Екатерина', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Модератор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cyan-track', 'amount' => '+ 1']]], // Эффект — голубой трек в техотделе
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 голубой трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -342,7 +345,7 @@ class SpecialistsData
             'name' => 'Александр', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Риск–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card' => '+ 3'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите 3 карты из колоды найма', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -360,7 +363,7 @@ class SpecialistsData
             'name' => 'Егор', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Менеджер по развитию', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card' => '+ 3'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите 3 карты из колоды найма', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -368,7 +371,7 @@ class SpecialistsData
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 1, // Очки победы
-            'img' => 'img/specialists/back-officet/19.png', // Изображение
+            'img' => 'img/specialists/back-office/19.png', // Изображение
         ],
         20 => [
             'id' => 20,

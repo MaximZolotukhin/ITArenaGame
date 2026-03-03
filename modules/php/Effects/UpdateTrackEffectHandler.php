@@ -49,9 +49,7 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
             'orange-track' => 'оранжевый трек в техотделе',
             'cyan-track' => 'голубой трек в техотделе',
             'purple-track' => 'фиолетовый трек в техотделе',
-            // В будущем можно добавить другие треки:
-            // 'sprint-track' => 'трек спринта',
-            // 'task-track' => 'трек задач',
+            'sprint-column-tasks' => 'трек задач на панели спринта',
             default => $trackId,
         };
     }
@@ -146,8 +144,11 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
                 continue;
             }
 
-            $trackId = $trackUpdate['track'];
-            
+            $trackId = strtolower(trim((string) ($trackUpdate['track'] ?? '')));
+            if ($trackId === '') {
+                continue;
+            }
+
             // ВАЖНО: Проверяем, не обработан ли уже этот трек
             if (isset($processedTracks[$trackId])) {
                 error_log("🔴🔴🔴 UpdateTrackEffectHandler::apply - WARNING: Track $trackId already processed! Skipping duplicate.");
@@ -192,13 +193,27 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
                     $processedTracks[$trackId] = true;
                     continue;
                 }
-                if (preg_match('/player-department-back-office-evolution-column-(\d+)/', $trackId, $matches)) {
+                if ($trackId === 'sprint-column-tasks') {
+                    $result = $this->game->applySprintColumnTasksProgressUpdate($playerId, $amount);
+                    if ($result !== null) {
+                        $oldValue = $result['oldValue'];
+                        $newValue = $result['newValue'];
+                        error_log("UpdateTrackEffectHandler::apply - Updated sprint-column-tasks: $oldValue -> $newValue (amount: $amount)");
+                    } else {
+                        $oldValue = 0;
+                        $newValue = 0;
+                    }
+                } elseif (preg_match('/player-department-back-office-evolution-column-(\d+)/', $trackId, $matches)) {
                     $column = (int)$matches[1];
-                    $gameData = $this->game->getPlayerGameData($playerId);
-                    $oldValue = $gameData ? ($gameData['backOfficeCol' . $column] ?? 0) : 0;
-                    $newValue = $oldValue + $amount;
-                    $this->game->setBackOfficeColumn($playerId, $column, $newValue);
-                    error_log("UpdateTrackEffectHandler::apply - Updated backOfficeCol$column: $oldValue -> $newValue (amount: $amount)");
+                    $result = $this->game->applyBackOfficeColumnUpdate($playerId, $column, $amount);
+                    if ($result !== null) {
+                        $oldValue = $result['oldValue'];
+                        $newValue = $result['newValue'];
+                        error_log("UpdateTrackEffectHandler::apply - Updated backOfficeCol$column: $oldValue -> $newValue (amount: $amount)");
+                    } else {
+                        $oldValue = 0;
+                        $newValue = 0;
+                    }
                 } elseif (preg_match('/player-department-technical-development-column-(\d+)/', $trackId, $matches)) {
                     $column = (int)$matches[1];
                     $gameData = $this->game->getPlayerGameData($playerId);

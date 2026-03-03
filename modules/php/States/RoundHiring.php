@@ -80,9 +80,14 @@ class RoundHiring extends GameState
         if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
             $decoded = json_decode($pendingMovesJson, true);
             if (is_array($decoded) && isset($decoded['move_count']) && (int) $decoded['move_count'] > 0) {
+                $rawColor = $decoded['move_color'] ?? 'any';
+                $moveColor = ($rawColor === 'any' || $rawColor === '') ? 'any' : strtolower(trim((string) $rawColor));
+                if ($moveColor !== 'any' && $moveColor === 'cayn') {
+                    $moveColor = 'cyan';
+                }
                 $pendingTaskMoves = [
                     'move_count' => (int) $decoded['move_count'],
-                    'move_color' => $decoded['move_color'] ?? 'any',
+                    'move_color' => $moveColor,
                     'founder_name' => $decoded['founder_name'] ?? '',
                 ];
             }
@@ -509,8 +514,11 @@ class RoundHiring extends GameState
         }
         $requiredMoves = (int) $pendingMoves['move_count'];
         $moveColor = $pendingMoves['move_color'] ?? 'any';
-        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
-            $moveColor = 'cyan';
+        if ($moveColor !== 'any') {
+            $moveColor = strtolower(trim((string) $moveColor));
+            if ($moveColor === 'cayn') {
+                $moveColor = 'cyan';
+            }
         }
         $moves = json_decode($movesJson, true);
         if (!is_array($moves)) {
@@ -527,8 +535,8 @@ class RoundHiring extends GameState
                 if ($tokenColor === null) {
                     throw new UserException(clienttranslate('Жетон не найден'));
                 }
-                $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
-                $expected = strtolower($moveColor) === 'cayn' ? 'cyan' : strtolower($moveColor);
+                $normalized = ($tokenColor === 'cayn' ? 'cyan' : $tokenColor);
+                $expected = ($moveColor === 'cayn' ? 'cyan' : $moveColor);
                 if ($normalized !== $expected) {
                     throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
                 }

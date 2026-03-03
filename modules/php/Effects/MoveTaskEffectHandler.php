@@ -63,8 +63,11 @@ class MoveTaskEffectHandler implements EffectHandlerInterface
         
         $moveCount = (int)($moveConfig['move_count'] ?? 0);
         $moveColor = $moveConfig['move_color'] ?? 'any';
-        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
-            $moveColor = 'cyan';
+        if ($moveColor !== 'any') {
+            $moveColor = strtolower(trim((string)$moveColor));
+            if ($moveColor === 'cayn') {
+                $moveColor = 'cyan';
+            }
         }
         
         error_log("🎯🎯🎯 MoveTaskEffectHandler::apply - Player: $playerId, MoveCount: $moveCount, MoveColor: $moveColor");

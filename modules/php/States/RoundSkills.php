@@ -264,8 +264,11 @@ class RoundSkills extends GameState
 
         $requiredMoves = (int)$pendingMoves['move_count'];
         $moveColor = $pendingMoves['move_color'] ?? 'any';
-        if ($moveColor !== 'any' && strtolower($moveColor) === 'cayn') {
-            $moveColor = 'cyan';
+        if ($moveColor !== 'any') {
+            $moveColor = strtolower(trim((string) $moveColor));
+            if ($moveColor === 'cayn') {
+                $moveColor = 'cyan';
+            }
         }
         $moves = json_decode($movesJson, true);
         if (!is_array($moves)) {
@@ -281,8 +284,8 @@ class RoundSkills extends GameState
                 $tokenId = (int)($move['tokenId'] ?? 0);
                 $tokenColor = $this->game->getTaskTokenColor($activePlayerId, $tokenId);
                 if ($tokenColor !== null) {
-                    $normalized = $tokenColor === 'cayn' ? 'cyan' : $tokenColor;
-                    $expected = strtolower($moveColor) === 'cayn' ? 'cyan' : strtolower($moveColor);
+                    $normalized = ($tokenColor === 'cayn' ? 'cyan' : $tokenColor);
+                    $expected = ($moveColor === 'cayn' ? 'cyan' : $moveColor);
                     if ($normalized !== $expected) {
                         throw new UserException(clienttranslate('Можно перемещать только жетоны указанного цвета'));
                     }
