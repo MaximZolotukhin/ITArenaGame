@@ -2767,11 +2767,32 @@ class Game extends \Bga\GameFramework\Table
             'taskTokens' => !empty($data['task_tokens']) ? json_decode($data['task_tokens'], true) : [],
             'projectTokens' => !empty($data['project_tokens']) ? json_decode($data['project_tokens'], true) : [],
             'specialistHand' => !empty($data['specialist_hand']) ? json_decode($data['specialist_hand'], true) : [],
-            'playerSpecialists' => !empty($data['player_specialists']) ? json_decode($data['player_specialists'], true) : [],
+            // Рука: приоритет у globals (карты от эффектов добавляются туда в течение хода; в БД пишут позже)
+            'playerSpecialists' => $this->getPlayerSpecialistsHandFromGlobalsOrDb($playerId, $data['player_specialists'] ?? null),
             'playerHiredSpecialists' => $this->decodePlayerHiredSpecialists($data['player_hired_specialists'] ?? null),
             'itProjectBonuses' => !empty($data['it_project_bonuses']) ? json_decode($data['it_project_bonuses'], true) : [],
             'gameGoals' => !empty($data['game_goals']) ? json_decode($data['game_goals'], true) : [],
         ];
+    }
+
+    /**
+     * Актуальный список карт на руке (player_specialists): сначала из globals, иначе из БД.
+     * Карты от эффекта «card» попадают в globals в течение хода и должны быть доступны для найма сразу.
+     *
+     * @return array<int> Массив ID карт
+     */
+    private function getPlayerSpecialistsHandFromGlobalsOrDb(int $playerId, ?string $dbJson): array
+    {
+        $globalsJson = $this->globals->get('player_specialists_' . $playerId, '');
+        if ($globalsJson !== '' && $globalsJson !== null) {
+            $decoded = json_decode($globalsJson, true);
+            return is_array($decoded) ? array_values(array_map('intval', $decoded)) : [];
+        }
+        if (!empty($dbJson)) {
+            $decoded = json_decode($dbJson, true);
+            return is_array($decoded) ? array_values(array_map('intval', $decoded)) : [];
+        }
+        return [];
     }
 
     /**

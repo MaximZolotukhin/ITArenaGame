@@ -381,7 +381,11 @@ class SpecialistsData
             'name' => 'Глеб', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Тайм–брокер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -399,7 +403,11 @@ class SpecialistsData
             'name' => 'Любовь', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Офис–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -417,7 +425,7 @@ class SpecialistsData
             'name' => 'Илья', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Бизнес–консультант', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 4, 'move_color' => 'orange']], // Эффект — розовые жетоны, до 4 шагов, // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Передвиньте оранжевые жетоны задач на 4 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -435,7 +443,11 @@ class SpecialistsData
             'name' => 'Тихон', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'HR–аналитик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -453,7 +465,7 @@ class SpecialistsData
             'name' => 'Айлин', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Специалист по бизнес процессам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -471,7 +483,11 @@ class SpecialistsData
             'name' => 'Мирослава', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Event–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -489,7 +505,7 @@ class SpecialistsData
             'name' => 'Савва', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Специалист по планированию', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 1'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите любую 1 задачу и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -507,7 +523,11 @@ class SpecialistsData
             'name' => 'Ксения', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'HR–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -525,7 +545,7 @@ class SpecialistsData
             'name' => 'Ирина', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Менеджер по развитию', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card' => '+ 3'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите 3 карты из колоды найма', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -543,7 +563,11 @@ class SpecialistsData
             'name' => 'Вадим', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Хед–хантер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер

@@ -4268,54 +4268,34 @@ define([
           if (newCards.length > 0) {
             this.gamedatas.playerSpecialists = [...currentSpecialists, ...newCards]
             if (Number(this.player_id) === Number(playerId)) {
+              // ВАЖНО: найм по клику ищет карту в _hiringHandCardsWithPrices, поэтому синхронизируем и его
+              const handWithPrices = this._hiringHandCardsWithPrices || []
+              const handExisting = new Set(handWithPrices.map((c) => Number(c.id)))
+              const newHandEntries = newCards
+                .map((c) => ({
+                  id: Number(c.id),
+                  price: Number(c.price ?? 0),
+                  department: c.department || 'universal',
+                  name: c.name || '',
+                  img: c.img || '',
+                }))
+                .filter((c) => !handExisting.has(Number(c.id)))
+              this._hiringHandCardsWithPrices = [...handWithPrices, ...newHandEntries]
               this._renderPlayerSpecialists()
+              if (this._hiringSelectMode) this._bindHiringCardSelection(true)
             }
           }
         }
       })
 
-      // Применяем эффекты специалистов: обновление треков техотдела (pink-, orange-, cyan-, purple-track)
-      // ВАЖНО: Сначала двигаем жетон в DOM (по oldValue → newValue), потом обновляем gamedatas,
-      // иначе при перерисовке жетон уже окажется в newValue и «Token is already at target row»
-      const colorTrackToColumn = {
-        'pink-track': 1,
-        'orange-track': 2,
-        'cyan-track': 3,
-        'purple-track': 4,
+      // Универсальная отработка updateTrack из appliedEffects (основатели/специалисты/навыки)
+      try {
+        if (typeof this._applyUpdateTrackEffectsFromApplied === 'function') {
+          this._applyUpdateTrackEffectsFromApplied(playerId, appliedEffects)
+        }
+      } catch (e) {
+        console.error('❌ _applyUpdateTrackEffectsFromApplied failed:', e)
       }
-      appliedEffects.forEach((eff) => {
-        if ((eff.type || '') !== 'updateTrack' || !Array.isArray(eff.tracks)) return
-        eff.tracks.forEach((track) => {
-          const trackId = track.trackId || track.track_id
-          const oldVal = Number(track.oldValue ?? 0)
-          const newVal = Number(track.newValue ?? 0)
-          const amount = Number(track.amount ?? 0)
-          const pl = this.gamedatas.players[playerId]
-          // Техотдел: pink/orange/cyan/purple — двигаем жетон и обновляем gamedatas
-          const col = colorTrackToColumn[trackId]
-          if (col != null) {
-            if (amount === 0) return
-            this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
-            if (pl) pl['techDevCol' + col] = newVal
-            return
-          }
-          // Бэк-офис: колонки 2 и 3 (трек найма, трек задач) — только обновляем gamedatas
-          const backOfficeMatch = (trackId || '').match(/player-department-back-office-evolution-column-(\d+)/)
-          if (backOfficeMatch && pl) {
-            const columnNum = parseInt(backOfficeMatch[1], 10)
-            if (columnNum >= 2 && columnNum <= 3) {
-              pl['backOfficeCol' + columnNum] = newVal
-              if (!pl.backOfficeEvolution) pl.backOfficeEvolution = {}
-              pl.backOfficeEvolution['column' + columnNum] = newVal
-            }
-          }
-          // Трек спринта (sprint-column-tasks) — обновляем gamedatas и позицию жетона
-          if ((trackId || '') === 'sprint-column-tasks' && pl) {
-            pl.sprintColumnTasksProgress = newVal
-            this._positionSprintColumnTasksTokenFromGamedatas(playerId)
-          }
-        })
-      })
     },
 
     notif_debugUpdateTrack: async function (notif) {
@@ -5343,6 +5323,82 @@ define([
       if (this._hiringSelectMode) {
         this._bindHiringCardSelection(true)
       }
+    },
+
+    /**
+     * Универсальная отработка эффекта updateTrack по данным appliedEffects (сервер уже применил изменения).
+     * Делает две вещи:
+     * - обновляет gamedatas (чтобы логика UI знала новые значения),
+     * - двигает визуальные жетоны там, где они есть (техотдел и back-office column-1),
+     * не требуя отдельного уведомления visualTrackChanged.
+     */
+    _applyUpdateTrackEffectsFromApplied: function (playerId, appliedEffects) {
+      const effects = Array.isArray(appliedEffects) ? appliedEffects : []
+      const pid = Number(playerId || 0)
+      if (!pid) return
+
+      // ВАЖНО: Сначала двигаем жетоны в DOM, потом обновляем gamedatas.
+      const colorTrackToColumn = {
+        'pink-track': 1,
+        'orange-track': 2,
+        'cyan-track': 3,
+        'purple-track': 4,
+      }
+
+      effects.forEach((eff) => {
+        if ((eff.type || '') !== 'updateTrack' || !Array.isArray(eff.tracks))
+          return
+
+        eff.tracks.forEach((track) => {
+          const trackId = track.trackId || track.track_id
+          const oldVal = Number(track.oldValue ?? 0)
+          const newVal = Number(track.newValue ?? 0)
+          const amount = Number(track.amount ?? 0)
+          const pl = this.gamedatas?.players?.[pid]
+
+          // Техотдел: pink/orange/cyan/purple
+          const col = colorTrackToColumn[trackId]
+          if (col != null) {
+            if (amount === 0) return
+            this._moveTechnicalDevelopmentToken(col, oldVal, newVal, amount)
+            if (pl) pl['techDevCol' + col] = newVal
+            return
+          }
+
+          // Бэк-офис: column-1..3 (column-1 имеет визуальный жетон)
+          const backOfficeMatch = (trackId || '').match(
+            /player-department-back-office-evolution-column-(\d+)/,
+          )
+          if (backOfficeMatch) {
+            const columnNum = parseInt(backOfficeMatch[1], 10)
+            if (pl && columnNum >= 1 && columnNum <= 3) {
+              pl['backOfficeCol' + columnNum] = newVal
+              if (!pl.backOfficeEvolution) pl.backOfficeEvolution = {}
+              pl.backOfficeEvolution['column' + columnNum] = newVal
+            }
+            if (
+              columnNum === 1 &&
+              Number(pid) === Number(this.player_id) &&
+              amount !== 0
+            ) {
+              // визуальный жетон есть только у текущего игрока
+              this._updateBackOfficeEvolutionColumn(
+                pid,
+                'player-department-back-office-evolution-column-1',
+                newVal,
+                amount,
+              )
+            }
+            return
+          }
+
+          // Трек спринта (sprint-column-tasks)
+          if ((trackId || '') === 'sprint-column-tasks' && pl) {
+            pl.sprintColumnTasksProgress = newVal
+            this._positionSprintColumnTasksTokenFromGamedatas(pid)
+          }
+        })
+      })
     },
 
     /**

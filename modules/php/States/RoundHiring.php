@@ -249,13 +249,20 @@ class RoundHiring extends GameState
         $price = (int) ($card['price'] ?? 0);
         $maxHire = $this->game->getHiringTrackHireCount($playerId);
         $pendingTaskSelection = null;
+        $pendingTaskMoves = null;
         foreach ($appliedEffects as $eff) {
             if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount']) && (int) $eff['amount'] > 0) {
                 $pendingTaskSelection = [
                     'amount' => (int) $eff['amount'],
                     'founder_name' => $card['name'] ?? '',
                 ];
-                break;
+            }
+            if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
+                $pendingTaskMoves = [
+                    'move_count' => (int) $eff['move_count'],
+                    'move_color' => $eff['move_color'] ?? 'any',
+                    'founder_name' => $card['name'] ?? '',
+                ];
             }
         }
         $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает специалиста за ${badgers} баджерсов'), [
@@ -280,16 +287,25 @@ class RoundHiring extends GameState
                 'founder_name' => $pendingTaskSelection['founder_name'],
             ]);
         }
-        $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
-        if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
-            $pendingMoves = json_decode($pendingMovesJson, true);
-            if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
-                $this->notify->player($playerId, 'taskMovesRequired', '', [
-                    'player_id' => $playerId,
-                    'move_count' => (int) $pendingMoves['move_count'],
-                    'move_color' => $pendingMoves['move_color'] ?? 'any',
-                    'founder_name' => $pendingMoves['founder_name'] ?? '',
-                ]);
+        if ($pendingTaskMoves !== null) {
+            $this->notify->player($playerId, 'taskMovesRequired', '', [
+                'player_id' => $playerId,
+                'move_count' => (int) $pendingTaskMoves['move_count'],
+                'move_color' => $pendingTaskMoves['move_color'] ?? 'any',
+                'founder_name' => $pendingTaskMoves['founder_name'] ?? '',
+            ]);
+        } else {
+            $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
+            if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+                $pendingMoves = json_decode($pendingMovesJson, true);
+                if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
+                    $this->notify->player($playerId, 'taskMovesRequired', '', [
+                        'player_id' => $playerId,
+                        'move_count' => (int) $pendingMoves['move_count'],
+                        'move_color' => $pendingMoves['move_color'] ?? 'any',
+                        'founder_name' => $pendingMoves['founder_name'] ?? '',
+                    ]);
+                }
             }
         }
         return null;
@@ -358,9 +374,17 @@ class RoundHiring extends GameState
                 }
             }
             $taskAmountSum = 0;
+            $pendingTaskMoves = null;
             foreach ($allAppliedEffects as $eff) {
                 if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount'])) {
                     $taskAmountSum += (int) $eff['amount'];
+                }
+                if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
+                    $pendingTaskMoves = [
+                        'move_count' => (int) $eff['move_count'],
+                        'move_color' => $eff['move_color'] ?? 'any',
+                        'founder_name' => $eff['founder_name'] ?? '',
+                    ];
                 }
             }
             $pendingTaskSelection = null;
@@ -400,16 +424,25 @@ class RoundHiring extends GameState
                     'founder_name' => $pendingTaskSelection['founder_name'],
                 ]);
             }
-            $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
-            if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
-                $pendingMoves = json_decode($pendingMovesJson, true);
-                if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
-                    $this->notify->player($playerId, 'taskMovesRequired', '', [
-                        'player_id' => $playerId,
-                        'move_count' => (int) $pendingMoves['move_count'],
-                        'move_color' => $pendingMoves['move_color'] ?? 'any',
-                        'founder_name' => $pendingMoves['founder_name'] ?? '',
-                    ]);
+            if ($pendingTaskMoves !== null) {
+                $this->notify->player($playerId, 'taskMovesRequired', '', [
+                    'player_id' => $playerId,
+                    'move_count' => (int) $pendingTaskMoves['move_count'],
+                    'move_color' => $pendingTaskMoves['move_color'] ?? 'any',
+                    'founder_name' => $pendingTaskMoves['founder_name'] ?? '',
+                ]);
+            } else {
+                $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, '');
+                if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
+                    $pendingMoves = json_decode($pendingMovesJson, true);
+                    if (is_array($pendingMoves) && isset($pendingMoves['move_count']) && (int) $pendingMoves['move_count'] > 0) {
+                        $this->notify->player($playerId, 'taskMovesRequired', '', [
+                            'player_id' => $playerId,
+                            'move_count' => (int) $pendingMoves['move_count'],
+                            'move_color' => $pendingMoves['move_color'] ?? 'any',
+                            'founder_name' => $pendingMoves['founder_name'] ?? '',
+                        ]);
+                    }
                 }
             }
         }
