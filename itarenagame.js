@@ -2416,6 +2416,7 @@ define([
       )
       dojo.subscribe('specialistsHired', this, 'notif_specialistsHired')
       dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
+      dojo.subscribe('hiringBonusAvailable', this, 'notif_hiringBonusAvailable')
       dojo.subscribe(
         'founderEffectsApplied',
         this,
@@ -3279,6 +3280,7 @@ define([
       const trackId = args.track_id || args.trackId || ''
       const amount = Number(args.amount || 0)
       const newValue = Number(args.newValue || args.new_value || 0)
+      const oldValue = Number(args.oldValue || args.old_value || 0)
 
       console.log('🎯 Visual track changed:', {
         playerId,
@@ -3287,51 +3289,22 @@ define([
         newValue,
       })
 
-      // Обрабатываем трек эволюции бэк-офиса (только колонка 1 имеет визуальный жетон)
-      if (trackId === 'player-department-back-office-evolution-column-1') {
-        console.log(
-          '🎯 Processing back-office evolution column 1:',
-          trackId,
-          'for player:',
-          playerId,
-          'amount:',
-          amount,
-        )
-        this._updateBackOfficeEvolutionColumn(
-          playerId,
-          trackId,
-          newValue,
-          amount,
-        )
-      } else if (
-        trackId === 'player-department-back-office-evolution-column-2' ||
-        trackId === 'player-department-back-office-evolution-column-3'
-      ) {
-        // Колонки 2 и 3 - только сохраняем данные, без визуального обновления
-        console.log(
-          '🎯 Processing back-office evolution column (no visual):',
-          trackId,
-          'for player:',
-          playerId,
-          'amount:',
-          amount,
-        )
-        const columnMatch = trackId.match(/column-(\d+)/)
-        const columnNum = columnMatch ? columnMatch[1] : '1'
-        const columnKey = 'column' + columnNum
-        if (playerId > 0 && this.gamedatas.players[playerId]) {
-          if (!this.gamedatas.players[playerId].backOfficeEvolution) {
-            this.gamedatas.players[playerId].backOfficeEvolution = {}
-          }
-          this.gamedatas.players[playerId].backOfficeEvolution[columnKey] =
-            newValue || 1 + amount
-        }
-      } else {
-        console.log(
-          '🎯 Track',
-          trackId,
-          'is not a back-office evolution column, skipping',
-        )
+      // Универсальная обработка: любые треки (income-track / техотдел / back-office / sprint-column-tasks).
+      // Преобразуем одно уведомление в формат appliedEffects.updateTrack, чтобы переиспользовать единую логику UI.
+      if (playerId > 0 && trackId) {
+        this._applyUpdateTrackEffectsFromApplied(playerId, [
+          {
+            type: 'updateTrack',
+            tracks: [
+              {
+                trackId: trackId,
+                amount: amount,
+                oldValue: oldValue,
+                newValue: newValue,
+              },
+            ],
+          },
+        ])
       }
 
       // Визуальная анимация изменения
@@ -4206,6 +4179,10 @@ define([
       const playerId = Number(args.player_id || 0)
       const cardIds = Array.isArray(args.cardIds) ? args.cardIds : []
       const spent = Number(args.badgers || 0)
+      const appliedEffects = args.appliedEffects || []
+      const badgerDelta = appliedEffects
+        .filter((eff) => (eff?.type || '') === 'badger')
+        .reduce((sum, eff) => sum + Number(eff.amount || 0), 0)
       if (playerId <= 0) return
       const arr = this.gamedatas.playerSpecialists || []
       const idsSet = new Set(cardIds.map((id) => Number(id)))
@@ -4216,6 +4193,9 @@ define([
       if (pl) {
         if (spent > 0) {
           pl.badgers = Math.max(0, Number(pl.badgers || 0) - spent)
+        }
+        if (badgerDelta !== 0) {
+          pl.badgers = Math.max(0, Number(pl.badgers || 0) + badgerDelta)
         }
         if (args.playerHiredSpecialists) {
           pl.playerHiredSpecialists = args.playerHiredSpecialists
@@ -4235,11 +4215,30 @@ define([
           this._hiringMaxCount = Number(args.maxHireCount)
         }
         this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) - spent)
+        if (badgerDelta !== 0) {
+          this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) + badgerDelta)
+        }
         // Эффект task с любой карты (специалист/основатель): синхронизируем pendingTaskSelection из уведомления
         if (args.pendingTaskSelection != null && Number(args.pendingTaskSelection.amount || 0) > 0) {
           this.gamedatas.pendingTaskSelection = {
             amount: args.pendingTaskSelection.amount,
             founder_name: args.pendingTaskSelection.founder_name,
+          }
+
+          // Бэкап: иногда нотификация taskSelectionRequired может не отрисовать UI вовремя.
+          // Если сервер уже прислал pendingTaskSelection в specialistsHired — активируем UI выбора задач здесь же.
+          try {
+            if (typeof this.notif_taskSelectionRequired === 'function') {
+              await this.notif_taskSelectionRequired({
+                args: {
+                  player_id: playerId,
+                  amount: args.pendingTaskSelection.amount,
+                  founder_name: args.pendingTaskSelection.founder_name,
+                },
+              })
+            }
+          } catch (e) {
+            console.error('❌ Failed to activate task selection from specialistsHired:', e)
           }
         } else {
           this.gamedatas.pendingTaskSelection = null
@@ -4251,7 +4250,6 @@ define([
       this._renderHiredSpecialistsInDepartments(playerId)
 
       // Эффект 'card' (карты в руку от карты специалиста): добавляем выданные карты в playerSpecialists
-      const appliedEffects = args.appliedEffects || []
       appliedEffects.forEach((eff) => {
         if ((eff.type || '') === 'card' && Array.isArray(eff.cardIds) && eff.cardIds.length > 0) {
           const allSpecialists = this.gamedatas.specialists || []
@@ -5356,6 +5354,15 @@ define([
           const amount = Number(track.amount ?? 0)
           const pl = this.gamedatas?.players?.[pid]
 
+          // Трек дохода (income-track)
+          if ((trackId || '') === 'income-track') {
+            if (pl) {
+              pl.incomeTrack = newVal
+            }
+            this._updateIncomeTrackPosition(pid, newVal)
+            return
+          }
+
           // Техотдел: pink/orange/cyan/purple
           const col = colorTrackToColumn[trackId]
           if (col != null) {
@@ -5399,6 +5406,26 @@ define([
           }
         })
       })
+    },
+
+    notif_hiringBonusAvailable: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(this.player_id) !== Number(playerId)) return
+      const amount = Math.max(0, Number(args.amount || 0))
+      if (amount <= 0) return
+      const sourceName = (args.source_name || '').trim()
+      const msg = sourceName
+        ? (typeof _ !== 'undefined'
+            ? _('Эффект «${name}»: вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.')
+                .replace('${name}', sourceName)
+                .replace('${n}', String(amount))
+            : `Эффект «${sourceName}»: можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`)
+        : (typeof _ !== 'undefined'
+            ? _('Вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.')
+                .replace('${n}', String(amount))
+            : `Можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`)
+      this.showMessage(msg, 'info')
     },
 
     /**
@@ -11408,6 +11435,20 @@ define([
 
       const taskColors = ['cyan', 'orange', 'pink', 'purple']
 
+      const prev = this._taskSelectionValidateBound
+      if (typeof prev === 'function') {
+        taskColors.forEach((color) => {
+          const input = document.querySelector(
+            `.task-input__field[data-color="${color}"]`,
+          )
+          if (input) {
+            input.removeEventListener('input', prev)
+            input.removeEventListener('change', prev)
+          }
+        })
+        this._taskSelectionValidateBound = null
+      }
+
       // Деактивируем все input'ы
       taskColors.forEach((color) => {
         const input = document.querySelector(
@@ -11488,6 +11529,22 @@ define([
         'task-selection-confirm-button',
       )
 
+      // Снимаем прошлые слушатели, иначе при повторном найме (Евгения и т.д.)
+      // validateSelection вызывается несколько раз за клик и может «ломать» значения.
+      const prev = this._taskSelectionValidateBound
+      if (typeof prev === 'function') {
+        taskColors.forEach((color) => {
+          const input = document.querySelector(
+            `.task-input__field[data-color="${color}"]`,
+          )
+          if (input) {
+            input.removeEventListener('input', prev)
+            input.removeEventListener('change', prev)
+          }
+        })
+        this._taskSelectionValidateBound = null
+      }
+
       const validateSelection = () => {
         let total = 0
         taskColors.forEach((color) => {
@@ -11495,7 +11552,7 @@ define([
             `.task-input__field[data-color="${color}"]`,
           )
           if (input && !input.disabled) {
-            total += parseInt(input.value) || 0
+            total += parseInt(input.value, 10) || 0
           }
         })
 
@@ -11519,18 +11576,23 @@ define([
             `.task-input__field[data-color="${color}"]`,
           )
           if (input && !input.disabled) {
-            const currentValue = parseInt(input.value) || 0
+            const currentValue = parseInt(input.value, 10) || 0
             const otherTotal = total - currentValue
             const remaining = maxTasks - otherTotal
-            input.max = Math.max(0, remaining)
+            // Сколько ещё можно взять именно в этот цвет (никогда < 0)
+            const cap = Math.max(0, remaining)
+            input.max = cap
 
-            // Если текущее значение превышает доступное, уменьшаем его
-            if (currentValue > remaining) {
-              input.value = remaining
+            // Багфикс: при remaining < 0 условие (currentValue > remaining) было true даже для 0,
+            // и в поле записывалось отрицательное число (−1, −2, …).
+            if (currentValue > cap) {
+              input.value = String(cap)
             }
           }
         })
       }
+
+      this._taskSelectionValidateBound = validateSelection
 
       // Добавляем обработчики на все input'ы
       taskColors.forEach((color) => {

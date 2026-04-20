@@ -1219,10 +1219,71 @@ class Game extends \Bga\GameFramework\Table
             $available[$value] = (int)$this->getGameStateValue('badgers_supply_' . $value);
         }
 
-        $denominations = array_keys($available);
-        rsort($denominations);
+        if ($this->getTotalBadgersValue() < $amount) {
+            return false;
+        }
 
-        $combination = $this->findBadgersCombination($amount, $available, $denominations, 0);
+        $denominationsDesc = array_keys($available);
+        rsort($denominationsDesc);
+
+        $combination = $this->findBadgersCombination($amount, $available, $denominationsDesc, 0);
+
+        // Размен: если точной комбинации нет, "разбиваем" более крупные монеты на меньшие
+        // и повторяем поиск, пока общая сумма в банке достаточна.
+        if ($combination === null) {
+            $denominationsAsc = $denominationsDesc;
+            sort($denominationsAsc);
+
+            $safety = 0;
+            $maxIterations = 200; // достаточный лимит для набора {1,2,3,5,10}
+            while ($combination === null && $safety++ < $maxIterations) {
+                $changed = false;
+
+                // Ищем любую монету > 1, которую можно разменять
+                foreach ($denominationsDesc as $value) {
+                    $value = (int)$value;
+                    if ($value <= 1) {
+                        continue;
+                    }
+                    if (($available[$value] ?? 0) <= 0) {
+                        continue;
+                    }
+
+                    // Размениваем 1 монету номинала $value в "меньшие" (жадно по номиналам).
+                    $available[$value] -= 1;
+                    $remaining = $value;
+                    for ($i = count($denominationsAsc) - 1; $i >= 0; $i--) {
+                        $d = (int)$denominationsAsc[$i];
+                        if ($d >= $value) {
+                            continue;
+                        }
+                        if ($d <= 0) {
+                            continue;
+                        }
+                        $cnt = intdiv($remaining, $d);
+                        if ($cnt > 0) {
+                            $available[$d] = ($available[$d] ?? 0) + $cnt;
+                            $remaining -= $cnt * $d;
+                        }
+                    }
+                    // На всякий случай: если остался хвост, добиваем единицами
+                    if ($remaining > 0) {
+                        $available[1] = ($available[1] ?? 0) + $remaining;
+                        $remaining = 0;
+                    }
+
+                    $changed = true;
+                    break;
+                }
+
+                if (!$changed) {
+                    break;
+                }
+
+                $combination = $this->findBadgersCombination($amount, $available, $denominationsDesc, 0);
+            }
+        }
+
         if ($combination === null) {
             return false;
         }
@@ -1712,6 +1773,7 @@ class Game extends \Bga\GameFramework\Table
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
+            'updateTrackDepartmentSales' => new UpdateTrackEffectHandler($this),
             default => null,
         };
         
@@ -1784,6 +1846,7 @@ class Game extends \Bga\GameFramework\Table
         if ($effect === null || !is_array($effect)) {
             return [];
         }
+        $effect = $this->normalizeCardEffectArray($effect);
         $appliedEffects = [];
         foreach ($effect as $effectType => $effectValue) {
             // Короткий тип эффекта: трек спринта (sprint-column-tasks) — вертикальный трек на панели спринта
@@ -1806,6 +1869,42 @@ class Game extends \Bga\GameFramework\Table
             }
         }
         return $appliedEffects;
+    }
+
+    /**
+     * Нормализует короткие/альтернативные форматы effect к единому виду.
+     * Поддержка:
+     * - ['track' => 'income-track', 'amount' => '+ 1'] -> ['updateTrack' => [[...]]]
+     * - сохраняет существующие ключи (badger/card/task/move_task/updateTrack и т.д.)
+     */
+    private function normalizeCardEffectArray(array $effect): array
+    {
+        // Короткий формат updateTrack в виде одной пары track+amount
+        if (isset($effect['track']) && isset($effect['amount'])) {
+            $trackItem = [
+                'track' => (string) $effect['track'],
+                'amount' => $effect['amount'],
+            ];
+            if (isset($effect['column'])) {
+                $trackItem['column'] = $effect['column'];
+            }
+
+            // Если updateTrack уже есть — дописываем; иначе создаём.
+            if (isset($effect['updateTrack']) && is_array($effect['updateTrack'])) {
+                $existing = $effect['updateTrack'];
+                // Приводим к списку, даже если передали один объект.
+                if (isset($existing['track']) && isset($existing['amount'])) {
+                    $existing = [$existing];
+                }
+                $effect['updateTrack'] = array_merge($existing, [$trackItem]);
+            } else {
+                $effect['updateTrack'] = [$trackItem];
+            }
+
+            unset($effect['track'], $effect['amount'], $effect['column']);
+        }
+
+        return $effect;
     }
 
     /**
@@ -2249,27 +2348,37 @@ class Game extends \Bga\GameFramework\Table
 
         // Подготавливаем пул карт для раздачи
         $availableIds = array_keys($availableCards);
+        $requiredCards = count($playerIds) * $cardsPerPlayer;
+        if (count($availableIds) < $requiredCards) {
+            throw new \RuntimeException(
+                'Not enough specialist cards for unique starting distribution. Available: '
+                . count($availableIds)
+                . ', Required: '
+                . $requiredCards
+            );
+        }
         shuffle($availableIds);
+
+        $dealtStartingIds = [];
 
         foreach ($playerIds as $playerId) {
             $playerId = (int)$playerId;
             $playerSpecialists = [];
             
             for ($i = 0; $i < $cardsPerPlayer; $i++) {
-            if (empty($availableIds)) {
-                // Если карт не хватает, перемешиваем заново
-                    $availableIds = array_keys($availableCards);
-                shuffle($availableIds);
-            }
-            
-            $cardId = (int)array_shift($availableIds);
-                $playerSpecialists[] = $cardId;
-                
-                error_log('distributeStartingSpecialistCards - Assigned specialist card ' . $cardId . ' to player ' . $playerId);
+                if (empty($availableIds)) {
+                    throw new \RuntimeException('Starting specialist pool exhausted during distribution');
                 }
             
+                $cardId = (int)array_shift($availableIds);
+                $playerSpecialists[] = $cardId;
+                $dealtStartingIds[] = $cardId;
+                
+                error_log('distributeStartingSpecialistCards - Assigned specialist card ' . $cardId . ' to player ' . $playerId);
+            }
+            
             // Сохраняем карты специалиста для игрока в globals
-                $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
+            $this->globals->set('specialist_cards_' . $playerId, json_encode($playerSpecialists));
                 
             // В Tutorial режиме сразу подтверждаем карты (нет этапа выбора)
             if ($isTutorial) {
@@ -2278,6 +2387,18 @@ class Game extends \Bga\GameFramework\Table
             }
             
             error_log('distributeStartingSpecialistCards - Player ' . $playerId . ' has ' . count($playerSpecialists) . ' specialist cards: ' . json_encode($playerSpecialists));
+        }
+
+        // ВАЖНО: Стартовые карты уже у игроков, поэтому убираем их из основной колоды,
+        // чтобы те же ID не могли повторно выпасть при найме другим игрокам.
+        if (!empty($dealtStartingIds)) {
+            $dealtStartingIds = array_unique(array_map('intval', $dealtStartingIds));
+            $mainDeck = $this->getMainDeck();
+            if (!empty($mainDeck)) {
+                $mainDeck = array_values(array_diff($mainDeck, $dealtStartingIds));
+                $this->setMainDeck($mainDeck);
+                error_log('distributeStartingSpecialistCards - Removed ' . count($dealtStartingIds) . ' starting cards from main deck. Remaining: ' . count($mainDeck));
+            }
         }
     }
 
@@ -3034,6 +3155,9 @@ class Game extends \Bga\GameFramework\Table
         ");
         $counterNow = (int) $this->playerBadgers->get($playerId);
         $this->playerBadgers->inc($playerId, $newValue - $counterNow);
+
+        // Оплата возвращается в банк, чтобы supply не "исчезал" и размен работал корректно.
+        $this->depositBadgersToBank($amount);
     }
 
     /**
@@ -4272,6 +4396,100 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Возвращает ID карт специалистов, которые уже "принадлежат" игрокам и не должны оставаться в колодах.
+     * Сюда входят: временная рука выбора, подтвержденная рука, стартовые карты и нанятые карты.
+     *
+     * @return array<int, true>
+     */
+    private function getOwnedSpecialistIdsMap(): array
+    {
+        $owned = [];
+        $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
+        foreach ($playerIds as $playerId) {
+            // ВАЖНО: globals могут быть пустыми (например, после перезагрузки/миграции),
+            // поэтому для зон, которые пишутся в SQL, делаем fallback на player_game_data.
+            $gameData = $this->getPlayerGameData($playerId) ?? [];
+
+            // 1) Временная рука выбора (specialist_hand_) — globals, иначе SQL (specialistHand)
+            $handJson = $this->globals->get('specialist_hand_' . $playerId, '');
+            $handIds = $handJson !== '' ? json_decode($handJson, true) : ($gameData['specialistHand'] ?? []);
+            if (is_array($handIds)) {
+                foreach ($handIds as $id) {
+                    $owned[(int) $id] = true;
+                }
+            }
+
+            // 2) Подтверждённая рука (player_specialists_) — globals, иначе SQL (playerSpecialists)
+            $playerSpecsJson = $this->globals->get('player_specialists_' . $playerId, '');
+            $playerSpecsIds = $playerSpecsJson !== '' ? json_decode($playerSpecsJson, true) : ($gameData['playerSpecialists'] ?? []);
+            if (is_array($playerSpecsIds)) {
+                foreach ($playerSpecsIds as $id) {
+                    $owned[(int) $id] = true;
+                }
+            }
+
+            // 3) Стартовые/выданные на выбор карты (specialist_cards_) — только globals
+            $starterJson = $this->globals->get('specialist_cards_' . $playerId, '');
+            $starterIds = $starterJson !== '' ? json_decode($starterJson, true) : [];
+            if (is_array($starterIds)) {
+                foreach ($starterIds as $id) {
+                    $owned[(int) $id] = true;
+                }
+            }
+
+            $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
+            if (is_array($hiredByDept)) {
+                foreach ($hiredByDept as $ids) {
+                    if (!is_array($ids)) {
+                        continue;
+                    }
+                    foreach ($ids as $id) {
+                        $owned[(int) $id] = true;
+                    }
+                }
+            }
+        }
+
+        return $owned;
+    }
+
+    /**
+     * Защита от дублей: синхронизирует/очищает три колоды специалистов.
+     * - удаляет карты, которые уже у игроков;
+     * - удаляет дубли внутри колод;
+     * - удаляет дубли между колодами (приоритет: main > intermediate > discard).
+     */
+    private function sanitizeSpecialistDeckState(): void
+    {
+        $owned = $this->getOwnedSpecialistIdsMap();
+        $seen = [];
+
+        $sanitizeOne = function (array $ids) use (&$seen, $owned): array {
+            $out = [];
+            foreach ($ids as $rawId) {
+                $id = (int) $rawId;
+                if (isset($owned[$id])) {
+                    continue; // карта уже у игрока / нанята
+                }
+                if (isset($seen[$id])) {
+                    continue; // дубль в пределах/между колодами
+                }
+                $seen[$id] = true;
+                $out[] = $id;
+            }
+            return $out;
+        };
+
+        $main = $sanitizeOne($this->getMainDeck());
+        $intermediate = $sanitizeOne($this->getIntermediateDeck());
+        $discard = $sanitizeOne($this->getDiscardPile());
+
+        $this->setMainDeck($main);
+        $this->setIntermediateDeck($intermediate);
+        $this->setDiscardPile($discard);
+    }
+
+    /**
      * Берет карты из активной колоды (основной или промежуточной)
      * Автоматически переключается между колодами при необходимости
      * @param int $count Количество карт для взятия
@@ -4290,6 +4508,9 @@ class Game extends \Bga\GameFramework\Table
             error_log('drawFromActiveDeck - specialist_main_deck not initialized, initializing specialist decks now...');
             $this->initSpecialistDecks();
         }
+
+        // ВАЖНО: перед взятием гарантируем консистентность колод и отсутствие дублей.
+        $this->sanitizeSpecialistDeckState();
 
         $drawnCards = [];
         
@@ -4385,12 +4606,56 @@ class Game extends \Bga\GameFramework\Table
      */
     public function dealSpecialistCards(int $playerId, int $count): array
     {
-        // Берем карты из активной колоды
-        $drawnCardIds = $this->drawFromActiveDeck($count);
-        
-        if (empty($drawnCardIds)) {
+        if ($count <= 0) {
+            return [];
+        }
+
+        // Берём карты из активной колоды.
+        // Доп. защита: если по какой-то причине пришли дубли ID, добираем недостающее количество уникальных.
+        $drawnCardIdsRaw = $this->drawFromActiveDeck($count);
+        if (empty($drawnCardIdsRaw)) {
             error_log("dealSpecialistCards - ERROR: No cards available for player $playerId");
             return [];
+        }
+
+        $uniqueIdsMap = [];
+        $drawnCardIds = [];
+        foreach ($drawnCardIdsRaw as $rawId) {
+            $id = (int) $rawId;
+            if ($id <= 0 || isset($uniqueIdsMap[$id])) {
+                continue;
+            }
+            $uniqueIdsMap[$id] = true;
+            $drawnCardIds[] = $id;
+        }
+
+        if (count($drawnCardIds) !== count($drawnCardIdsRaw)) {
+            error_log("dealSpecialistCards - WARNING: Duplicate IDs were drawn and filtered. raw=" . count($drawnCardIdsRaw) . ", unique=" . count($drawnCardIds));
+        }
+
+        // Добираем до нужного количества уникальных (с защитой от бесконечного цикла).
+        $safety = 10;
+        while (count($drawnCardIds) < $count && $safety-- > 0) {
+            $need = $count - count($drawnCardIds);
+            $moreRaw = $this->drawFromActiveDeck($need);
+            if (empty($moreRaw)) {
+                break;
+            }
+            foreach ($moreRaw as $rawId) {
+                $id = (int) $rawId;
+                if ($id <= 0 || isset($uniqueIdsMap[$id])) {
+                    continue;
+                }
+                $uniqueIdsMap[$id] = true;
+                $drawnCardIds[] = $id;
+                if (count($drawnCardIds) >= $count) {
+                    break;
+                }
+            }
+        }
+
+        if (count($drawnCardIds) < $count) {
+            error_log("dealSpecialistCards - WARNING: Could only deal " . count($drawnCardIds) . " unique cards instead of $count to player $playerId");
         }
         
         // Получаем полные данные карт по ID

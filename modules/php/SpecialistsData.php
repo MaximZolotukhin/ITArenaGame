@@ -585,7 +585,7 @@ class SpecialistsData
             'name' => 'Тимур', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 2'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 2Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -603,7 +603,7 @@ class SpecialistsData
             'name' => 'Мирон', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -621,7 +621,7 @@ class SpecialistsData
             'name' => 'Дарья', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 2'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 2Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -639,7 +639,7 @@ class SpecialistsData
             'name' => 'Макар', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -657,7 +657,7 @@ class SpecialistsData
             'name' => 'Майя', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 2'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 2Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -675,7 +675,7 @@ class SpecialistsData
             'name' => 'Пьер', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -693,7 +693,7 @@ class SpecialistsData
             'name' => 'Виктор', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 2'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 2Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -711,7 +711,7 @@ class SpecialistsData
             'name' => 'Влада', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -729,7 +729,7 @@ class SpecialistsData
             'name' => 'Лейла', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Консультант по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 5'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 5Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -747,7 +747,7 @@ class SpecialistsData
             'name' => 'Константин', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -765,7 +765,7 @@ class SpecialistsData
             'name' => 'Мария', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Консультант по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 5'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 5Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -783,7 +783,7 @@ class SpecialistsData
             'name' => 'Роман', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -801,7 +801,7 @@ class SpecialistsData
             'name' => 'Софья', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Менеджер по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -819,7 +819,7 @@ class SpecialistsData
             'name' => 'Олеся', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'CRM–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 2'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любые 2 задачи и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -837,7 +837,7 @@ class SpecialistsData
             'name' => 'Евгения', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'IT–продюсер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 2'], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Возьмите любые 2 задачи и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -855,7 +855,7 @@ class SpecialistsData
             'name' => 'Энтони', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'BI–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 5, 'move_color' => 'purple']], // Эффект — фиолетовые жетоны, до 5 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте фиолетовые жетоны задач на 5 этапов по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -873,7 +873,7 @@ class SpecialistsData
             'name' => 'Арсений', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Frontend–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 5, 'move_color' => 'pink']], // Эффект — розовые жетоны, до 5 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте розовые жетоны задач на 5 этапов по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -891,7 +891,7 @@ class SpecialistsData
             'name' => 'Марк', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Веб–аналитик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 5, 'move_color' => 'orange']], // Эффект — оранжевые жетоны, до 5 шагов
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Передвиньте оранжевые жетоны задач на 5 этапов по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -909,7 +909,7 @@ class SpecialistsData
             'name' => 'Артур', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Антикризисный управляющий', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 2'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите любые 2 задачи и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -927,7 +927,7 @@ class SpecialistsData
             'name' => 'Николь', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Аккаунт–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task' => '+ 2'], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Возьмите любые 2 задачи и отправьте в "Бэклог" на треке спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -945,7 +945,7 @@ class SpecialistsData
             'name' => 'Всеволод', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Инновационный менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ["move_task" => ['move_count' => 5, 'move_color' => 'cyan']], // Эффект — голубые жетоны, до 5 шагов
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Передвиньте голубые жетоны задач на 5 этапов по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -963,7 +963,7 @@ class SpecialistsData
             'name' => 'Михаил', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Брокер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 3'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 3Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -981,7 +981,7 @@ class SpecialistsData
             'name' => 'Есения', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Оператор чата', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 3'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 3Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -999,7 +999,7 @@ class SpecialistsData
             'name' => 'Арина', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Маркетплейсер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 3'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 3Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1017,7 +1017,7 @@ class SpecialistsData
             'name' => 'Давид', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Оператор коллцентра', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 3'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 3Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1035,7 +1035,7 @@ class SpecialistsData
             'name' => 'Матвей', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Продавец–консультант', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 3'], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Возьмите 3Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1053,7 +1053,7 @@ class SpecialistsData
             'name' => 'Анна', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Персональный ассистент', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card' => '+ 4'], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Возьмите 4 карты из колоды найма', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1071,7 +1071,7 @@ class SpecialistsData
             'name' => 'Алия', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Оператор техподдержки', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1089,7 +1089,7 @@ class SpecialistsData
             'name' => 'Вячеслав', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'IT–специалист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1107,7 +1107,11 @@ class SpecialistsData
             'name' => 'Юлия', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Бизнес–аналитик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'updateTrack' => [
+                    ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
+                ]
+            ], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек найма в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1125,7 +1129,7 @@ class SpecialistsData
             'name' => 'Филипп', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Бизнес–тренер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 6'], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Возьмите 6Б из банка', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1143,7 +1147,7 @@ class SpecialistsData
             'name' => 'Амалия', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Персональный ассистент', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1161,7 +1165,7 @@ class SpecialistsData
             'name' => 'Юрий', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Персональный ассистент', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1179,7 +1183,7 @@ class SpecialistsData
             'name' => 'Богдан', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Системный аналитик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'orange-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 оранжевый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1197,7 +1201,7 @@ class SpecialistsData
             'name' => 'Лев', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'GR–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cyan-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 голубой трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1215,7 +1219,7 @@ class SpecialistsData
             'name' => 'Руслан', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Экспедитор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentSales' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'universal', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1233,7 +1237,7 @@ class SpecialistsData
             'name' => 'Денис', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Специалист по кибербезопасности', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1251,7 +1255,7 @@ class SpecialistsData
             'name' => 'Фёдор', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Embedded–программист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'purple-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 фиолетовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1269,7 +1273,7 @@ class SpecialistsData
             'name' => 'Ярослав', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Fullstack–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'pink-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 розовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1287,7 +1291,7 @@ class SpecialistsData
             'name' => 'Валерия', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Веб–дизайнер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'orange-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 оранжевый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1305,7 +1309,7 @@ class SpecialistsData
             'name' => 'Даниэль', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Архитектор баз данных', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'purple-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Улучшите на 1 фиолетовый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1323,7 +1327,7 @@ class SpecialistsData
             'name' => 'Ева', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Арт–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrack' => [['track' => 'player-department-back-office-evolution-column-3', 'amount' => '+ 1']]], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1341,7 +1345,7 @@ class SpecialistsData
             'name' => 'Лея', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Инновационный менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'cyan-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 голубой трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1359,7 +1363,7 @@ class SpecialistsData
             'name' => 'Иван', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Продукт–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentTechnical' => [['track' => 'orange-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт оранжевый трек в техотделе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1377,7 +1381,7 @@ class SpecialistsData
             'name' => 'Владимир', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Юрист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1395,7 +1399,7 @@ class SpecialistsData
             'name' => 'Василиса', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Бухгалтер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'back-office', // Отдел
             'effectDescription' => 'Улучшите на 1 пункт трек задач в бэк–офисе', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1413,7 +1417,7 @@ class SpecialistsData
             'name' => 'Розалин', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Консультант по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentSales' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1431,7 +1435,7 @@ class SpecialistsData
             'name' => 'Савелий', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Трафик–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1449,7 +1453,7 @@ class SpecialistsData
             'name' => 'Злата', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Таргетолог', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1467,7 +1471,7 @@ class SpecialistsData
             'name' => 'Алина', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Директолог', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackSprints' => [['amount' => '+ 1']]], // Трек спринта (sprint-column-tasks) +1
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1485,7 +1489,7 @@ class SpecialistsData
             'name' => 'Георгий', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Консультант по продажам', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['updateTrackDepartmentSales' => [['track' => 'income-track', 'amount' => '+ 1']]], // Эффект
             'department' => 'sales-department', // Отдел
             'effectDescription' => 'Улучшите на 1 трек дохода в отделе продаж', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1611,7 +1615,9 @@ class SpecialistsData
             'name' => 'Мила', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'IT–евангелист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => [
+                'hire_from_hand' => 1,
+            ],
             'department' => 'technical-department', // Отдел
             'effectDescription' => 'Наймите 1 дополнительную карту сотрудника с руки, заплатив ее стоимость', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер

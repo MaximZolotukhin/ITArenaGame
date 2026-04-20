@@ -35,9 +35,40 @@ class RoundHiring extends GameState
 
     public function getArgs(): array
     {
-        $activePlayerId = (int) $this->game->getActivePlayerId();
+        $activePlayerIdRaw = $this->game->getActivePlayerId();
+        if ($activePlayerIdRaw === null) {
+            // Иногда при редиректе в состояние активный игрок может быть не установлен.
+            // В этом случае выбираем следующего игрока, чтобы не работать с player_id=0.
+            $this->game->activeNextPlayer();
+            $activePlayerIdRaw = $this->game->getActivePlayerId();
+        }
+        $activePlayerId = (int) $activePlayerIdRaw;
+        if ($activePlayerId <= 0) {
+            // Безопасный возврат: не даём состоянию уронить весь запрос из-за отсутствия active player.
+            // UI всё равно не сможет корректно отрисовать фазу без playerId.
+            return [
+                'phaseKey' => 'hiring',
+                'phaseName' => $this->game->getPhaseName('hiring'),
+                'currentRoundPlayerOrder' => $this->game->getCurrentRoundPlayerOrder(),
+                'hiringTrackValue' => 0,
+                'recruitingDone' => false,
+                'hiringTrackHire' => 0,
+                'badgers' => 0,
+                'handCardsWithPrices' => [],
+                'maxHireCount' => 0,
+                'hiringConfirmed' => false,
+                'hiringHiredCount' => 0,
+                'pendingTaskSelection' => null,
+                'pendingTaskMoves' => null,
+            ];
+        }
+
         $this->game->initPlayerGameData($activePlayerId);
         $gameData = $this->game->getPlayerGameData($activePlayerId);
+        if (!is_array($gameData)) {
+            // Доп. защита от повреждённых/неинициализированных данных.
+            $gameData = [];
+        }
         $hiringTrackValue = $this->game->getHiringTrackValue($activePlayerId);
         $recruitingDone = $this->game->globals->get('hiring_recruiting_done_' . $activePlayerId, '') === '1';
         $hiringTrackHire = $this->game->getHiringTrackHireCount($activePlayerId);
@@ -102,7 +133,7 @@ class RoundHiring extends GameState
             'hiringTrackHire' => $hiringTrackHire,
             'badgers' => $badgers,
             'handCardsWithPrices' => $handCardsWithPrices,
-            'maxHireCount' => $hiringTrackHire,
+            'maxHireCount' => $this->game->getEffectiveHiringMaxCount($activePlayerId),
             'hiringConfirmed' => $hiringConfirmed,
             'hiringHiredCount' => $hiringHiredCount,
             'pendingTaskSelection' => $pendingTaskSelection,
@@ -113,21 +144,38 @@ class RoundHiring extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'hiring');
-        $activePlayerId = (int) $this->game->getActivePlayerId();
+        $activePlayerIdRaw = $this->game->getActivePlayerId();
+        if ($activePlayerIdRaw === null) {
+            $this->game->activeNextPlayer();
+            $activePlayerIdRaw = $this->game->getActivePlayerId();
+        }
+        $activePlayerId = (int) $activePlayerIdRaw;
+        if ($activePlayerId <= 0) {
+            // Нечего инициализировать; дадим фреймворку шанс выставить активного игрока позже.
+            error_log('RoundHiring::onEnteringState - WARNING: invalid activePlayerId=' . $activePlayerId);
+            return null;
+        }
         $this->game->globals->delete('hiring_confirmed_' . $activePlayerId);
         $this->game->globals->set('hiring_hired_count_' . $activePlayerId, '0');
+        $this->game->resetHiringBonusHireSlots($activePlayerId);
         // Сбрасываем ожидание выбора задач при входе в фазу найма — блокировка только после найма карты с эффектом task
         $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
         $this->game->ensureSpecialistDeckInitialized();
 
         // Этап «собеседование»: при входе в фазу найма выдаём игроку hiringTrackInterview карт из колоды
         $gameData = $this->game->getPlayerGameData($activePlayerId);
+        if (!is_array($gameData)) {
+            $gameData = [];
+        }
         $count = (int) ($gameData['hiringTrackInterview'] ?? 0);
         if ($count > 0) {
             $drawn = $this->game->drawFromActiveDeck($count);
             if (!empty($drawn)) {
                 $this->game->addSpecialistCardsToPlayerSpecialists($activePlayerId, $drawn);
                 $gameDataAfter = $this->game->getPlayerGameData($activePlayerId);
+                if (!is_array($gameDataAfter)) {
+                    $gameDataAfter = [];
+                }
                 $handIds = $gameDataAfter['playerSpecialists'] ?? [];
                 $handIds = is_array($handIds) ? array_map('intval', $handIds) : [];
                 $handCardsWithPrices = [];
@@ -221,7 +269,7 @@ class RoundHiring extends GameState
     {
         $this->game->checkAction('actHireOneSpecialist');
         $playerId = (int) $this->game->getActivePlayerId();
-        $maxHire = $this->game->getHiringTrackHireCount($playerId);
+        $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
         $hiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $playerId, '0');
         if ($hiredCount >= $maxHire) {
             throw new UserException(clienttranslate('You cannot hire more specialists this phase'));
@@ -246,8 +294,15 @@ class RoundHiring extends GameState
         if (isset($card['effect']) && $card['effect'] !== null && is_array($card['effect'])) {
             $appliedEffects = $this->game->applySpecialistEffect($playerId, (int) $cardId);
         }
+        $this->game->applyHiringPhaseEffectBonuses($playerId, $appliedEffects);
+        $bonusHireFromHand = 0;
+        foreach ($appliedEffects as $eff) {
+            if (is_array($eff) && ($eff['type'] ?? '') === 'hire_from_hand') {
+                $bonusHireFromHand += (int) ($eff['amount'] ?? 0);
+            }
+        }
         $price = (int) ($card['price'] ?? 0);
-        $maxHire = $this->game->getHiringTrackHireCount($playerId);
+        $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
         $pendingTaskSelection = null;
         $pendingTaskMoves = null;
         foreach ($appliedEffects as $eff) {
@@ -280,6 +335,14 @@ class RoundHiring extends GameState
             'pendingTaskSelection' => $pendingTaskSelection,
             'i18n' => ['badgers'],
         ]);
+        if ($bonusHireFromHand > 0) {
+            $this->notify->player($playerId, 'hiringBonusAvailable', '', [
+                'player_id' => $playerId,
+                'amount' => $bonusHireFromHand,
+                'source_name' => $card['name'] ?? '',
+                'maxHireCount' => $maxHire,
+            ]);
+        }
         if ($pendingTaskSelection !== null) {
             $this->notify->player($playerId, 'taskSelectionRequired', '', [
                 'player_id' => $playerId,
@@ -329,7 +392,7 @@ class RoundHiring extends GameState
         }
 
         $selectedCardIds = array_map('intval', array_values($selectedCardIds));
-        $maxHire = $this->game->getHiringTrackHireCount($playerId);
+        $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
 
         if (count($selectedCardIds) > $maxHire) {
             throw new UserException(
@@ -373,6 +436,13 @@ class RoundHiring extends GameState
                     $allAppliedEffects = array_merge($allAppliedEffects, $this->game->applySpecialistEffect($playerId, (int) $cid));
                 }
             }
+            $this->game->applyHiringPhaseEffectBonuses($playerId, $allAppliedEffects);
+            $bonusHireFromHand = 0;
+            foreach ($allAppliedEffects as $eff) {
+                if (is_array($eff) && ($eff['type'] ?? '') === 'hire_from_hand') {
+                    $bonusHireFromHand += (int) ($eff['amount'] ?? 0);
+                }
+            }
             $taskAmountSum = 0;
             $pendingTaskMoves = null;
             foreach ($allAppliedEffects as $eff) {
@@ -401,7 +471,7 @@ class RoundHiring extends GameState
                     'founder_name' => $founderName,
                 ];
             }
-            $maxHire = $this->game->getHiringTrackHireCount($playerId);
+            $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
                 'player_id' => $playerId,
                 'player_name' => $this->game->getPlayerNameById($playerId),
@@ -417,6 +487,15 @@ class RoundHiring extends GameState
                 'pendingTaskSelection' => $pendingTaskSelection,
                 'i18n' => ['badgers'],
             ]);
+            if ($bonusHireFromHand > 0) {
+                // В пакетном найме может быть несколько карт с эффектом — источник не привязываем к одной карте
+                $this->notify->player($playerId, 'hiringBonusAvailable', '', [
+                    'player_id' => $playerId,
+                    'amount' => $bonusHireFromHand,
+                    'source_name' => '',
+                    'maxHireCount' => $maxHire,
+                ]);
+            }
             if ($pendingTaskSelection !== null) {
                 $this->notify->player($playerId, 'taskSelectionRequired', '', [
                     'player_id' => $playerId,
