@@ -199,8 +199,8 @@ class SpecialistSelection extends GameState
         
         // ВАЖНО: Проверяем, что получили 7 карт, а не 3
         if (count($handCards) !== self::CARDS_TO_DEAL && count($handCards) > 0) {
-            error_log('⚠️ SpecialistSelection::getArgs - WARNING: Expected ' . self::CARDS_TO_DEAL . ' cards, but got ' . count($handCards) . ' for player ' . $activePlayerId);
-            error_log('⚠️ SpecialistSelection::getArgs - Hand card IDs count: ' . count($handCardIds));
+            error_log('SpecialistSelection::getArgs - WARNING: Expected ' . self::CARDS_TO_DEAL . ' cards, but got ' . count($handCards) . ' for player ' . $activePlayerId);
+            error_log('SpecialistSelection::getArgs - Hand card IDs count: ' . count($handCardIds));
         }
         
         // Получаем выбранные карты (если есть) - массив ID
@@ -405,54 +405,8 @@ class SpecialistSelection extends GameState
         error_log('SpecialistSelection::actConfirmSpecialists - Selected cards: ' . count($keptCardIds));
         error_log('SpecialistSelection::actConfirmSpecialists - Total cards after merge: ' . count($allSpecialistIds));
 
-        // Применяем эффекты выбранных специалистов (стартовые 3 карты должны сразу сработать).
-        // ВАЖНО: не применяем повторно эффекты карт, которые уже были у игрока (например, выданы эффектом основателя ранее).
-        $existingMap = [];
-        foreach ($existingSpecialistIds as $eid) {
-            $existingMap[(int) $eid] = true;
-        }
-        $appliedEffects = [];
-        foreach (array_values(array_unique(array_map('intval', $keptCardIds))) as $cid) {
-            if (isset($existingMap[$cid])) {
-                continue;
-            }
-            $appliedEffects = array_merge($appliedEffects, $this->game->applySpecialistEffect($activePlayerId, $cid));
-        }
-
-        // Уведомления для UI (баджерсы/треки). Формат совпадает с уведомлениями эффектов основателей.
-        foreach ($appliedEffects as $effect) {
-            $effectType = $effect['type'] ?? null;
-            if ($effectType === 'badger') {
-                $this->notify->all('badgersChanged', '', [
-                    'player_id' => $activePlayerId,
-                    'amount' => (int) ($effect['amount'] ?? 0),
-                    'oldValue' => (int) ($effect['oldValue'] ?? 0),
-                    'newValue' => (int) ($effect['newValue'] ?? 0),
-                    'founder_name' => $effect['founderName'] ?? ($effect['founder_name'] ?? ($effect['specialistName'] ?? '')),
-                    'i18n' => [],
-                ]);
-            } elseif ($effectType === 'updateTrack' && isset($effect['tracks']) && is_array($effect['tracks'])) {
-                foreach ($effect['tracks'] as $trackUpdate) {
-                    if (!is_array($trackUpdate)) {
-                        continue;
-                    }
-                    $trackId = $trackUpdate['trackId'] ?? null;
-                    if ($trackId === null || $trackId === '') {
-                        continue;
-                    }
-                    $this->notify->all('visualTrackChanged', '', [
-                        'player_id' => $activePlayerId,
-                        'track_id' => $trackId,
-                        'track_name' => $trackUpdate['trackName'] ?? $trackId,
-                        'amount' => (int) ($trackUpdate['amount'] ?? 0),
-                        'founder_name' => $effect['founderName'] ?? ($effect['founder_name'] ?? ($effect['specialistName'] ?? '')),
-                        'oldValue' => (int) ($trackUpdate['oldValue'] ?? 0),
-                        'newValue' => (int) ($trackUpdate['newValue'] ?? 0),
-                        'i18n' => [],
-                    ]);
-                }
-            }
-        }
+        // ВАЖНО: эффекты специалистов НЕ должны срабатывать при попадании карт "в руку"/на планшет.
+        // Эффекты применяются только при найме специалиста в отдел (фаза Hiring).
         
         // Добавляем сброшенные карты в стопку сброса через метод Game
         $this->game->addToDiscardPile(array_values($discardedCardIds));
@@ -498,44 +452,8 @@ class SpecialistSelection extends GameState
         // Сохраняем выбранные ID через метод Game (globals + SQL)
         $this->game->addSpecialistCardsToPlayerSpecialists($playerId, $keptCardIds);
 
-        // Применяем эффекты выбранных карт для зомби-игрока (аналогично actConfirmSpecialists)
-        $appliedEffects = [];
-        foreach (array_values(array_unique(array_map('intval', $keptCardIds))) as $cid) {
-            $appliedEffects = array_merge($appliedEffects, $this->game->applySpecialistEffect($playerId, $cid));
-        }
-        foreach ($appliedEffects as $effect) {
-            $effectType = $effect['type'] ?? null;
-            if ($effectType === 'badger') {
-                $this->notify->all('badgersChanged', '', [
-                    'player_id' => $playerId,
-                    'amount' => (int) ($effect['amount'] ?? 0),
-                    'oldValue' => (int) ($effect['oldValue'] ?? 0),
-                    'newValue' => (int) ($effect['newValue'] ?? 0),
-                    'founder_name' => $effect['founderName'] ?? '',
-                    'i18n' => [],
-                ]);
-            } elseif ($effectType === 'updateTrack' && isset($effect['tracks']) && is_array($effect['tracks'])) {
-                foreach ($effect['tracks'] as $trackUpdate) {
-                    if (!is_array($trackUpdate)) {
-                        continue;
-                    }
-                    $trackId = $trackUpdate['trackId'] ?? null;
-                    if ($trackId === null || $trackId === '') {
-                        continue;
-                    }
-                    $this->notify->all('visualTrackChanged', '', [
-                        'player_id' => $playerId,
-                        'track_id' => $trackId,
-                        'track_name' => $trackUpdate['trackName'] ?? $trackId,
-                        'amount' => (int) ($trackUpdate['amount'] ?? 0),
-                        'founder_name' => $effect['founderName'] ?? '',
-                        'oldValue' => (int) ($trackUpdate['oldValue'] ?? 0),
-                        'newValue' => (int) ($trackUpdate['newValue'] ?? 0),
-                        'i18n' => [],
-                    ]);
-                }
-            }
-        }
+        // ВАЖНО: эффекты специалистов НЕ должны срабатывать при выборе/получении карт.
+        // Эффекты применяются только при найме специалиста в отдел (фаза Hiring).
         
         // Добавляем сброшенные в стопку сброса через метод Game
         $this->game->addToDiscardPile($discardedCardIds);

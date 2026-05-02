@@ -1765,6 +1765,8 @@ class Game extends \Bga\GameFramework\Table
      */
     private function getEffectHandler(string $effectType): ?EffectHandlerInterface
     {
+        self::ensureEffectHandlersLoaded();
+
         // Сначала проверяем специальные обработчики (включая updateTrack и updateTrackDepartmentTechnical)
         $specialHandler = match ($effectType) {
             'badger' => new BadgerEffectHandler($this),
@@ -1774,6 +1776,43 @@ class Game extends \Bga\GameFramework\Table
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentSales' => new UpdateTrackEffectHandler($this),
+            'hire_from_hand' => new class implements EffectHandlerInterface {
+                public function apply(int $playerId, mixed $effectValue, array $cardData): array
+                {
+                    $amount = $this->parsePositiveAmount($effectValue);
+                    if ($amount <= 0) {
+                        return [
+                            'type' => 'hire_from_hand',
+                            'amount' => 0,
+                            'message' => 'Дополнительный найм: некорректное значение эффекта',
+                        ];
+                    }
+
+                    return [
+                        'type' => 'hire_from_hand',
+                        'amount' => $amount,
+                        'sourceName' => $cardData['name'] ?? '',
+                        'message' => 'Дополнительный найм с руки: +' . $amount . ' слот(а) в этой фазе',
+                    ];
+                }
+
+                private function parsePositiveAmount(mixed $effectValue): int
+                {
+                    if (is_int($effectValue) || is_float($effectValue)) {
+                        return max(0, (int) $effectValue);
+                    }
+                    $effectValueStr = trim((string) $effectValue);
+                    $cleanValue = str_replace(' ', '', $effectValueStr);
+                    if (preg_match('/^([+-]?)(\d+)$/', $cleanValue, $matches)) {
+                        $sign = $matches[1] === '-' ? -1 : 1;
+                        $n = $sign * (int) $matches[2];
+
+                        return max(0, $n);
+                    }
+
+                    return max(0, (int) $cleanValue);
+                }
+            },
             default => null,
         };
         
@@ -1837,6 +1876,19 @@ class Game extends \Bga\GameFramework\Table
      */
     public function applySpecialistEffect(int $playerId, int $cardId): array
     {
+        // Защита от критического бага: эффекты специалистов должны срабатывать ТОЛЬКО
+        // когда специалист уже нанят и добавлен в один из отделов, а не при получении "в руку".
+        if (!$this->isSpecialistCardHiredByPlayer($playerId, $cardId)) {
+            return [];
+        }
+
+        // Защита от повторного срабатывания: один и тот же специалист не должен давать эффект повторно,
+        // даже если applySpecialistEffect будет вызван несколько раз для уже нанятой карты.
+        $appliedKey = 'specialist_effect_applied_' . $playerId . '_' . (int) $cardId;
+        if ($this->globals->get($appliedKey, '') === '1') {
+            return [];
+        }
+
         $card = SpecialistsData::getCard($cardId);
         if ($card === null) {
             error_log("applySpecialistEffect - Specialist card not found: $cardId");
@@ -1868,7 +1920,34 @@ class Game extends \Bga\GameFramework\Table
                 $appliedEffects[] = $result;
             }
         }
+
+        if (!empty($appliedEffects)) {
+            $this->globals->set($appliedKey, '1');
+        }
         return $appliedEffects;
+    }
+
+    /**
+     * Проверяет, что карта специалиста уже находится среди нанятых специалистов игрока (в отделах).
+     */
+    private function isSpecialistCardHiredByPlayer(int $playerId, int $cardId): bool
+    {
+        $cardId = (int) $cardId;
+        if ($cardId <= 0) {
+            return false;
+        }
+        $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
+        foreach ($hiredByDept as $ids) {
+            if (!is_array($ids)) {
+                continue;
+            }
+            foreach ($ids as $id) {
+                if ((int) $id === $cardId) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -4288,6 +4367,21 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Подгружает классы обработчиков эффектов (турнирный сервер может не автозагружать подпапки).
+     */
+    private static function ensureEffectHandlersLoaded(): void
+    {
+        $dir = __DIR__ . '/Effects';
+        require_once $dir . '/EffectHandlerInterface.php';
+        require_once $dir . '/BadgerEffectHandler.php';
+        require_once $dir . '/CardEffectHandler.php';
+        require_once $dir . '/TaskEffectHandler.php';
+        require_once $dir . '/MoveTaskEffectHandler.php';
+        require_once $dir . '/TrackEffectHandler.php';
+        require_once $dir . '/UpdateTrackEffectHandler.php';
+    }
+
+    /**
      * Инициализирует основную колоду специалистов всеми 110 картами
      */
     public function initSpecialistDecks(): void
@@ -4817,6 +4911,54 @@ class Game extends \Bga\GameFramework\Table
         $hiringTrack = $this->mapHiringTrackFromPosition($position);
         $hire = (int) $hiringTrack['hire'];
         return max(3, $hire);
+    }
+
+    /**
+     * Сколько специалистов игрок может нанять в этой фазе с учётом временных бонусов (например, эффектов hire_from_hand).
+     * Базовое значение берётся из getHiringTrackHireCount(); бонусные слоты хранятся в globals и сбрасываются в начале фазы.
+     */
+    public function getEffectiveHiringMaxCount(int $playerId): int
+    {
+        $base = $this->getHiringTrackHireCount($playerId);
+        $bonus = (int) $this->globals->get('hiring_bonus_hire_slots_' . $playerId, '0');
+        return max(0, $base + max(0, $bonus));
+    }
+
+    /**
+     * Сбрасывает временные бонусные слоты найма на фазу (вызывается при входе в фазу Hiring).
+     */
+    public function resetHiringBonusHireSlots(int $playerId): void
+    {
+        $this->globals->set('hiring_bonus_hire_slots_' . $playerId, '0');
+    }
+
+    /**
+     * Применяет эффекты, влияющие на фазу найма (например, +N слотов найма в этой фазе).
+     * Ожидает массив результатов эффекта вида ['type' => 'hire_from_hand', 'amount' => N, ...].
+     */
+    public function applyHiringPhaseEffectBonuses(int $playerId, array $appliedEffects): void
+    {
+        if (empty($appliedEffects)) {
+            return;
+        }
+
+        $bonus = 0;
+        foreach ($appliedEffects as $eff) {
+            if (!is_array($eff)) {
+                continue;
+            }
+            if (($eff['type'] ?? '') === 'hire_from_hand') {
+                $bonus += (int) ($eff['amount'] ?? 0);
+            }
+        }
+
+        if ($bonus <= 0) {
+            return;
+        }
+
+        $key = 'hiring_bonus_hire_slots_' . $playerId;
+        $current = (int) $this->globals->get($key, '0');
+        $this->globals->set($key, (string) max(0, $current + $bonus));
     }
 
     /**
