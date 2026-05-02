@@ -6664,6 +6664,65 @@ define([
 
       panelBody.innerHTML = html
     },
+    /**
+     * Победные очки (как на сервере): каждые 3 баджерса = 1 ПО;
+     * сумма victoryPoints по нанятым специалистам (playerHiredSpecialists);
+     * victoryPoints карты основателя.
+     */
+    _computeVictoryPointsForPlayer: function (playerId) {
+      const pid = Number(playerId)
+      if (!pid || !this.gamedatas?.players) {
+        return 0
+      }
+      const p =
+        this.gamedatas.players[pid] ||
+        this._findPlayerData(this.gamedatas.players, pid)
+      if (!p) {
+        return 0
+      }
+      const badgers = Math.max(0, parseInt(String(p.badgers ?? 0), 10) || 0)
+      const fromBadgers = Math.floor(badgers / 3)
+
+      let fromSpecialists = 0
+      const hired = p.playerHiredSpecialists || {}
+      const seen = new Set()
+      const specialists = this.gamedatas.specialists
+      const findSpec = (id) => {
+        const n = Number(id)
+        if (!Array.isArray(specialists)) {
+          return null
+        }
+        return specialists.find((c) => Number(c && c.id) === n) || null
+      }
+      Object.keys(hired).forEach((dept) => {
+        const ids = hired[dept]
+        if (!Array.isArray(ids)) {
+          return
+        }
+        ids.forEach((cid) => {
+          if (seen.has(cid)) {
+            return
+          }
+          seen.add(cid)
+          const card = findSpec(cid)
+          if (card) {
+            fromSpecialists += parseInt(
+              String(card.victoryPoints ?? 0),
+              10,
+            ) || 0
+          }
+        })
+      })
+
+      let fromFounder = 0
+      const founder = p.founder || this.gamedatas.founders?.[pid]
+      if (founder) {
+        fromFounder =
+          parseInt(String(founder.victoryPoints ?? 0), 10) || 0
+      }
+
+      return fromBadgers + fromSpecialists + fromFounder
+    },
     _renderPlayerMoney: function (players, targetPlayerId, overrideAmount) {
       const panelBody = document.querySelector('.player-money-panel__body')
       if (!panelBody) {
@@ -6762,6 +6821,12 @@ define([
 
       this._updatePlayerBoardImage(color)
 
+      const vpTotal = this._computeVictoryPointsForPlayer(playerId)
+      const vpDetail =
+        typeof vpTotal === 'number' && Number.isFinite(vpTotal)
+          ? Math.max(0, Math.floor(vpTotal))
+          : 0
+
       // ВАЖНО: Полностью заменяем содержимое, чтобы убрать старые данные
       panelBody.innerHTML = `
         <div class="player-money-panel__balance">
@@ -6769,6 +6834,12 @@ define([
             coinData?.name || _('Баджерсы')
           }" class="player-money-panel__icon" />
           <span class="player-money-panel__amount">${amount}</span>
+        </div>
+        <div class="player-money-panel__vp" title="${_(
+          'Победные очки: 3 баджерса = 1 ПО; карты нанятых специалистов и основателя',
+        )}">
+          <span class="player-money-panel__vp-label">${_('Победа')}</span>
+          <span class="player-money-panel__vp-value">${vpDetail}</span>
         </div>
       `
       console.log(

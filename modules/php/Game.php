@@ -663,7 +663,10 @@ class Game extends \Bga\GameFramework\Table
                 $player['itProjectBonuses'] = [];
                 $player['gameGoals'] = [];
             }
-            
+
+            $vpBreakdown = $this->getVictoryPointsBreakdown($playerId);
+            $player['victoryPoints'] = $vpBreakdown['total'];
+            $player['victoryPointsBreakdown'] = $vpBreakdown;
         }
         unset($player);
 
@@ -851,6 +854,10 @@ class Game extends \Bga\GameFramework\Table
                 'itProjectBonuses' => $itProjectBonuses,
                 'gameGoals' => $gameGoals,
             ];
+
+            $vpBreakdown = $this->getVictoryPointsBreakdown($playerId);
+            $initialValues[$playerId]['victoryPoints'] = $vpBreakdown['total'];
+            $initialValues[$playerId]['victoryPointsBreakdown'] = $vpBreakdown;
             
             // ВЫВОДИМ ВСЕ НАЧАЛЬНЫЕ ЗНАЧЕНИЯ ДЛЯ КАЖДОГО ИГРОКА В error_log
             error_log('--- Игрок ' . $playerId . ' ---');
@@ -3195,6 +3202,62 @@ class Game extends \Bga\GameFramework\Table
         }
         $currentHired[$dept][] = $cardId;
         $this->setPlayerHiredSpecialists($playerId, $currentHired);
+    }
+
+    /** Сколько баджерсов даёт одно победное очко при финальном подсчёте. */
+    public const BADGERS_PER_VICTORY_POINT = 3;
+
+    /**
+     * Победные очки: баджерсы на руках (каждые 3 = 1 ПО) + victoryPoints нанятых специалистов + основатель (если выбран).
+     * Специалисты: только карты из найма (player_hired_specialists), не рука и не выдача эффектом на стол без найма.
+     *
+     * @return array{
+     *   total: int,
+     *   fromBadgers: int,
+     *   badgersCount: int,
+     *   fromSpecialistCards: int,
+     *   fromFounder: int,
+     *   specialistCardIds: array<int>
+     * }
+     */
+    public function getVictoryPointsBreakdown(int $playerId): array
+    {
+        $badgersCount = $this->getPlayerBadgersForCheck($playerId);
+        $fromBadgers = intdiv($badgersCount, self::BADGERS_PER_VICTORY_POINT);
+
+        $fromSpecialistCards = 0;
+        $specialistCardIds = [];
+        $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
+        foreach ($hiredByDept as $ids) {
+            foreach ($ids as $cid) {
+                $cid = (int) $cid;
+                $specialistCardIds[$cid] = true;
+            }
+        }
+        foreach (array_keys($specialistCardIds) as $cid) {
+            $card = SpecialistsData::getCard($cid);
+            if ($card !== null) {
+                $fromSpecialistCards += (int) ($card['victoryPoints'] ?? 0);
+            }
+        }
+        $specialistCardIdsList = array_keys($specialistCardIds);
+
+        $fromFounder = 0;
+        $founder = $this->getFounderForPlayer($playerId);
+        if ($founder !== null) {
+            $fromFounder = (int) ($founder['victoryPoints'] ?? 0);
+        }
+
+        $total = $fromBadgers + $fromSpecialistCards + $fromFounder;
+
+        return [
+            'total' => $total,
+            'fromBadgers' => $fromBadgers,
+            'badgersCount' => $badgersCount,
+            'fromSpecialistCards' => $fromSpecialistCards,
+            'fromFounder' => $fromFounder,
+            'specialistCardIds' => $specialistCardIdsList,
+        ];
     }
 
     /**
