@@ -136,7 +136,15 @@ class RoundSkills extends GameState
             ]);
         }
 
-        $effectResults = $this->game->applySkillEffects($playerId, $skillKey, false);
+        if ($skillKey === SkillsData::SKILL_DISCIPLINE) {
+            // Жетон уже выдан выше; не вызываем applySkillEffects: в SkillsData у «Дисциплины» есть
+            // effects.task → TaskEffectHandler записал бы pending_task_selection_ с именем навыка как
+            // founder_name; это не сбрасывается при завершении фазы навыков и ломает другие фазы (Найм).
+            $this->game->globals->set('pending_task_selection_' . $playerId, null);
+            $effectResults = [];
+        } else {
+            $effectResults = $this->game->applySkillEffects($playerId, $skillKey, false);
+        }
 
         // Уведомление о картах (Красноречие)
         foreach ($effectResults as $result) {

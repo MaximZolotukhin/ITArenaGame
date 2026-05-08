@@ -159,6 +159,13 @@ class Game extends \Bga\GameFramework\Table
                 'state' => \Bga\Games\itarenagame\States\RoundSales::class,
                 'transition' => 'toRoundSales',
             ],
+            [
+                'key' => 'sprint',
+                'number' => 5,
+                'name' => clienttranslate('Спринт'),
+                'state' => \Bga\Games\itarenagame\States\RoundSprint::class,
+                'transition' => 'toRoundSprint',
+            ],
         ];
     }
 
@@ -443,47 +450,9 @@ class Game extends \Bga\GameFramework\Table
         $result["players"] = $this->getCollectionFromDb(
             "SELECT `player_id` `id`, `player_score` `score`, `player_color` `color` FROM `player`"
         );
-        
-        // ВЫВОДИМ СТРУКТУРУ ТАБЛИЦЫ player (ВСЕ ПОЛЯ)
-        error_log('========================================');
-        error_log('=== СТРУКТУРА ТАБЛИЦЫ player (ВСЕ ПОЛЯ) ===');
-        error_log('========================================');
-        $tableStructure = $this->getCollectionFromDb("DESCRIBE `player`");
-        foreach ($tableStructure as $field) {
-            error_log('ПОЛЕ: ' . $field['Field'] . ' | ТИП: ' . $field['Type'] . ' | NULL: ' . $field['Null'] . ' | КЛЮЧ: ' . $field['Key'] . ' | ПО УМОЛЧАНИЮ: ' . ($field['Default'] ?? 'NULL') . ' | ДОПОЛНИТЕЛЬНО: ' . ($field['Extra'] ?? ''));
-        }
-        error_log('========================================');
-        error_log('');
-        
-        // ВЫВОДИМ ВСЕ ПОЛЯ ИЗ БД ДЛЯ КАЖДОГО ИГРОКА
-        error_log('========================================');
-        error_log('=== ВСЕ ПОЛЯ ИЗ БД ДЛЯ ИГРОКОВ ===');
-        error_log('========================================');
-        foreach ($result["players"] as $player) {
-            $playerId = (int)($player['id'] ?? 0);
-            error_log('');
-            error_log('========================================');
-            error_log('ИГРОК ' . $playerId . ' - ВСЕ ПОЛЯ ИЗ ТАБЛИЦЫ player:');
-            error_log('========================================');
-            
-            // Получаем ВСЕ поля из таблицы player
-            $allPlayerFields = $this->getObjectFromDb("
-                SELECT * FROM `player` WHERE `player_id` = $playerId
-            ");
-            
-            if ($allPlayerFields) {
-                // Выводим каждое поле на отдельной строке
-                foreach ($allPlayerFields as $fieldName => $fieldValue) {
-                    $valueStr = is_null($fieldValue) ? 'NULL' : (is_string($fieldValue) ? $fieldValue : var_export($fieldValue, true));
-                    error_log($fieldName . ' = ' . $valueStr);
-                }
-            } else {
-                error_log('ОШИБКА: Игрок ' . $playerId . ' не найден в таблице player!');
-            }
-            error_log('========================================');
-            error_log('');
-        }
-        error_log('========================================');
+
+        // NOTE: убираем тяжёлую отладку (DESCRIBE/SELECT *) — getAllDatas вызывается часто,
+        // а лишние запросы и логирование повышают нагрузку и риск блокировок.
         // НЕ используем fillResult для energy и badgers, т.к. они теперь хранятся в player_game_data
         // $this->playerEnergy->fillResult($result);
         // $this->playerBadgers->fillResult($result);
@@ -1193,6 +1162,10 @@ class Game extends \Bga\GameFramework\Table
             return;
         }
 
+        // Стабилизируем порядок обновлений БД/глобальных значений — снижает вероятность дедлоков.
+        $playerIds = array_values(array_map('intval', $playerIds));
+        sort($playerIds);
+
         $totalNeeded = $amountPerPlayer * count($playerIds);
         $totalAvailable = $this->getTotalBadgersValue();
         error_log('distributeInitialBadgers - Total needed: ' . $totalNeeded . ', Total available: ' . $totalAvailable);
@@ -1202,14 +1175,30 @@ class Game extends \Bga\GameFramework\Table
             return;
         }
 
+        // Инициализируем player_game_data заранее (в том же порядке).
         foreach ($playerIds as $playerId) {
-            $playerId = (int)$playerId;
             $this->initPlayerGameData($playerId);
-            if (!$this->withdrawBadgersFromBank($amountPerPlayer)) {
-                error_log('distributeInitialBadgers - ERROR: Failed to withdraw ' . $amountPerPlayer . ' badgers from bank for player ' . $playerId);
-                break;
-            }
-            $this->addPlayerBadgers($playerId, $amountPerPlayer);
+        }
+
+        // ВАЖНО: снимаем из банка один раз общую сумму, чтобы не делать много UPDATE по supply-значениям.
+        if (!$this->withdrawBadgersFromBank($totalNeeded)) {
+            error_log('distributeInitialBadgers - ERROR: Failed to withdraw total ' . $totalNeeded . ' badgers from bank');
+            return;
+        }
+
+        // ВАЖНО: на старте задаём значение одним запросом (без чтения/инкрементов в цикле),
+        // чтобы минимизировать блокировки и вероятность дедлока.
+        $idsSql = implode(',', array_map('intval', $playerIds));
+        $val = (int) $amountPerPlayer;
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `badgers` = $val
+            WHERE `player_id` IN ($idsSql)
+        ");
+
+        // Синхронизируем счётчик в том же фиксированном порядке (без inc-логики).
+        foreach ($playerIds as $playerId) {
+            $this->playerBadgers->set((int) $playerId, $val);
         }
         
         error_log('distributeInitialBadgers - Distribution completed');
@@ -3364,26 +3353,22 @@ class Game extends \Bga\GameFramework\Table
      */
     public function initPlayerGameData(int $playerId): void
     {
-        $existing = $this->getObjectFromDb("
-            SELECT `id` FROM `player_game_data` WHERE `player_id` = $playerId
+        $playerId = (int) $playerId;
+        // ВАЖНО: избегаем схемы SELECT->INSERT (гонки на старте стола).
+        // Пишем одной атомарной попыткой; если запись уже существует — просто ничего не делаем.
+        $incomeTrack = (int) $this->playerEnergy->get($playerId);
+        $badgers = (int) $this->playerBadgers->get($playerId);
+        $this->DbQuery("
+            INSERT IGNORE INTO `player_game_data` (
+                `player_id`, `income_track`, `badgers`,
+                `back_office_col1`, `back_office_col2`, `back_office_col3`,
+                `tech_dev_col1`, `tech_dev_col2`, `tech_dev_col3`, `tech_dev_col4`
+            ) VALUES (
+                $playerId, $incomeTrack, $badgers,
+                1, 1, 1,
+                1, 0, 1, 0
+            )
         ");
-        
-        if (!$existing) {
-            // Инициализируем с начальными значениями (треки бэк-офиса и техразвития стартуют с 1)
-            $incomeTrack = $this->playerEnergy->get($playerId);
-            $badgers = $this->playerBadgers->get($playerId);
-            $this->DbQuery("
-                INSERT INTO `player_game_data` (
-                    `player_id`, `income_track`, `badgers`,
-                    `back_office_col1`, `back_office_col2`, `back_office_col3`,
-                    `tech_dev_col1`, `tech_dev_col2`, `tech_dev_col3`, `tech_dev_col4`
-                ) VALUES (
-                    $playerId, $incomeTrack, $badgers,
-                    1, 1, 1,
-                    1, 0, 1, 0
-                )
-            ");
-        }
     }
     
     /**
@@ -3802,6 +3787,164 @@ class Game extends \Bga\GameFramework\Table
             SET `sprint_column_tasks_progress` = $valueStr 
             WHERE `player_id` = $playerId
         ");
+    }
+
+    /**
+     * Сколько задач игрок может взять из банка в бэклог за фазу «Спринт» (трек sprint-column-tasks, 1–6).
+     */
+    public function getSprintColumnTasksTakeLimit(int $playerId): int
+    {
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $p = $gameData['sprintColumnTasksProgress'] ?? null;
+        if ($p === null) {
+            return 1;
+        }
+
+        return max(1, min(6, (int) $p));
+    }
+
+    /**
+     * Лимит шагов по треку спринта для цвета задачи — позиция на соответствующей колонке техотдела (techDevCol1–4).
+     */
+    public function getTechDevSprintMoveBudgetForTaskColor(int $playerId, string $color): int
+    {
+        $c = strtolower(trim($color));
+        if ($c === 'cayn') {
+            $c = 'cyan';
+        }
+        if ($c === 'blue') {
+            $c = 'cyan';
+        }
+        $column = match ($c) {
+            'pink' => 1,
+            'orange' => 2,
+            'cyan' => 3,
+            'purple' => 4,
+            default => null,
+        };
+        if ($column === null) {
+            return 0;
+        }
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $v = $gameData['techDevCol' . $column] ?? null;
+        // Как в initPlayerGameData: 1/3 стартуют с 1, 2/4 с 0. Для спринта бюджет = это значение (0 — нельзя двигать задачи этого цвета).
+        if ($v === null) {
+            $defaults = [1 => 1, 2 => 0, 3 => 1, 4 => 0];
+            $v = $defaults[$column] ?? 0;
+        }
+
+        return max(0, min(5, (int) $v));
+    }
+
+    /**
+     * Нужно ли в фазе «Спринт» обязательно подтвердить перемещение хотя бы одной задачи по колонкам трека:
+     * есть жетон не в «Выполнено» и с текущей колонки для его цвета возможен хотя бы один юридический ход.
+     */
+    public function playerMustSprintTrackMoveBeforeComplete(int $playerId): bool
+    {
+        $tokens = $this->getTaskTokensByPlayer($playerId);
+        $order = [
+            'backlog' => 0,
+            'in-progress' => 1,
+            'testing' => 2,
+            'completed' => 3,
+        ];
+
+        foreach ($tokens as $t) {
+            $loc = strtolower(trim((string) ($t['location'] ?? 'backlog')));
+            if ($loc === 'cayn') {
+                $loc = 'cyan';
+            }
+            if (!isset($order[$loc])) {
+                continue;
+            }
+            if ($loc === 'completed') {
+                continue;
+            }
+            $fi = $order[$loc];
+            $color = (string) ($t['color'] ?? '');
+            $budget = $this->getTechDevSprintMoveBudgetForTaskColor($playerId, $color);
+
+            foreach ($order as $_unused => $ti) {
+                // В спринте жетоны двигаются только вперёд по колонкам (backlog → ... → completed).
+                if ($ti <= $fi) {
+                    continue;
+                }
+                $dist = $ti - $fi;
+                if ($dist > 0 && $dist <= $budget) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Проверка одного перемещения жетона в фазе «Спринт» (расстояние по колонкам ≤ бюджета техотдела для цвета).
+     *
+     * @param array<string, mixed> $move
+     */
+    public function validateSprintPhaseTaskMove(int $playerId, array $move): void
+    {
+        $tokenId = (int) ($move['tokenId'] ?? 0);
+        $from = strtolower(trim((string) ($move['fromLocation'] ?? '')));
+        $to = strtolower(trim((string) ($move['toLocation'] ?? '')));
+        $blocks = (int) ($move['blocks'] ?? 0);
+
+        if ($tokenId <= 0 || $from === '' || $to === '') {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверные данные перемещения'));
+        }
+
+        $tokenColor = $this->getTaskTokenColor($playerId, $tokenId);
+        if ($tokenColor === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Жетон не найден'));
+        }
+        if ($tokenColor === 'cayn') {
+            $tokenColor = 'cyan';
+        }
+
+        $tokens = $this->getTaskTokensByPlayer($playerId);
+        $found = false;
+        foreach ($tokens as $t) {
+            if ((int) ($t['token_id'] ?? 0) !== $tokenId) {
+                continue;
+            }
+            $loc = strtolower(trim((string) ($t['location'] ?? 'backlog')));
+            if ($loc === 'cayn') {
+                $loc = 'cyan';
+            }
+            if ($loc !== $from) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Неверная исходная колонка задачи'));
+            }
+            $found = true;
+            break;
+        }
+        if (!$found) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Жетон не найден'));
+        }
+
+        $order = ['backlog', 'in-progress', 'testing', 'completed'];
+        $fi = array_search($from, $order, true);
+        $ti = array_search($to, $order, true);
+        if ($fi === false || $ti === false) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверная колонка спринта'));
+        }
+        // В спринте жетоны двигаются только вперёд по колонкам (backlog → ... → completed).
+        if ($ti <= $fi) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нельзя перемещать задачу назад по треку спринта'));
+        }
+        $dist = $ti - $fi;
+        if ($dist !== $blocks) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверное число шагов перемещения'));
+        }
+
+        $budget = $this->getTechDevSprintMoveBudgetForTaskColor($playerId, $tokenColor);
+        if ($dist > $budget) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Превышен лимит перемещения для этого цвета по техотделу'));
+        }
     }
     
     /**

@@ -639,6 +639,18 @@ define([
                     </div>
                   </div>
                 </div>
+                <div id="task-move-hint-modal" class="task-move-hint-modal" aria-hidden="true">
+                  <div class="task-move-hint-modal__content">
+                    <div class="task-move-hint-modal__header">
+                      <div class="task-move-hint-modal__title" id="task-move-hint-modal-title"></div>
+                    </div>
+                    <div class="task-move-hint-modal__intro" id="task-move-hint-modal-intro"></div>
+                    <div class="task-move-hint-modal__body" id="task-move-hint-modal-body"></div>
+                    <div class="task-move-hint-modal__footer">
+                      <button type="button" id="task-move-hint-modal-close" class="task-move-hint-modal__btn">${_('Понятно')}</button>
+                    </div>
+                  </div>
+                </div>
             `,
         )
       } catch (error) {
@@ -684,6 +696,7 @@ define([
 
       // ВАЖНО: Подписка на уведомления после инициализации gamedatas
       this.setupNotifications()
+      this._setupTaskMoveHintModal()
       this.localFounders = this.localFounders || {}
       this._applyLocalFounders()
       this.eventCardsData = gamedatas.eventCards || {} // Данные о картах событий
@@ -1030,7 +1043,8 @@ define([
             this.player_id
           this.gamedatas.gamestate.active_player = activeId
           if (this.gamedatas.players && this.gamedatas.players[activeId]) {
-            const b = args?.args?.badgers
+            const ptSa = this._getStateArgsPayload(args)
+            const b = ptSa.badgers
             if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
               this.gamedatas.players[activeId].badgers = Number(b)
             }
@@ -1630,13 +1644,18 @@ define([
           break
 
         case 'RoundSkills': {
-          if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
-          if (args?.args?.phaseName)
-            this.gamedatas.phaseName = args.args.phaseName
+          const skillsSa = this._getStateArgsPayload(args)
+          if (skillsSa.phaseKey) this.gamedatas.phaseKey = skillsSa.phaseKey
+          if (skillsSa.phaseName)
+            this.gamedatas.phaseName = skillsSa.phaseName
           this.gamedatas.phaseNumber = 2
           this._updateStageBanner()
-          if (args?.args?.currentRoundPlayerOrder && Array.isArray(args.args.currentRoundPlayerOrder)) {
-            this.gamedatas.currentRoundPlayerOrder = args.args.currentRoundPlayerOrder
+          if (
+            skillsSa.currentRoundPlayerOrder &&
+            Array.isArray(skillsSa.currentRoundPlayerOrder)
+          ) {
+            this.gamedatas.currentRoundPlayerOrder =
+              skillsSa.currentRoundPlayerOrder
           }
           const skillsActiveId =
             this._extractActivePlayerId(args) ??
@@ -1646,7 +1665,7 @@ define([
             this.gamedatas.gamestate.active_player = skillsActiveId
           }
           if (this.gamedatas.players && this.gamedatas.players[skillsActiveId]) {
-            const b = args?.args?.badgers
+            const b = skillsSa.badgers
             if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
               this.gamedatas.players[skillsActiveId].badgers = Number(b)
             }
@@ -1661,13 +1680,18 @@ define([
           break
         }
         case 'RoundHiring': {
-          if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
-          if (args?.args?.phaseName)
-            this.gamedatas.phaseName = args.args.phaseName
+          const hiringSa = this._getStateArgsPayload(args)
+          if (hiringSa.phaseKey) this.gamedatas.phaseKey = hiringSa.phaseKey
+          if (hiringSa.phaseName)
+            this.gamedatas.phaseName = hiringSa.phaseName
           this.gamedatas.phaseNumber = 3
           this._updateStageBanner()
-          if (args?.args?.currentRoundPlayerOrder && Array.isArray(args.args.currentRoundPlayerOrder)) {
-            this.gamedatas.currentRoundPlayerOrder = args.args.currentRoundPlayerOrder
+          if (
+            hiringSa.currentRoundPlayerOrder &&
+            Array.isArray(hiringSa.currentRoundPlayerOrder)
+          ) {
+            this.gamedatas.currentRoundPlayerOrder =
+              hiringSa.currentRoundPlayerOrder
           }
           const hiringActiveId =
             this._extractActivePlayerId(args) ??
@@ -1677,7 +1701,7 @@ define([
             this.gamedatas.gamestate.active_player = hiringActiveId
           }
           if (this.gamedatas.players && this.gamedatas.players[hiringActiveId]) {
-            const b = args?.args?.badgers
+            const b = hiringSa.badgers
             if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
               this.gamedatas.players[hiringActiveId].badgers = Number(b)
             }
@@ -1753,6 +1777,9 @@ define([
             this.gamedatas.pendingSkillTaskSelection = null
             this._deactivateTaskSelection()
           }
+          break
+        case 'RoundSprint':
+          this._hideTaskMoveHintModal()
           break
         case 'dummy':
           break
@@ -1972,7 +1999,7 @@ define([
           case 'RoundHiring':
             this._updateStageBanner()
             if (this.isCurrentPlayerActive()) {
-              const a = args?.args || {}
+              const a = this._getStateArgsPayload(args)
               const hiringTrackValue = a.hiringTrackValue ?? 0
               const recruitingDone = a.recruitingDone === true
               const canRecruit = hiringTrackValue > 0 && !recruitingDone
@@ -2023,13 +2050,12 @@ define([
               }
 
               // Блокируем «Завершить фазу найм» когда сработал эффект task или move_task у нанятого специалиста
-              if (args?.args?.pendingTaskSelection != null) {
-                this.gamedatas.pendingTaskSelection =
-                  args.args.pendingTaskSelection
+              if (a.pendingTaskSelection != null) {
+                this.gamedatas.pendingTaskSelection = a.pendingTaskSelection
               } else {
                 this.gamedatas.pendingTaskSelection = null
               }
-              const pendingTaskMovesArg = args?.args?.pendingTaskMoves ?? null
+              const pendingTaskMovesArg = a.pendingTaskMoves ?? null
               if (pendingTaskMovesArg && Number(pendingTaskMovesArg.move_count || 0) > 0) {
                 this.gamedatas.pendingTaskMoves = {
                   moveCount: Number(pendingTaskMovesArg.move_count) || 0,
@@ -2048,28 +2074,30 @@ define([
                 this._activateTaskMoveMode(
                   this.gamedatas.pendingTaskMoves.moveCount,
                   this.gamedatas.pendingTaskMoves.moveColor,
+                  this.gamedatas.pendingTaskMoves.founderName,
                 )
               }
-              const hiringPendingTask = args?.args?.pendingTaskSelection ?? null
+              const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask &&
                 Number(hiringPendingTask.amount || 0) > 0
               const mustConfirmTaskMoves =
                 pendingTaskMovesArg &&
                 Number(pendingTaskMovesArg.move_count || 0) > 0
+              const amt = Number(hiringPendingTask?.amount ?? 0)
+              const hiringTaskBlockMsg =
+                amt === 1
+                  ? _(
+                      'Сначала выберите 1 задачу в бэклог (эффект карты или навыка)',
+                    )
+                  : _(
+                      'Сначала выберите ${n} задач в бэклог (эффект карты или навыка)',
+                    ).replace('${n}', String(amt))
               const completeHiringTooltip = mustSelectTasks
-                ? (
-                    typeof _ !== 'undefined'
-                      ? _(
-                          'Сначала выберите ${n} задач в бэклог (эффект специалиста)',
-                        )
-                      : 'Сначала выберите ' +
-                        (hiringPendingTask?.amount ?? 0) +
-                        ' задач в бэклог (эффект специалиста)'
-                  ).replace('${n}', String(hiringPendingTask?.amount ?? 0))
+                ? hiringTaskBlockMsg
                 : mustConfirmTaskMoves
                   ? _(
-                      'Сначала подтвердите перемещение задач по треку (эффект специалиста)',
+                      'Сначала подтвердите перемещение задач по треку (эффект карты или навыка)',
                     )
                   : _(
                       'Нажмите, когда закончите нанимать (или если не нанимаете)',
@@ -2126,6 +2154,137 @@ define([
                   ),
                 },
               )
+            }
+            break
+          }
+          case 'RoundSprint': {
+            this._updateStageBanner()
+            const sprintActiveId =
+              args?.args?.activePlayerId ??
+              this._getActivePlayerIdFromDatas(this.gamedatas) ??
+              this.player_id
+            this._clearDepartmentsForNewPlayer(sprintActiveId)
+            this._renderPlayerMoney(this.gamedatas.players, sprintActiveId)
+            this._renderFounderCard(this.gamedatas.players, sprintActiveId)
+            this._renderTaskInputs()
+            const sprintLimit = Math.max(
+              1,
+              parseInt(args?.args?.sprintTasksTakeLimit, 10) ||
+                parseInt(
+                  this.gamedatas?.players?.[this.player_id]
+                    ?.sprintColumnTasksProgress,
+                  10,
+                ) ||
+                1,
+            )
+            this.gamedatas.sprintTasksTakeLimit = sprintLimit
+            const saSprintArgs = this._getStateArgsPayload(args)
+            const sprintRoundNum = Number(saSprintArgs.round) || 0
+            const sprintActId = Number(
+              saSprintArgs.activePlayerId ??
+                this._getActivePlayerIdFromDatas(this.gamedatas) ??
+                0,
+            )
+            const sprintUiCtx = `${sprintRoundNum}:${sprintActId}`
+            if (this._sprintUiContextKey !== sprintUiCtx) {
+              this._sprintUiContextKey = sprintUiCtx
+              this.gamedatas.sprintBankConfirmed = false
+              this.gamedatas.sprintTrackMovesConfirmed = false
+              this.gamedatas.sprintBankTakenCount = 0
+              this.gamedatas.sprintColorMoveDone = {
+                pink: false,
+                orange: false,
+                cyan: false,
+                purple: false,
+              }
+              this.gamedatas.sprintColorBlocksUsed = {
+                pink: 0,
+                orange: 0,
+                cyan: 0,
+                purple: 0,
+              }
+            }
+            // ВАЖНО: флаги из getArgs — источник истины. Не "OR" с прошлым состоянием,
+            // иначе прошлый раунд/игрок может залипнуть как "уже подтверждено".
+            const hasBankFlag =
+              saSprintArgs.sprintBankConfirmed !== undefined &&
+              saSprintArgs.sprintBankConfirmed !== null
+            const hasMovesFlag =
+              saSprintArgs.sprintTrackMovesConfirmed !== undefined &&
+              saSprintArgs.sprintTrackMovesConfirmed !== null
+            const hasMandatoryFlag =
+              saSprintArgs.sprintTrackMoveMandatory !== undefined &&
+              saSprintArgs.sprintTrackMoveMandatory !== null
+
+            if (hasBankFlag) {
+              this.gamedatas.sprintBankConfirmed = this._coerceStateBool(
+                saSprintArgs.sprintBankConfirmed,
+              )
+            } else {
+              this.gamedatas.sprintBankConfirmed = false
+            }
+            if (hasMovesFlag) {
+              this.gamedatas.sprintTrackMovesConfirmed = this._coerceStateBool(
+                saSprintArgs.sprintTrackMovesConfirmed,
+              )
+            } else {
+              this.gamedatas.sprintTrackMovesConfirmed = false
+            }
+            this.gamedatas.sprintTrackMoveMandatory = hasMandatoryFlag
+              ? this._coerceStateBool(saSprintArgs.sprintTrackMoveMandatory)
+              : false
+            if (this.isCurrentPlayerActive()) {
+              if (!this._coerceStateBool(this.gamedatas.sprintBankConfirmed)) {
+                this._activateTaskSelectionForSprintPhase(sprintLimit)
+              } else {
+                this._deactivateTaskSelection()
+              }
+              const sprintMoveMandatory = this._coerceStateBool(
+                this.gamedatas.sprintTrackMoveMandatory,
+              )
+              const sprintMovesConfirmed = this._coerceStateBool(
+                this.gamedatas.sprintTrackMovesConfirmed,
+              )
+              this.statusBar.addActionButton(
+                _('Завершить фазу «Спринт»'),
+                () => {
+                  const mandatory = this._coerceStateBool(
+                    this.gamedatas?.sprintTrackMoveMandatory,
+                  )
+                  const confirmed = this._coerceStateBool(
+                    this.gamedatas?.sprintTrackMovesConfirmed,
+                  )
+                  if (mandatory && !confirmed) {
+                    this._showSprintTaskMoveIndicator()
+                    return
+                  }
+                  this.bgaPerformAction('actCompleteSprintPhase')
+                },
+                {
+                  primary: true,
+                  id: 'complete-sprint-phase-button',
+                  disabled: false,
+                  tooltip:
+                    sprintMoveMandatory && !sprintMovesConfirmed
+                    ? _(
+                        'Сначала переместите задачи по треку спринта и нажмите «Закончить перемещение».',
+                      )
+                    : _(
+                        'Завершите фазу после взятия задач из банка и перемещений по спринту',
+                      ),
+                },
+              )
+              // Панель спринта: всегда показываем активному игроку (данные с сервера + сброс по раунду/игроку выше).
+              this._showSprintTaskMoveIndicator()
+              this._refreshSprintTaskMoveIndicator()
+            } else {
+              const sprInd = document.getElementById('task-move-mode-indicator')
+              if (
+                sprInd &&
+                sprInd.classList.contains('task-move-mode-indicator--sprint')
+              ) {
+                this._hideTaskMoveModeIndicator()
+              }
             }
             break
           }
@@ -2978,37 +3137,17 @@ define([
         playerId,
       )
 
-      // ВАЖНО: Обновляем данные в gamedatas только для указанного игрока
-      // НО: Только если oldValue совпадает с текущим значением (данные не были изменены getAllDatas())
       if (playerId > 0 && this.gamedatas.players[playerId]) {
         const currentValue = this.gamedatas.players[playerId].badgers || 0
 
-        // ВАЖНО: Если oldValue не совпадает с currentValue, это означает, что данные были изменены getAllDatas()
-        // В этом случае мы должны использовать newValue из уведомления, так как это актуальное значение с сервера
         if (oldValue !== currentValue) {
-          // Данные были изменены getAllDatas() или другим уведомлением
-          // Используем newValue из уведомления, так как это актуальное значение с сервера
           this.gamedatas.players[playerId].badgers = newValue
-          return
-        }
-
-        // ВАЖНО: Если currentValue уже равен newValue, значит данные уже актуальны
-        // Это может произойти, если уведомление приходит несколько раз (через notify->all)
-        if (currentValue === newValue) {
-          // Данные уже актуальны, пропускаем обновление
-          return
-        }
-
-        // ВАЖНО: Используем newValue из уведомления, так как oldValue совпадает с currentValue
-        // Это означает, что данные не были изменены getAllDatas()
-        this.gamedatas.players[playerId].badgers = newValue
-        // В фазе найма синхронизируем _hiringBadgers с сервером, чтобы проверка «хватает ли баджерсов» не ломалась
-        if (
-          Number(this.player_id) === Number(playerId) &&
-          this.gamedatas?.gamestate?.name === 'RoundHiring' &&
-          typeof this._hiringBadgers === 'number'
-        ) {
-          this._hiringBadgers = Math.max(0, newValue)
+          this._syncHiringBadgersSnapshot(playerId, newValue)
+        } else if (currentValue === newValue) {
+          this._syncHiringBadgersSnapshot(playerId, newValue)
+        } else {
+          this.gamedatas.players[playerId].badgers = newValue
+          this._syncHiringBadgersSnapshot(playerId, newValue)
         }
       } else {
         console.error(
@@ -3018,7 +3157,6 @@ define([
         )
       }
 
-      // Обновляем банк баджерсов, если данные пришли с сервера
       if (args.badgersSupply && Array.isArray(args.badgersSupply)) {
         console.log(
           '💰 Updating badgers supply, count:',
@@ -3028,7 +3166,6 @@ define([
         this._renderBadgers(args.badgersSupply)
       }
 
-      // ВАЖНО: Проверяем, что данные обновлены только для указанного игрока
       console.log('💰 Verifying badgers for all players after update:')
       Object.keys(this.gamedatas.players).forEach((pid) => {
         const pBadgers = this.gamedatas.players[pid].badgers || 0
@@ -3041,10 +3178,9 @@ define([
         )
       })
 
-      // Обновляем отображение денег игрока (передаём оба аргумента!)
+      // Всегда перерисовываем панель (в т.ч. после ранних return — иначе «залипает» чужая сумма)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
 
-      // Визуальная анимация изменения: для навыка показываем описание из SkillsData, иначе — основатель
       const actionText = amount > 0 ? '+' : ''
       if (isFromSkill && (skillDescription || skillName)) {
         if (skillDescription) {
@@ -4214,9 +4350,8 @@ define([
         if (args.maxHireCount !== undefined) {
           this._hiringMaxCount = Number(args.maxHireCount)
         }
-        this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) - spent)
-        if (badgerDelta !== 0) {
-          this._hiringBadgers = Math.max(0, (this._hiringBadgers ?? 0) + badgerDelta)
+        if (pl && pl.badgers !== undefined && pl.badgers !== null) {
+          this._hiringBadgers = Math.max(0, Number(pl.badgers) || 0)
         }
         // Эффект task с любой карты (специалист/основатель): синхронизируем pendingTaskSelection из уведомления
         if (args.pendingTaskSelection != null && Number(args.pendingTaskSelection.amount || 0) > 0) {
@@ -4452,11 +4587,13 @@ define([
             completeBtn.disabled = true
             completeBtn.setAttribute(
               'title',
-              (
-                typeof _ !== 'undefined'
-                  ? _('Сначала выберите ${n} задач в бэклог (эффект специалиста)')
-                  : 'Сначала выберите ' + amount + ' задач в бэклог (эффект специалиста)'
-              ).replace('${n}', String(amount)),
+              Number(amount) === 1
+                ? _(
+                    'Сначала выберите 1 задачу в бэклог (эффект карты или навыка)',
+                  )
+                : _(
+                    'Сначала выберите ${n} задач в бэклог (эффект карты или навыка)',
+                  ).replace('${n}', String(amount)),
             )
           }
         }
@@ -4508,6 +4645,7 @@ define([
           moves: [], // Массив перемещений [{tokenId, fromLocation, toLocation, blocks}]
           fromEffect: true, // Флаг, что это эффект карты (не учитывать техотдел)
           moveSource: 'founder_effect', // Источник перемещения: 'founder_effect' или 'sprint_phase'
+          founderName: founderName || '',
         }
 
         // Сохраняем JSON для проверки в taskSelectionRequired
@@ -4545,7 +4683,7 @@ define([
             '✅ No pending task selection, activating move mode immediately',
           )
           // Если выбор задач уже завершен, сразу активируем режим перемещения
-          this._activateTaskMoveMode(moveCount, moveColor)
+          this._activateTaskMoveMode(moveCount, moveColor, founderName)
         } else {
           console.log('⏳ Task selection still pending, showing hint')
           // Если выбор задач еще не завершен, показываем подсказку
@@ -4579,6 +4717,107 @@ define([
       if (Number(playerId) === Number(this.player_id)) {
         this.gamedatas.pendingTaskMoves = null
         this._deactivateTaskMoveMode()
+
+        const isSprintMoveNotif =
+          args.sprint_phase === true ||
+          args.sprint_phase === 1 ||
+          String(args.sprint_phase) === '1'
+        if (isSprintMoveNotif) {
+          if (!this.gamedatas.sprintColorMoveDone) {
+            this.gamedatas.sprintColorMoveDone = {}
+          }
+          if (!this.gamedatas.sprintColorBlocksUsed) {
+            this.gamedatas.sprintColorBlocksUsed = {}
+          }
+          let rawMoves = args.moves
+          if (typeof rawMoves === 'string') {
+            try {
+              rawMoves = JSON.parse(rawMoves)
+            } catch (e) {
+              rawMoves = []
+            }
+          }
+          const moves = Array.isArray(rawMoves) ? rawMoves : []
+          const pid = Number(this.player_id)
+          const tokens = this.gamedatas?.players?.[pid]?.taskTokens || []
+          const resolveColor = (m) => {
+            let col = m && m.color
+            if (!col && m && m.tokenId != null) {
+              const tid = String(m.tokenId)
+              const tok = tokens.find(
+                (t) =>
+                  String(t.token_id) === tid || String(t.tokenId) === tid,
+              )
+              if (tok) {
+                col = tok.color
+              }
+            }
+            return this._normalizeTaskColorForSprint(col || '')
+          }
+          moves.forEach((m) => {
+            if (!m) {
+              return
+            }
+            const from = (m.fromLocation || '').toString().toLowerCase()
+            const to = (m.toLocation || '').toString().toLowerCase()
+            if (!from || !to || from === to) {
+              return
+            }
+            const norm = resolveColor(m)
+            if (!norm) {
+              return
+            }
+            this.gamedatas.sprintColorMoveDone[norm] = true
+            let b = Math.abs(Number(m.blocks) || 0)
+            if (!b && from && to) {
+              b = Math.abs(
+                this._calculateBlocksBetween(from, to) || 0,
+              )
+            }
+            if (b > 0) {
+              this.gamedatas.sprintColorBlocksUsed[norm] =
+                (Number(this.gamedatas.sprintColorBlocksUsed[norm]) || 0) + b
+            }
+          })
+          const movedToks = Array.isArray(args.moved_tokens)
+            ? args.moved_tokens
+            : []
+          movedToks.forEach((tidRaw) => {
+            const tid = String(tidRaw)
+            const tok = tokens.find(
+              (t) =>
+                String(t.token_id) === tid || String(t.tokenId) === tid,
+            )
+            if (!tok) {
+              return
+            }
+            const norm = this._normalizeTaskColorForSprint(tok.color || '')
+            if (norm) {
+              this.gamedatas.sprintColorMoveDone[norm] = true
+            }
+          })
+          this.gamedatas.sprintTrackMovesConfirmed = true
+          this._refreshSprintTaskMoveIndicator()
+        }
+
+        const moved = Array.isArray(args.moved_tokens)
+          ? args.moved_tokens.length
+          : 0
+        if (
+          this.gamedatas?.gamestate?.name === 'RoundSprint' &&
+          moved > 0
+        ) {
+          const spBtn = document.getElementById('complete-sprint-phase-button')
+          if (spBtn) {
+            spBtn.disabled = false
+            spBtn.setAttribute(
+              'title',
+              _(
+                'Завершите фазу после взятия задач из банка и перемещений по спринту',
+              ),
+            )
+          }
+        }
 
         // Убираем подсказку о последовательности действий
         this._hideFounderEffectSequenceHint()
@@ -4704,6 +4943,23 @@ define([
 
         // Перерисовываем жетоны задач
         this._renderTaskTokens(this.gamedatas.players)
+      }
+
+      if (args.sprint_phase) {
+        if (Number(playerId) === Number(this.player_id)) {
+          // Может быть 0 задач — но это тоже осознанный выбор игрока в этом спринте
+          const taken = Array.isArray(selectedTasks)
+            ? selectedTasks.reduce(
+                (s, t) => s + (Number(t?.quantity) || 0),
+                0,
+              )
+            : 0
+          this.gamedatas.sprintBankTakenCount = taken
+          this.gamedatas.sprintBankConfirmed = true
+          this._refreshSprintTaskMoveIndicator()
+          this._deactivateTaskSelection()
+        }
+        return
       }
 
       // Если это текущий игрок, деактивируем выбор задач
@@ -4915,7 +5171,14 @@ define([
               moveColor,
               pendingTaskMoves: this.gamedatas.pendingTaskMoves,
             })
-            this._activateTaskMoveMode(moveCount, moveColor)
+            this._activateTaskMoveMode(
+              moveCount,
+              moveColor,
+              this.gamedatas.pendingTaskMoves.founderName ||
+                movesData.founder_name ||
+                movesData.founderName ||
+                '',
+            )
           } else {
             console.error(
               '❌❌❌ notif_tasksSelected - pendingTaskMoves is NOT set after processing movesData!',
@@ -5550,6 +5813,18 @@ define([
       return Array.from(selected).map((el) => Number(el.dataset.cardId))
     },
 
+    /** Снимок баджерсов для пречека найма; без синхронизации Math.min давал «недостаточно» при отставании _hiringBadgers. */
+    _syncHiringBadgersSnapshot: function (playerId, newValue) {
+      if (
+        Number(this.player_id) !== Number(playerId) ||
+        this.gamedatas?.gamestate?.name !== 'RoundHiring'
+      ) {
+        return
+      }
+      const v = Math.max(0, Number(newValue) || 0)
+      this._hiringBadgers = v
+    },
+
     _bindHiringCardSelection: function (enable) {
       const handContainer = document.getElementById('active-player-hand-cards')
       if (!handContainer) return
@@ -5611,14 +5886,15 @@ define([
         if (!cardData) return
         const maxHire = Math.max(1, self._hiringMaxCount || 0)
         const hiredCount = self._hiringHiredCount ?? 0
-        const badgersFromArgs = self._hiringBadgers ?? 0
-        const badgersFromPlayer =
-          Number(self.gamedatas?.players?.[self.player_id]?.badgers ?? 0) || 0
-        // Берём минимум из двух источников, чтобы не разрешать покупку при расхождении (защита от перерасхода)
-        const badgers =
-          badgersFromArgs > 0 && badgersFromPlayer > 0
-            ? Math.min(badgersFromArgs, badgersFromPlayer)
-            : Math.max(badgersFromArgs, badgersFromPlayer)
+        const pid = self.player_id
+        const pl =
+          self.gamedatas?.players?.[pid] ??
+          self.gamedatas?.players?.[String(pid)]
+        const badgersFromArgs = Number(self._hiringBadgers) || 0
+        const badgersFromPlayer = Number(pl?.badgers ?? 0) || 0
+        // Берём максимум: занижение из-за устаревшего _hiringBadgers блокировало найм при актуальных данных в gamedatas.
+        // Итоговую оплату всё равно проверяет сервер.
+        const badgers = Math.max(badgersFromArgs, badgersFromPlayer)
         const price = cardData.price ?? 0
         if (hiredCount >= maxHire) {
           self.showMessage(
@@ -5850,6 +6126,17 @@ define([
             : typeof _ !== 'undefined'
               ? _('Продажи')
               : 'Продажи'
+        }
+        if (currentState === 'RoundSprint') {
+          phaseKey = 'sprint'
+          const sprintPhase = roundPhases.find((p) => p.key === 'sprint')
+          phaseNumber = sprintPhase ? sprintPhase.number : 5
+          phaseNameFromState = sprintPhase
+            ? sprintPhase.name ||
+              (typeof _ !== 'undefined' ? _('Спринт') : 'Спринт')
+            : typeof _ !== 'undefined'
+              ? _('Спринт')
+              : 'Спринт'
         }
 
         // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState
@@ -7814,10 +8101,22 @@ define([
           token.style.transform = 'translateX(-50%)'
           token.style.top = `${20 + index * 50}px`
 
-          // Делаем жетоны кликабельными в backlog или в режиме move_task
+          // Делаем жетоны кликабельными в backlog, в режиме move_task или в фазе «Спринт»
+          // (иначе при pendingTaskMoves === null нельзя выбрать задачу не из бэклога — критический баг).
           // ВАЖНО: Всегда берем актуальное значение из gamedatas
           const pendingMoves = this.gamedatas?.pendingTaskMoves
           const isMoveMode = pendingMoves !== null && pendingMoves !== undefined
+          const sprintActiveId = this._getActivePlayerIdFromDatas(
+            this.gamedatas,
+          )
+          const isMySprintTurn =
+            (sprintActiveId != null &&
+              Number(sprintActiveId) === Number(this.player_id)) ||
+            (sprintActiveId == null && this.isCurrentPlayerActive())
+          const inRoundSprintMoveTrack =
+            this.gamedatas?.gamestate?.name === 'RoundSprint' &&
+            isMySprintTurn &&
+            location !== 'completed'
 
           // Дополнительная проверка для отладки
           if (isMoveMode && pendingMoves && pendingMoves.moves) {
@@ -7884,7 +8183,7 @@ define([
             })),
           })
 
-          if (location === 'backlog' || isMoveMode) {
+          if (location === 'backlog' || isMoveMode || inRoundSprintMoveTrack) {
             // Если жетон уже перемещен - делаем его неактивным
             if (hasExistingMove) {
               token.classList.add('task-token--inactive')
@@ -7991,11 +8290,17 @@ define([
                   this._renderTaskTokens(this.gamedatas.players)
                   this._updateTaskMoveModeUI()
 
-                  // Скрываем кнопку подтверждения, если не все ходы использованы
-                  if (
-                    currentPendingMoves.usedMoves <
-                    currentPendingMoves.moveCount
-                  ) {
+                  const isSprintCancel = this._isSprintPerColorTaskMoveMode(
+                    currentPendingMoves,
+                  )
+                  const hideTaskConfirm =
+                    isSprintCancel
+                      ? this._sprintHasAnyBudgetRemainingOnBoard(
+                          currentPendingMoves,
+                        )
+                      : currentPendingMoves.usedMoves <
+                        currentPendingMoves.moveCount
+                  if (hideTaskConfirm) {
                     this._hideTaskMovesConfirmButton()
                   }
 
@@ -8099,32 +8404,89 @@ define([
     },
 
     /**
+     * Лимит хода по цвету из данных игрока (как на сервере: techDevCol1–4).
+     * Используется, если по DOM техотдел ещё не синхронизирован или жетон не найден.
+     */
+    _getTechDepartmentPositionFromGamedatas: function (color) {
+      let c = (color || '').toString().toLowerCase().trim()
+      if (c === 'cayn') {
+        c = 'cyan'
+      }
+      if (c === 'blue') {
+        c = 'cyan'
+      }
+      const keyMap = {
+        pink: 'techDevCol1',
+        orange: 'techDevCol2',
+        cyan: 'techDevCol3',
+        purple: 'techDevCol4',
+      }
+      const colKey = keyMap[c]
+      if (!colKey) {
+        return 0
+      }
+      const p = this.gamedatas?.players?.[this.player_id]
+      if (!p) {
+        return 0
+      }
+      const defaults = {
+        techDevCol1: 1,
+        techDevCol2: 0,
+        techDevCol3: 1,
+        techDevCol4: 0,
+      }
+      const raw = p[colKey]
+      const fallback = defaults[colKey] ?? 0
+      const toParse =
+        raw !== null && raw !== undefined && raw !== '' ? raw : fallback
+      const n = parseInt(String(toParse), 10)
+      if (!Number.isFinite(n)) {
+        return 0
+      }
+      return Math.max(0, Math.min(5, n))
+    },
+
+    /**
      * Получает позицию жетона в техотделе для указанного цвета
      * @param {string} color Цвет задачи (pink, orange, cyan, purple)
      * @returns {number} Позиция жетона (количество блоков для перемещения)
      */
     _getTechDepartmentPosition: function (color) {
+      let c = (color || '').toString().toLowerCase().trim()
+      if (c === 'cayn') {
+        c = 'cyan'
+      }
+      if (c === 'blue') {
+        c = 'cyan'
+      }
+
       // Маппинг цветов на колонки техотдела
       const colorToColumn = {
         pink: 1,
         orange: 2,
-        cyan: 3, // blue в HTML
+        cyan: 3,
         purple: 4,
       }
 
-      const columnNum = colorToColumn[color]
+      const columnNum = colorToColumn[c]
       if (!columnNum) {
         console.warn('Unknown color for tech department:', color)
-        return 0
+        return this._getTechDepartmentPositionFromGamedatas(c)
       }
 
       // Ищем жетон в колонке техотдела
       const column = document.getElementById(
         `player-department-technical-development-column-${columnNum}`,
       )
+      const sprintBudgetFromDatas = () =>
+        Math.max(
+          0,
+          Math.min(5, this._getTechDepartmentPositionFromGamedatas(c)),
+        )
+
       if (!column) {
         console.warn('Tech department column not found:', columnNum)
-        return 0
+        return sprintBudgetFromDatas()
       }
 
       // Ищем жетон (токен) в колонке
@@ -8133,29 +8495,218 @@ define([
       )
       if (!token) {
         console.warn('Tech department token not found in column:', columnNum)
-        return 0
+        return sprintBudgetFromDatas()
       }
 
       // Получаем родительскую строку жетона
       const row = token.closest('.player-department-technical-development__row')
       if (!row) {
         console.warn('Tech department row not found for token')
-        return 0
+        return sprintBudgetFromDatas()
       }
 
       // Получаем индекс строки из data-row-index
       const rowIndex = parseInt(row.dataset.rowIndex || '0', 10)
-
-      // Для колонок 1 и 3: позиция = rowIndex (1-5), где 1 = нижняя позиция
-      // Для колонок 2 и 4: позиция = rowIndex (0-5), где 0 = нижняя позиция
-      // Возвращаем количество блоков для перемещения (позиция жетона)
-      if (columnNum === 1 || columnNum === 3) {
-        // Для колонок 1 и 3: rowIndex от 1 до 5, где 1 = нижняя позиция (0 блоков), 5 = верхняя (4 блока)
-        return rowIndex // Позиция = количество блоков
-      } else {
-        // Для колонок 2 и 4: rowIndex от 0 до 5, где 0 = нижняя позиция (0 блоков), 5 = верхняя (5 блоков)
-        return rowIndex // Позиция = количество блоков
+      const domVal = Number.isFinite(rowIndex) ? rowIndex : 0
+      const fromDatas = this._getTechDepartmentPositionFromGamedatas(c)
+      // DOM без жетона в строке — доверяем gamedatas. Если жетон есть: не поднимаем
+      // бюджет выше DOM (устаревший techDevCol* давал «2 шага» при визуально 1).
+      // Если сервер ниже DOM — берём сервер (ресинк/откат).
+      let merged = domVal
+      if (domVal <= 0 && fromDatas > 0) {
+        merged = fromDatas
+      } else if (fromDatas > 0 && fromDatas < domVal) {
+        merged = fromDatas
       }
+      return Math.max(0, Math.min(5, merged))
+    },
+
+    _normalizeTaskColorForSprint: function (color) {
+      let c = (color || '').toString().toLowerCase().trim()
+      if (c === 'cayn') {
+        c = 'cyan'
+      }
+      if (c === 'blue') {
+        c = 'cyan'
+      }
+      return c
+    },
+
+    /**
+     * Режим «бюджет по цвету с трека техотдела» только для фазы Спринт без флага эффекта карты.
+     * Эффект / основатель / «N ходов, любые задачи» — всегда общий пул (moveCount − usedMoves),
+     * даже если в объекте когда-либо окажется лишний флаг.
+     */
+    _isSprintPerColorTaskMoveMode: function (pendingMoves) {
+      return (
+        !!pendingMoves &&
+        pendingMoves.moveSource === 'sprint_phase' &&
+        pendingMoves.fromEffect !== true
+      )
+    },
+
+    /** Сумма blocks в ожидающих перемещениях для цвета (фаза спринт: бюджет по цвету независим). */
+    _getSprintUsedBlocksForColor: function (moves, color) {
+      const c = this._normalizeTaskColorForSprint(color)
+      if (!c || !Array.isArray(moves)) {
+        return 0
+      }
+      let sum = 0
+      moves.forEach((m) => {
+        if (!m) {
+          return
+        }
+        const mc = this._normalizeTaskColorForSprint(m.color || '')
+        if (mc === c) {
+          sum += Math.abs(Number(m.blocks) || 0)
+        }
+      })
+      return sum
+    },
+
+    /**
+     * Есть ли у активного игрока незавершённая задача данного цвета (для строки спринта «нужно потратить бюджет»).
+     */
+    _sprintPlayerHasActiveTaskOfColor: function (norm) {
+      const pid = Number(this.player_id)
+      const pl =
+        this.gamedatas?.players?.[pid] ??
+        this.gamedatas?.players?.[String(pid)]
+      const tokens = pl?.taskTokens || []
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i]
+        let loc = (t.location || 'backlog').toString().toLowerCase()
+        if (loc === 'cayn') {
+          loc = 'cyan'
+        }
+        if (loc === 'completed') {
+          continue
+        }
+        const c = this._normalizeTaskColorForSprint(t.color || '')
+        if (c === norm) {
+          return true
+        }
+      }
+      return false
+    },
+
+    /** Кнопка «Закончить перемещение» недоступна, пока не взяты задачи из банка и не закрыты лимиты по цветам. */
+    _sprintFinishMovesBlocked: function () {
+      if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
+        return true
+      }
+      const pm = this.gamedatas.pendingTaskMoves
+      // Требование: кнопка доступна ТОЛЬКО когда больше нет ни одного юридического хода.
+      // Иначе игрок может "закончить перемещение" преждевременно.
+      if (
+        this.gamedatas?.gamestate?.name === 'RoundSprint' &&
+        this._isSprintPerColorTaskMoveMode(pm)
+      ) {
+        return this._sprintHasAnyLegalMoveRemaining(pm)
+      }
+      return true
+    },
+
+    /**
+     * Есть ли хотя бы один юридический ход в спринте, учитывая остаток бюджета по цветам.
+     * Юридический ход: токен не в completed, и существует целевая колонка с дистанцией <= remainingBudget(color).
+     */
+    _sprintHasAnyLegalMoveRemaining: function (pendingMoves) {
+      if (!this._isSprintPerColorTaskMoveMode(pendingMoves)) {
+        return false
+      }
+      const pid = Number(this.player_id)
+      const pl =
+        this.gamedatas?.players?.[pid] ??
+        this.gamedatas?.players?.[String(pid)]
+      const tokens = pl?.taskTokens || []
+
+      const order = {
+        backlog: 0,
+        'in-progress': 1,
+        testing: 2,
+        completed: 3,
+      }
+      const locs = ['backlog', 'in-progress', 'testing', 'completed']
+
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i]
+        let loc = (t.location || 'backlog').toString().toLowerCase()
+        if (loc === 'cayn') {
+          loc = 'cyan'
+        }
+        if (loc === 'completed') {
+          continue
+        }
+        const fromIndex = order[loc]
+        if (fromIndex === undefined) {
+          continue
+        }
+        const c = this._normalizeTaskColorForSprint(t.color || '')
+        if (!c) {
+          continue
+        }
+        const remaining = this._getSprintAvailableBlocksForColor(pendingMoves, c)
+        if (remaining <= 0) {
+          continue
+        }
+        // Есть ли целевая колонка вперёд на расстоянии <= remaining
+        for (let j = 0; j < locs.length; j++) {
+          const toLoc = locs[j]
+          const toIndex = order[toLoc]
+          // В спринте задача движется только вперёд: backlog → in-progress → testing → completed
+          if (toIndex <= fromIndex) {
+            continue
+          }
+          const dist = toIndex - fromIndex
+          if (dist > 0 && dist <= remaining) {
+            return true
+          }
+        }
+      }
+      return false
+    },
+
+    /** Оставшиеся шаги по треку спринта для цвета жетона (техотдел − уже запланированные ходы этого цвета). */
+    _getSprintAvailableBlocksForColor: function (pendingMoves, color) {
+      if (!this._isSprintPerColorTaskMoveMode(pendingMoves)) {
+        const mc = Number(pendingMoves?.moveCount) || 0
+        const u = Number(pendingMoves?.usedMoves) || 0
+        return Math.max(0, mc - u)
+      }
+      const budget = this._getTechDepartmentPosition(color)
+      const used = this._getSprintUsedBlocksForColor(
+        pendingMoves.moves || [],
+        color,
+      )
+      return Math.max(0, budget - used)
+    },
+
+    /** Есть ли у какого-либо жетона на треке (не completed) ещё положительный бюджет по своему цвету. */
+    _sprintHasAnyBudgetRemainingOnBoard: function (pendingMoves) {
+      if (!this._isSprintPerColorTaskMoveMode(pendingMoves)) {
+        return false
+      }
+      const pid = this.player_id
+      const pl =
+        this.gamedatas?.players?.[pid] ??
+        this.gamedatas?.players?.[String(pid)]
+      const tokens = pl?.taskTokens || []
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i]
+        const loc = (t.location || 'backlog').toString().toLowerCase()
+        if (loc === 'completed') {
+          continue
+        }
+        const c = this._normalizeTaskColorForSprint(t.color)
+        if (!c) {
+          continue
+        }
+        if (this._getSprintAvailableBlocksForColor(pendingMoves, c) > 0) {
+          return true
+        }
+      }
+      return false
     },
 
     /**
@@ -8229,6 +8780,10 @@ define([
           '✅✅✅ _handleTaskTokenClick - STEP 2: pendingMoves EXISTS, entering effect mode branch',
         )
 
+        const check1Eff = pendingMoves.fromEffect === true
+        const check2Eff = pendingMoves.moveSource === 'founder_effect'
+        const isEffectMode = check1Eff || check2Eff
+
         // ВАЖНО: Проверяем, есть ли уже перемещение для этого жетона
         // Если есть - подсвечиваем все доступные колонки (включая бэклог и все промежуточные)
         const tokenIdNum = parseInt(tokenId, 10)
@@ -8266,19 +8821,40 @@ define([
 
           // Подсвечиваем все доступные колонки, включая бэклог и все промежуточные
           // Используем исходную локацию для подсчета доступных колонок
-          const availableMoves =
-            pendingMoves.moveCount -
-            pendingMoves.usedMoves +
-            existingMove.blocks
+          let availableMovesRe
+          if (isEffectMode) {
+            availableMovesRe =
+              pendingMoves.moveCount -
+              pendingMoves.usedMoves +
+              existingMove.blocks
+          } else if (this._isSprintPerColorTaskMoveMode(pendingMoves)) {
+            const budget = this._getTechDepartmentPosition(color)
+            const used = this._getSprintUsedBlocksForColor(
+              pendingMoves.moves || [],
+              color,
+            )
+            availableMovesRe = Math.max(
+              0,
+              budget - used + existingMove.blocks,
+            )
+          } else {
+            availableMovesRe =
+              pendingMoves.moveCount -
+              pendingMoves.usedMoves +
+              existingMove.blocks
+          }
           const maxBlocks = isEffectMode
-            ? availableMoves
-            : Math.min(this._getTechDepartmentPosition(color), availableMoves)
+            ? availableMovesRe
+            : Math.min(
+                this._getTechDepartmentPosition(color),
+                availableMovesRe,
+              )
 
           console.log('🔄 Re-highlighting columns for moved token:', {
             tokenId: tokenId,
             currentLocation: location,
             fromLocation: existingMove.fromLocation,
-            availableMoves: availableMoves,
+            availableMoves: availableMovesRe,
             maxBlocks: maxBlocks,
           })
 
@@ -8307,45 +8883,24 @@ define([
           return
         }
 
-        // Если это эффект карты (fromEffect = true), НЕ учитываем позицию в техотделе
-        // Используем только move_count из эффекта
-        const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+        // Фаза спринт: лимит шагов по цвету с трека техотдела; эффект карты — общий moveCount.
+        const availableMoves = isEffectMode
+          ? pendingMoves.moveCount - pendingMoves.usedMoves
+          : this._isSprintPerColorTaskMoveMode(pendingMoves)
+            ? this._getSprintAvailableBlocksForColor(pendingMoves, color)
+            : pendingMoves.moveCount - pendingMoves.usedMoves
 
         if (availableMoves === 0) {
           this.showMessage(_('Нет доступных ходов для перемещения'), 'error')
           return
         }
 
-        // В режиме эффекта карты можно переместить на любое количество блоков до availableMoves
-        // НЕ учитываем позицию в техотделе - используем только availableMoves
-        // Проверяем и fromEffect, и moveSource для надежности
         console.log(
-          '🔍🔍🔍 _handleTaskTokenClick - STEP 3: Checking isEffectMode condition',
+          '🔍🔍🔍 _handleTaskTokenClick - STEP 3: isEffectMode / sprint budget',
         )
-        console.log(
-          '  → pendingMoves.fromEffect:',
-          pendingMoves.fromEffect,
-          '(type:',
-          typeof pendingMoves.fromEffect,
-          ')',
-        )
-        console.log(
-          '  → pendingMoves.fromEffect === true:',
-          pendingMoves.fromEffect === true,
-        )
+        console.log('  → isEffectMode:', isEffectMode)
         console.log('  → pendingMoves.moveSource:', pendingMoves.moveSource)
-        console.log(
-          '  → pendingMoves.moveSource === "founder_effect":',
-          pendingMoves.moveSource === 'founder_effect',
-        )
-
-        const check1 = pendingMoves.fromEffect === true
-        const check2 = pendingMoves.moveSource === 'founder_effect'
-        const isEffectMode = check1 || check2
-
-        console.log('  → check1 (fromEffect === true):', check1)
-        console.log('  → check2 (moveSource === "founder_effect"):', check2)
-        console.log('  → isEffectMode (check1 || check2):', isEffectMode)
+        console.log('  → check1Eff:', check1Eff, 'check2Eff:', check2Eff)
 
         const techDeptPos = this._getTechDepartmentPosition(color)
         const maxBlocks = isEffectMode
@@ -8357,23 +8912,13 @@ define([
         )
         console.log('  → availableMoves:', availableMoves)
         console.log('  → techDeptPosition:', techDeptPos)
-        console.log('  → isEffectMode:', isEffectMode)
-        console.log(
-          '  → maxBlocks calculation:',
-          isEffectMode
-            ? `availableMoves (${availableMoves})`
-            : `Math.min(techDeptPos (${techDeptPos}), availableMoves (${availableMoves}))`,
-        )
         console.log('  → FINAL maxBlocks:', maxBlocks)
 
         console.log('🔍🔍🔍 _handleTaskTokenClick - Mode check SUMMARY:', {
           fromEffect: pendingMoves.fromEffect,
-          fromEffectType: typeof pendingMoves.fromEffect,
-          fromEffectStrict: pendingMoves.fromEffect === true,
           moveSource: pendingMoves.moveSource,
-          moveSourceStrict: pendingMoves.moveSource === 'founder_effect',
-          check1: check1,
-          check2: check2,
+          check1Eff: check1Eff,
+          check2Eff: check2Eff,
           isEffectMode: isEffectMode,
           availableMoves: availableMoves,
           techDeptPosition: techDeptPos,
@@ -8424,7 +8969,9 @@ define([
 
         if (maxBlocks === 0) {
           this.showMessage(
-            _('Невозможно переместить задачу: позиция в техотделе не найдена'),
+            _(
+              'Нельзя переместить задачу этого цвета: по техотделу для спринта доступно 0 шагов. Сначала улучшите соответствующий цветной трек техотдела.',
+            ),
             'error',
           )
           return
@@ -8448,6 +8995,13 @@ define([
           moveSource: 'sprint_phase', // Источник: фаза Спринт
         }
 
+        // Обязательно кладём в gamedatas: иначе _moveTaskTokenToColumn не видит режима
+        // и шлёт actUpdateTaskTokenLocation (только PlayerTurn) → «This move is not authorized now».
+        this.gamedatas.pendingTaskMoves = sprintPhaseMoves
+        // В спринте тоже нужен индикатор, чтобы была кнопка «Подтвердить перемещения»
+        this._showSprintTaskMoveIndicator()
+        this._refreshTaskMoveHintModalIfVisible()
+
         // Подсвечиваем доступные колонки с информацией о режиме
         this._highlightAvailableColumns(
           maxBlocks,
@@ -8457,6 +9011,157 @@ define([
           sprintPhaseMoves,
         )
       }
+    },
+
+    _sprintTechColorRowDone: function (colorId) {
+      const norm = this._normalizeTaskColorForSprint(colorId)
+      if (!norm) {
+        return false
+      }
+      const maxCap = this._getTechDepartmentPosition(norm)
+      if (maxCap <= 0) {
+        return true
+      }
+      if (!this._sprintPlayerHasActiveTaskOfColor(norm)) {
+        return true
+      }
+      const pm = this.gamedatas.pendingTaskMoves
+      let confirmed = Number(this.gamedatas.sprintColorBlocksUsed?.[norm]) || 0
+      let live = 0
+      if (this._isSprintPerColorTaskMoveMode(pm)) {
+        live = this._getSprintUsedBlocksForColor(pm.moves || [], norm)
+      }
+      const usedDisplay = confirmed + live
+      return usedDisplay >= maxCap
+    },
+
+    _buildSprintTaskMoveIndicatorInnerHtml: function () {
+      const pm0 = this.gamedatas?.pendingTaskMoves
+      if (
+        this.gamedatas?.gamestate?.name === 'RoundSprint' &&
+        this.isCurrentPlayerActive() &&
+        this._coerceStateBool(this.gamedatas.sprintBankConfirmed) &&
+        !this._coerceStateBool(this.gamedatas.sprintTrackMovesConfirmed) &&
+        !(pm0 && pm0.fromEffect === true) &&
+        !this._isSprintPerColorTaskMoveMode(pm0)
+      ) {
+        this.gamedatas.pendingTaskMoves = {
+          moveCount: 0,
+          moveColor: 'any',
+          usedMoves: 0,
+          moves: [],
+          fromEffect: false,
+          moveSource: 'sprint_phase',
+        }
+      }
+      const pl = this.gamedatas?.players?.[Number(this.player_id)]
+      const sprintTakeN =
+        pl?.sprintColumnTasksProgress != null
+          ? Math.max(1, Math.min(6, Number(pl.sprintColumnTasksProgress)))
+          : 1
+      const bankDone = this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)
+      const takenNow = Math.max(
+        0,
+        Math.min(
+          sprintTakeN,
+          Number(this.gamedatas?.sprintBankTakenCount) || 0,
+        ),
+      )
+      const checkClass = bankDone
+        ? 'task-move-mode-indicator__check task-move-mode-indicator__check--done'
+        : 'task-move-mode-indicator__check'
+      const checkMark = bankDone ? '✓' : ''
+      const finishBlocked = this._sprintFinishMovesBlocked()
+      const finishDisabledAttr = finishBlocked ? ' disabled' : ''
+      const techColors = ['pink', 'orange', 'cyan', 'purple']
+      const techRows = []
+      const pm = this.gamedatas.pendingTaskMoves
+      techColors.forEach((c) => {
+        const maxCap = this._getTechDepartmentPosition(c)
+        let confirmed = Number(this.gamedatas.sprintColorBlocksUsed?.[c]) || 0
+        let live = 0
+        if (this._isSprintPerColorTaskMoveMode(pm)) {
+          live = this._getSprintUsedBlocksForColor(pm.moves || [], c)
+        }
+        const usedDisplay = confirmed + live
+        // Лимит техотдела / уже запланировано в этом спринте (читается как «used / max»)
+        const frac = `${usedDisplay}/${maxCap}`
+        const colorName = this._getTaskTokenColorData(c)?.name || c
+        const colorCode = this._getTaskTokenColorCode(c)
+        const rowDone = this._sprintTechColorRowDone(c)
+        const rc = rowDone
+          ? 'task-move-mode-indicator__check task-move-mode-indicator__check--done'
+          : 'task-move-mode-indicator__check'
+        const rm = rowDone ? '✓' : ''
+        techRows.push(
+          `<div class="task-move-mode-indicator__sprint-tech-row">` +
+            `<span class="${rc}" aria-hidden="true">${rm}</span>` +
+            `<span class="task-move-mode-indicator__sprint-tech-dot" style="background:${colorCode}"></span>` +
+            `<span class="task-move-mode-indicator__sprint-tech-name">${colorName}</span>` +
+            `<span class="task-move-mode-indicator__sprint-tech-n"> ${frac}</span>` +
+            `</div>`,
+        )
+      })
+      return (
+        `<div class="task-move-mode-indicator__content">` +
+        `<div class="task-move-mode-indicator__text task-move-mode-indicator__text--sprint">` +
+        `<div class="task-move-mode-indicator__sprint-title">${_('Спринт')}:</div>` +
+        `<div class="task-move-mode-indicator__sprint-take-row">` +
+        `<span class="${checkClass}" aria-hidden="true">${checkMark}</span>` +
+        `<span class="task-move-mode-indicator__sprint-take-text">${_('Возьмите задачи')}: ${takenNow}/${sprintTakeN}</span>` +
+        `</div>` +
+        `<div class="task-move-mode-indicator__sprint-move-block">` +
+        `<div class="task-move-mode-indicator__sprint-track-title">${_('Передвиньте задачи по треку спринта')}:</div>` +
+        `<div class="task-move-mode-indicator__sprint-tech-rows">${techRows.join('')}</div>` +
+        `</div>` +
+        `</div>` +
+        `<div class="task-move-mode-indicator__sprint-actions">` +
+        `<button type="button" class="task-move-mode-indicator__sprint-finish-btn" id="sprint-indicator-finish-moves"${finishDisabledAttr}>${_('Закончить перемещение')}</button>` +
+        `</div>` +
+        `</div>`
+      )
+    },
+
+    _bindSprintIndicatorFinishButton: function () {
+      const btn = document.getElementById('sprint-indicator-finish-moves')
+      if (!btn) {
+        return
+      }
+      btn.onclick = () => {
+        this._confirmTaskMoves()
+      }
+    },
+
+    _refreshSprintTaskMoveIndicator: function () {
+      const el = document.getElementById('task-move-mode-indicator')
+      if (!el || !el.classList.contains('task-move-mode-indicator--sprint')) {
+        return
+      }
+      el.innerHTML = this._buildSprintTaskMoveIndicatorInnerHtml()
+      this._bindSprintIndicatorFinishButton()
+      this._positionTaskMoveIndicator()
+    },
+
+    /**
+     * Индикатор подтверждения перемещений для фазы «Спринт».
+     * Нужен, чтобы игрок мог нажать «Подтвердить перемещения» и разблокировать завершение фазы.
+     */
+    _showSprintTaskMoveIndicator: function () {
+      let el = document.getElementById('task-move-mode-indicator')
+      if (el && !el.classList.contains('task-move-mode-indicator--sprint')) {
+        el.remove()
+        el = null
+      }
+      if (!el) {
+        el = document.createElement('div')
+        el.id = 'task-move-mode-indicator'
+        el.className =
+          'task-move-mode-indicator task-move-mode-indicator--sprint'
+        document.body.appendChild(el)
+      }
+      el.innerHTML = this._buildSprintTaskMoveIndicatorInnerHtml()
+      this._bindSprintIndicatorFinishButton()
+      this._positionTaskMoveIndicator()
     },
 
     /**
@@ -8561,7 +9266,7 @@ define([
       let check2 = pendingMoves && pendingMoves.moveSource === 'founder_effect'
       let isEffectMode = check1 || check2
       const isSprintPhase =
-        pendingMoves && pendingMoves.moveSource === 'sprint_phase'
+        pendingMoves && this._isSprintPerColorTaskMoveMode(pendingMoves)
 
       console.log('  → check1 (fromEffect === true):', check1)
       console.log('  → check2 (moveSource === "founder_effect"):', check2)
@@ -8725,21 +9430,6 @@ define([
               cancelable: e.cancelable,
             })
 
-            // ВАЖНО: Проверяем, активен ли жетон перед обработкой клика на колонку
-            const currentPendingMoves = this.gamedatas?.pendingTaskMoves
-            const currentTokenIdNum = parseInt(tokenId, 10)
-            const currentlyHasMove =
-              currentPendingMoves &&
-              currentPendingMoves.moves &&
-              currentPendingMoves.moves.some((m) => {
-                const moveTokenId = parseInt(m.tokenId, 10)
-                return (
-                  moveTokenId === currentTokenIdNum ||
-                  m.tokenId == tokenId ||
-                  m.tokenId === tokenId
-                )
-              })
-
             // Находим элемент жетона в DOM
             const tokenElement = document.querySelector(
               `[data-token-id="${tokenId}"]`,
@@ -8748,11 +9438,10 @@ define([
               tokenElement &&
               tokenElement.classList.contains('task-token--inactive')
 
-            // Если жетон неактивен - игнорируем клик на колонку
-            if (currentlyHasMove || isTokenInactive) {
+            // Только неактивный жетон блокирует клик по колонке (уже есть черновик хода — см. _moveTaskTokenToColumn)
+            if (isTokenInactive) {
               console.log('🔒 Ignoring column click - token is inactive:', {
                 tokenId,
-                currentlyHasMove,
                 isTokenInactive,
                 tokenElement: !!tokenElement,
               })
@@ -8831,9 +9520,13 @@ define([
           currentTarget: e.currentTarget,
         })
 
+        const target = e.target
+        if (target && target.closest && target.closest('#task-move-mode-indicator')) {
+          return
+        }
+
         // КРИТИЧЕСКИ ВАЖНО: Проверяем, был ли клик на подсвеченной колонке
         // Проверяем по ID колонок напрямую - это самый надежный способ
-        const target = e.target
         let isColumnClick = false
 
         // Проверяем все подсвеченные колонки по их ID
@@ -9054,6 +9747,12 @@ define([
           '✅✅✅ _moveTaskTokenToColumn - In effect mode, processing move',
         )
 
+        const isEffectModeForMoves =
+          pendingMoves.fromEffect === true ||
+          pendingMoves.moveSource === 'founder_effect'
+        const isSprintPhaseMoves =
+          this._isSprintPerColorTaskMoveMode(pendingMoves)
+
         // ВАЖНО: Проверяем, не было ли уже перемещение этой задачи
         // Если было, отменяем предыдущее перемещение и пересчитываем usedMoves
         let actualFromLocation = this._getTokenCurrentLocation(tokenId)
@@ -9211,14 +9910,14 @@ define([
             // Обновляем UI после отмены
             this._updateTaskMoveModeUI()
 
-            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
-            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+            // Скрываем кнопку подтверждения, пока снова есть бюджет спринта по цветам / ходы эффекта
+            const hideConfirmAfterCancel =
+              isSprintPhaseMoves
+                ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
+                : pendingMoves.usedMoves < pendingMoves.moveCount
+            if (hideConfirmAfterCancel) {
               this._hideTaskMovesConfirmButton()
               console.log('✅ Hidden confirm button after canceling move')
-            } else {
-              console.warn(
-                '⚠️ Current player or taskTokens not found for reversion',
-              )
             }
 
             // Перерисовываем жетоны
@@ -9227,8 +9926,7 @@ define([
             // Обновляем UI после отмены
             this._updateTaskMoveModeUI()
 
-            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
-            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+            if (hideConfirmAfterCancel) {
               const confirmButton = document.getElementById(
                 'task-moves-confirm-button',
               )
@@ -9313,8 +10011,11 @@ define([
             // Обновляем UI после отмены
             this._updateTaskMoveModeUI()
 
-            // ВАЖНО: Скрываем кнопку подтверждения, если не все ходы использованы
-            if (pendingMoves.usedMoves < pendingMoves.moveCount) {
+            const hideConfirmSwap =
+              isSprintPhaseMoves
+                ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
+                : pendingMoves.usedMoves < pendingMoves.moveCount
+            if (hideConfirmSwap) {
               const confirmButton = document.getElementById(
                 'task-moves-confirm-button',
               )
@@ -9362,6 +10063,10 @@ define([
         const isMovingBackward = blocks < 0
         const blocksToUse = Math.abs(blocks) // Используем абсолютное значение для подсчета
 
+        const moveColorNorm = this._normalizeTaskColorForSprint(
+          (this._getTokenColor(tokenId) || color || '').toString(),
+        )
+
         console.log('🔍🔍🔍 _moveTaskTokenToColumn - Move calculation:', {
           fromLocation: actualFromLocation,
           toLocation: newLocation,
@@ -9370,20 +10075,36 @@ define([
           isMovingBackward: isMovingBackward,
           usedMoves: pendingMoves.usedMoves,
           moveCount: pendingMoves.moveCount,
-          availableMoves: pendingMoves.moveCount - pendingMoves.usedMoves,
+          moveColorNorm: moveColorNorm,
+          isSprintPhaseMoves: isSprintPhaseMoves,
           existingMoves: pendingMoves.moves,
         })
 
-        // Проверяем, достаточно ли ходов для нового перемещения (только для перемещения вперед)
-        if (
-          !isMovingBackward &&
-          pendingMoves.usedMoves + blocksToUse > pendingMoves.moveCount
-        ) {
+        // Лимит ходов: эффект — общий пул; спринт — бюджет по цвету с трека техотдела
+        let notEnoughMoves = false
+        if (!isMovingBackward) {
+          if (isEffectModeForMoves) {
+            notEnoughMoves =
+              pendingMoves.usedMoves + blocksToUse > pendingMoves.moveCount
+          } else if (isSprintPhaseMoves) {
+            const budget = this._getTechDepartmentPosition(moveColorNorm)
+            const usedForColor = this._getSprintUsedBlocksForColor(
+              pendingMoves.moves || [],
+              moveColorNorm,
+            )
+            notEnoughMoves = usedForColor + blocksToUse > budget
+          } else {
+            notEnoughMoves =
+              pendingMoves.usedMoves + blocksToUse > pendingMoves.moveCount
+          }
+        }
+        if (notEnoughMoves) {
           console.warn('❌ Not enough moves:', {
-            used: pendingMoves.usedMoves,
+            isSprintPhaseMoves,
+            moveColorNorm,
+            usedMoves: pendingMoves.usedMoves,
             needed: blocksToUse,
-            total: pendingMoves.moveCount,
-            available: pendingMoves.moveCount - pendingMoves.usedMoves,
+            moveCount: pendingMoves.moveCount,
           })
           this.showMessage(_('Недостаточно ходов для перемещения'), 'error')
           return
@@ -9419,7 +10140,10 @@ define([
           fromLocation: actualFromLocation, // Используем исходную локацию
           toLocation: newLocation,
           blocks: blocksToUse, // Сохраняем абсолютное значение
-          color: (color || '').toString().toLowerCase(),
+          color:
+            moveColorNorm ||
+            this._normalizeTaskColorForSprint(color || '') ||
+            (color || '').toString().toLowerCase(),
         })
         console.log('✅ Added move to pendingMoves.moves:', {
           tokenId: normalizedTokenId,
@@ -9524,32 +10248,27 @@ define([
 
         // ВАЖНО: Очищаем подсветку колонок после перемещения, чтобы можно было выбрать другой жетон
         this._clearColumnHighlight()
-        console.log(
-          '✅ Cleared column highlight after move - ready for next token selection',
-        )
+        // (debug log removed)
 
-        // Показываем кнопку подтверждения, если использованы все ходы ИЛИ на треке нет доступных задач для перемещения
+        // Кнопка подтверждения: спринт — когда по всем цветам на треке не осталось шагов; эффект — общий пул
         const maxBlocksLeft = this._getMaxTaskMoveBlocksAvailable()
-        const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
         const noMoreAvailable = maxBlocksLeft === 0
-        if (allUsed || noMoreAvailable) {
-          console.log(
-            '✅ Showing confirm button:',
-            allUsed ? 'all moves used' : 'no more tasks to move',
-            {
-              usedMoves: pendingMoves.usedMoves,
-              moveCount: pendingMoves.moveCount,
-              maxBlocksLeft,
-            },
-          )
+        let shouldShowConfirm = false
+        if (isSprintPhaseMoves) {
+          const budgetsExhausted =
+            !this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
+          shouldShowConfirm =
+            (budgetsExhausted || noMoreAvailable) &&
+            pendingMoves.moves &&
+            pendingMoves.moves.length > 0
+        } else {
+          const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
+          shouldShowConfirm = allUsed || noMoreAvailable
+        }
+        if (shouldShowConfirm) {
           this._showTaskMovesConfirmButton()
         } else {
-          console.log(
-            '✅ Moves remaining:',
-            pendingMoves.moveCount - pendingMoves.usedMoves,
-            'maxBlocksLeft:',
-            maxBlocksLeft,
-          )
+          // keep moving
         }
       } else {
         // Обычный режим - сразу отправляем на сервер
@@ -9571,10 +10290,11 @@ define([
      * @param {number} moveCount Количество доступных ходов
      * @param {string} moveColor Цвет задач ('any' для любого цвета)
      */
-    _activateTaskMoveMode: function (moveCount, moveColor) {
+    _activateTaskMoveMode: function (moveCount, moveColor, founderName) {
       console.log('🎯🎯🎯 _activateTaskMoveMode called:', {
         moveCount,
         moveColor,
+        founderName,
         pendingTaskMoves: this.gamedatas?.pendingTaskMoves,
       })
 
@@ -9588,6 +10308,7 @@ define([
           moves: [],
           fromEffect: true, // Флаг, что это эффект карты
           moveSource: 'founder_effect',
+          founderName: founderName || '',
         }
         console.log(
           '✅✅✅ Created pendingTaskMoves:',
@@ -9608,6 +10329,9 @@ define([
             '✅✅✅ fromEffect is already true, moveSource:',
             this.gamedatas.pendingTaskMoves.moveSource,
           )
+        }
+        if (founderName) {
+          this.gamedatas.pendingTaskMoves.founderName = founderName
         }
       }
 
@@ -9656,10 +10380,10 @@ define([
       // Показываем индикатор режима перемещения
       this._showTaskMoveModeIndicator(moveCount, moveColor)
 
-      // Перерисовываем жетоны, чтобы применить изменения
-      setTimeout(() => {
-        this._renderTaskTokens(this.gamedatas.players)
-      }, 100)
+      const self = this
+      setTimeout(function () {
+        self._renderTaskTokens(self.gamedatas.players)
+      }, 280)
     },
 
     /**
@@ -10720,6 +11444,7 @@ define([
 
     _deactivateTaskMoveMode: function () {
       console.log('🔒 Deactivating task move mode')
+      this._hideTaskMoveHintModal()
 
       // Убираем классы с жетонов
       const tokens = document.querySelectorAll('.task-token--move-mode')
@@ -10786,6 +11511,16 @@ define([
       const taskIndicator = document.getElementById('task-move-mode-indicator')
 
       if (!taskIndicator) {
+        return
+      }
+
+      if (taskIndicator.classList.contains('task-move-mode-indicator--sprint')) {
+        taskIndicator.style.position = 'fixed'
+        taskIndicator.style.top = '100px'
+        taskIndicator.style.left = '50%'
+        taskIndicator.style.transform = 'translateX(-50%)'
+        taskIndicator.style.width = 'auto'
+        taskIndicator.style.maxWidth = 'min(480px, 94vw)'
         return
       }
 
@@ -10879,6 +11614,10 @@ define([
           '⚠️ _updateTaskMoveModeUI: Element task-move-mode-used not found',
         )
       }
+      if (this._isSprintPerColorTaskMoveMode(pendingMoves)) {
+        this._refreshSprintTaskMoveIndicator()
+      }
+      this._refreshTaskMoveHintModalIfVisible()
     },
 
     /**
@@ -10895,6 +11634,9 @@ define([
 
       const indicator = document.getElementById('task-move-mode-indicator')
       if (!indicator) return
+      if (indicator.classList.contains('task-move-mode-indicator--sprint')) {
+        return
+      }
 
       const button = document.createElement('button')
       button.id = 'task-moves-confirm-button'
@@ -10925,44 +11667,66 @@ define([
       const pendingMoves = this.gamedatas?.pendingTaskMoves
       if (!pendingMoves) {
         console.error('❌ No pendingMoves found!')
-        this.showMessage(_('Нет перемещений для подтверждения'), 'error')
         return
       }
+
+      const isSprintPhase = this._isSprintPerColorTaskMoveMode(pendingMoves)
 
       // Проверяем, что есть перемещения для отправки (или на треке не осталось задач для перемещения)
       const maxBlocksLeft = this._getMaxTaskMoveBlocksAvailable()
       const noMoreAvailable = maxBlocksLeft === 0
       if (
         (!pendingMoves.moves || pendingMoves.moves.length === 0) &&
-        !noMoreAvailable
+        !noMoreAvailable &&
+        !isSprintPhase
       ) {
         console.error('❌ No moves to confirm!', { pendingMoves })
         this.showMessage(_('Нет перемещений для подтверждения'), 'error')
         return
       }
 
-      // Разрешаем подтверждение, если использованы все ходы ИЛИ на треке больше нет задач для перемещения
-      const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
-      if (!allUsed && !noMoreAvailable) {
-        console.warn(
-          '❌ Cannot confirm: moves remaining and tasks still available',
-          {
-            usedMoves: pendingMoves.usedMoves,
-            moveCount: pendingMoves.moveCount,
-            maxBlocksLeft,
-          },
-        )
-        this.showMessage(
-          _(
-            'Вы должны использовать все доступные ходы (${used}/${total}) или переместить все доступные задачи',
+      if (isSprintPhase) {
+        if (this._sprintFinishMovesBlocked()) {
+          this.showMessage(
+            _(
+              'Сначала подтвердите взятие задач из банка и выполните перемещения по лимитам техотдела для каждого цвета.',
+            ),
+            'error',
+          )
+          return
+        }
+        // В спринте разрешаем подтверждение и с пустым списком,
+        // если на треке реально больше нет доступных шагов (чтобы не блокировать фазу).
+        const hasMoves = pendingMoves.moves && pendingMoves.moves.length > 0
+        if (!hasMoves && !noMoreAvailable) {
+          if (this._sprintHasAnyLegalMoveRemaining(pendingMoves)) {
+            return
+          }
+        }
+      } else {
+        // Разрешаем подтверждение, если использованы все ходы ИЛИ на треке больше нет задач для перемещения
+        const allUsed = pendingMoves.usedMoves >= pendingMoves.moveCount
+        if (!allUsed && !noMoreAvailable) {
+          console.warn(
+            '❌ Cannot confirm: moves remaining and tasks still available',
             {
-              used: pendingMoves.usedMoves,
-              total: pendingMoves.moveCount,
+              usedMoves: pendingMoves.usedMoves,
+              moveCount: pendingMoves.moveCount,
+              maxBlocksLeft,
             },
-          ),
-          'error',
-        )
-        return
+          )
+          this.showMessage(
+            _(
+              'Вы должны использовать все доступные ходы (${used}/${total}) или переместить все доступные задачи',
+              {
+                used: pendingMoves.usedMoves,
+                total: pendingMoves.moveCount,
+              },
+            ),
+            'error',
+          )
+          return
+        }
       }
 
       console.log('✅ Confirming task moves:', {
@@ -10978,9 +11742,16 @@ define([
 
       // ВАЖНО: Блокируем кнопку, чтобы предотвратить повторные нажатия
       const confirmButton = document.getElementById('task-moves-confirm-button')
+      const sprintFinishBtn = document.getElementById(
+        'sprint-indicator-finish-moves',
+      )
       if (confirmButton) {
         confirmButton.disabled = true
         confirmButton.textContent = _('Отправка...')
+      }
+      if (sprintFinishBtn) {
+        sprintFinishBtn.disabled = true
+        sprintFinishBtn.textContent = _('Отправка...')
       }
 
       this.bgaPerformAction(
@@ -10991,6 +11762,10 @@ define([
         (result) => {
           if (result && result.success !== false) {
             console.log('✅ Task moves confirmed successfully')
+
+            if (isSprintPhase) {
+              this.gamedatas.sprintTrackMovesConfirmed = true
+            }
 
             // ВАЖНО: Сразу очищаем состояние и скрываем UI после успешной отправки
             // Не ждем уведомления, так как оно может прийти с задержкой
@@ -11016,6 +11791,10 @@ define([
               confirmButton.disabled = false
               confirmButton.textContent = _('Подтвердить перемещения')
             }
+            if (sprintFinishBtn) {
+              sprintFinishBtn.disabled = false
+              sprintFinishBtn.textContent = _('Закончить перемещение')
+            }
 
             // Показываем сообщение об ошибке только если это не стандартная ошибка валидации
             if (result && result.error) {
@@ -11035,6 +11814,10 @@ define([
         if (confirmButton) {
           confirmButton.disabled = false
           confirmButton.textContent = _('Подтвердить перемещения')
+        }
+        if (sprintFinishBtn) {
+          sprintFinishBtn.disabled = false
+          sprintFinishBtn.textContent = _('Закончить перемещение')
         }
 
         // Показываем сообщение об ошибке
@@ -11499,6 +12282,178 @@ define([
     },
 
     /**
+     * Фаза «Спринт»: из банка (parts-of-projects) можно взять не более maxTasks задач суммарно.
+     */
+    _activateTaskSelectionForSprintPhase: function (maxTasks) {
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      taskColors.forEach((color) => {
+        const input = document.querySelector(
+          `.task-input__field[data-color="${color}"]`,
+        )
+        if (input) {
+          input.disabled = false
+          input.max = maxTasks
+          input.value = 0
+          input.classList.remove('task-input__field--disabled')
+        }
+        const decreaseBtn = input?.parentElement?.querySelector(
+          '.task-input__button--decrease',
+        )
+        const increaseBtn = input?.parentElement?.querySelector(
+          '.task-input__button--increase',
+        )
+        if (decreaseBtn) decreaseBtn.disabled = false
+        if (increaseBtn) increaseBtn.disabled = false
+      })
+
+      const existingButton = document.getElementById(
+        'task-selection-confirm-button',
+      )
+      if (existingButton) {
+        existingButton.remove()
+      }
+
+      const container = document.querySelector('.task-inputs-container')
+      if (!container) {
+        console.error('❌ task-inputs-container not found (sprint)')
+        return
+      }
+
+      const button = document.createElement('button')
+      button.id = 'task-selection-confirm-button'
+      button.className = 'task-selection-confirm-button'
+      button.textContent = _('Подтвердить задачи из банка')
+      button.disabled = false
+      button.addEventListener('click', () => {
+        this._confirmTaskSelectionSprint(maxTasks)
+      })
+      container.appendChild(button)
+
+      const validateSelection = () => {
+        let total = 0
+        taskColors.forEach((color) => {
+          const input = document.querySelector(
+            `.task-input__field[data-color="${color}"]`,
+          )
+          if (input && !input.disabled) {
+            total += parseInt(input.value, 10) || 0
+          }
+        })
+        if (button) {
+          button.disabled = total > maxTasks
+          if (total > maxTasks) {
+            button.title = _('Слишком много задач для этой фазы')
+          } else {
+            button.title = ''
+          }
+        }
+        taskColors.forEach((color) => {
+          const input = document.querySelector(
+            `.task-input__field[data-color="${color}"]`,
+          )
+          if (input && !input.disabled) {
+            const currentValue = parseInt(input.value, 10) || 0
+            const otherTotal = total - currentValue
+            const remaining = maxTasks - otherTotal
+            const cap = Math.max(0, remaining)
+            input.max = cap
+            if (currentValue > cap) {
+              input.value = String(cap)
+            }
+          }
+        })
+      }
+
+      const prev = this._taskSelectionValidateBound
+      if (typeof prev === 'function') {
+        taskColors.forEach((color) => {
+          const input = document.querySelector(
+            `.task-input__field[data-color="${color}"]`,
+          )
+          if (input) {
+            input.removeEventListener('input', prev)
+            input.removeEventListener('change', prev)
+          }
+        })
+      }
+      this._taskSelectionValidateBound = validateSelection
+      taskColors.forEach((color) => {
+        const input = document.querySelector(
+          `.task-input__field[data-color="${color}"]`,
+        )
+        if (input) {
+          input.addEventListener('input', validateSelection)
+          input.addEventListener('change', validateSelection)
+        }
+      })
+      validateSelection()
+    },
+
+    _confirmTaskSelectionSprint: function (maxTasks) {
+      if (
+        this.gamedatas?.gamestate?.name !== 'RoundSprint' ||
+        !this.isCurrentPlayerActive()
+      ) {
+        this.showMessage(
+          _('Сейчас нельзя подтвердить выбор задач из банка'),
+          'error',
+        )
+        return
+      }
+      if (this._sprintConfirmBankInFlight) {
+        return
+      }
+      const selectedTasks = this._getSelectedTasks()
+      const total = selectedTasks.reduce((sum, task) => sum + task.quantity, 0)
+      if (total > maxTasks) {
+        this.showMessage(
+          _('Слишком много задач (максимум ${n})', { n: maxTasks }),
+          'error',
+        )
+        return
+      }
+      const confirmBtn = document.getElementById(
+        'task-selection-confirm-button',
+      )
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+      }
+      this._sprintConfirmBankInFlight = true
+      const unlock = () => {
+        this._sprintConfirmBankInFlight = false
+        if (confirmBtn && confirmBtn.parentNode) {
+          confirmBtn.disabled = false
+        }
+      }
+      const applySuccessUi = () => {
+        this.gamedatas.sprintBankTakenCount = total
+        this.gamedatas.sprintBankConfirmed = true
+        this._refreshSprintTaskMoveIndicator()
+        this._deactivateTaskSelection()
+      }
+      // Третий аргумент bgaPerformAction — объект { lock, checkAction }, не колбэк (см. bga-framework.d.ts).
+      const ret = this.bgaPerformAction(
+        'actConfirmSprintTasks',
+        {
+          selectedTasksJson: JSON.stringify(selectedTasks),
+        },
+        { lock: true, checkAction: true },
+      )
+      if (ret != null && typeof ret.then === 'function') {
+        ret
+          .then(() => {
+            applySuccessUi()
+          })
+          .catch(() => {})
+          .finally(() => {
+            unlock()
+          })
+      } else {
+        unlock()
+      }
+    },
+
+    /**
      * Деактивирует выбор задач
      */
     _deactivateTaskSelection: function () {
@@ -11685,6 +12640,10 @@ define([
      * @param {number} maxTasks Максимальное количество задач
      */
     _confirmTaskSelection: function (maxTasks) {
+      if (this.gamedatas?.gamestate?.name === 'RoundSprint') {
+        return this._confirmTaskSelectionSprint(maxTasks)
+      }
+
       const selectedTasks = this._getSelectedTasks()
       const total = selectedTasks.reduce((sum, task) => sum + task.quantity, 0)
 
@@ -11832,6 +12791,415 @@ define([
         }
       }
       return null
+    },
+
+    /** getArgs() с сервера: либо плоский объект, либо { args: { ... } } */
+    _getStateArgsPayload: function (args) {
+      if (!args || typeof args !== 'object') {
+        return {}
+      }
+      if (
+        args.args !== undefined &&
+        args.args !== null &&
+        typeof args.args === 'object'
+      ) {
+        return args.args
+      }
+      return args
+    },
+
+    /** Флаги из PHP/JSON иногда приходят как 1 / "1", а не strict true */
+    _coerceStateBool: function (v) {
+      return (
+        v === true || v === 1 || v === '1' || v === 'true' || v === 'TRUE'
+      )
+    },
+
+    _setupTaskMoveHintModal: function () {
+      const modal = document.getElementById('task-move-hint-modal')
+      const closeBtn = document.getElementById('task-move-hint-modal-close')
+      if (!modal || !closeBtn || modal.dataset.bound === '1') {
+        return
+      }
+      modal.dataset.bound = '1'
+      const hide = () => this._hideTaskMoveHintModal()
+      closeBtn.addEventListener('click', hide)
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) hide()
+      })
+    },
+
+    _sprintLocationLabel: function (loc) {
+      const l = (loc || 'backlog').toString().toLowerCase()
+      const m = {
+        backlog: _('Бэклог'),
+        'in-progress': _('В работе'),
+        testing: _('Тестирование'),
+        completed: _('Завершено'),
+      }
+      return m[l] || l
+    },
+
+    /** Сколько этапов вперёд до «Завершено» с текущей колонки (без учёта лимита техотдела). */
+    _sprintBlocksToCompleted: function (location) {
+      const loc = (location || 'backlog').toString().toLowerCase()
+      const map = {
+        backlog: 3,
+        'in-progress': 2,
+        testing: 1,
+        completed: 0,
+      }
+      return map[loc] ?? 0
+    },
+
+    /** Склонение «шаг» для числа n (RU). */
+    _stepsWordRu: function (n) {
+      const x = Math.floor(Math.abs(Number(n)) || 0)
+      const m10 = x % 10
+      const m100 = x % 100
+      if (m10 === 1 && m100 !== 11) {
+        return _('шаг')
+      }
+      if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) {
+        return _('шага')
+      }
+      return _('шагов')
+    },
+
+    _escapeHtmlForHint: function (s) {
+      if (s == null) {
+        return ''
+      }
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    },
+
+    /**
+     * Перерисовывает открытую подсказку (остатки шагов при планировании перемещений).
+     */
+    _refreshTaskMoveHintModalIfVisible: function () {
+      const modal = document.getElementById('task-move-hint-modal')
+      if (
+        !modal ||
+        !modal.classList.contains('active') ||
+        !this._taskMoveHintLastOpts
+      ) {
+        return
+      }
+      this._fillTaskMoveHintModalContent(this._taskMoveHintLastOpts)
+    },
+
+    /**
+     * Заполняет содержимое модального окна подсказки по перемещению задач.
+     * @param {Object} opts см. _showTaskMoveHintModal
+     */
+    _fillTaskMoveHintModalContent: function (opts) {
+      const titleEl = document.getElementById('task-move-hint-modal-title')
+      const introEl = document.getElementById('task-move-hint-modal-intro')
+      const bodyEl = document.getElementById('task-move-hint-modal-body')
+      if (!titleEl || !introEl || !bodyEl) {
+        return
+      }
+
+      const pid = Number(this.player_id)
+      const pl = this.gamedatas?.players?.[pid]
+      const pm = this.gamedatas?.pendingTaskMoves
+      const context = opts && opts.context ? opts.context : 'auto'
+      const gsName = this.gamedatas?.gamestate?.name || ''
+      const isSprint =
+        context === 'sprint_phase' ||
+        context === 'sprint_mandatory' ||
+        (context === 'auto' && this._isSprintPerColorTaskMoveMode(pm)) ||
+        (gsName === 'RoundSprint' &&
+          (!pm || this._isSprintPerColorTaskMoveMode(pm)))
+      const isEffect =
+        !isSprint &&
+        (context === 'effect' ||
+          (context === 'auto' &&
+            pm &&
+            !this._isSprintPerColorTaskMoveMode(pm)))
+
+      let title = _('Перемещение задач')
+      let intro = ''
+      let bodyHtml = ''
+
+      const tokens = (pl && pl.taskTokens) || []
+      const movable = tokens.filter((t) => {
+        const loc = (t.location || 'backlog').toString().toLowerCase()
+        return loc !== 'completed'
+      })
+
+      const colorOrder = ['pink', 'orange', 'cyan', 'purple']
+
+      const buildPlannedMovesBlock = (pendingMoves) => {
+        const moves = pendingMoves?.moves || []
+        if (!Array.isArray(moves) || moves.length === 0) {
+          return ''
+        }
+        const items = moves
+          .map((m, idx) => {
+            if (!m) return ''
+            const c = this._normalizeTaskColorForSprint(m.color || '')
+            const dot = this._getTaskTokenColorCode(c || 'cyan')
+            const cn = this._getTaskTokenColorData(c || '')?.name || c || ''
+            const from = this._sprintLocationLabel(m.fromLocation)
+            const to = this._sprintLocationLabel(m.toLocation)
+            const blocks = Math.abs(Number(m.blocks) || 0)
+            return (
+              `<div class="task-move-hint-modal__step">` +
+              `<div class="task-move-hint-modal__step-n">${idx + 1}</div>` +
+              `<div class="task-move-hint-modal__step-body">` +
+              `<div class="task-move-hint-modal__step-title">` +
+              `<span class="task-move-hint-modal__dot" style="background:${dot}"></span>` +
+              `<span>${cn}</span>` +
+              `</div>` +
+              `<div class="task-move-hint-modal__step-desc">` +
+              `${from} → <strong>${to}</strong> · ${blocks} ${this._stepsWordRu(blocks)}` +
+              `</div>` +
+              `</div>` +
+              `</div>`
+            )
+          })
+          .filter(Boolean)
+        if (!items.length) {
+          return ''
+        }
+        return (
+          `<div class="task-move-hint-modal__section">` +
+          `<div class="task-move-hint-modal__section-title">${_('Запланировано')}</div>` +
+          `<div class="task-move-hint-modal__steps">${items.join('')}</div>` +
+          `</div>`
+        )
+      }
+
+      const buildMovableTokensBlock = (pendingMoves, mode) => {
+        // mode: 'sprint' | 'effect'
+        const list = []
+        movable.forEach((t) => {
+          if (!t) return
+          const tokenId = t.token_id ?? t.tokenId
+          const rawC = (t.color || '').toString().toLowerCase()
+          const c = rawC === 'cayn' ? 'cyan' : rawC
+          const loc = (t.location || 'backlog').toString().toLowerCase()
+          let budget = 0
+          if (mode === 'sprint') {
+            const synthPm = this._isSprintPerColorTaskMoveMode(pendingMoves)
+              ? pendingMoves
+              : {
+                  moveSource: 'sprint_phase',
+                  fromEffect: false,
+                  moves: pendingMoves && pendingMoves.moves ? [...pendingMoves.moves] : [],
+                }
+            budget = this._getSprintAvailableBlocksForColor(synthPm, c)
+          } else {
+            budget = Math.max(
+              0,
+              (Number(pendingMoves?.moveCount) || 0) -
+                (Number(pendingMoves?.usedMoves) || 0),
+            )
+            const mc = (pendingMoves?.moveColor || 'any').toString().toLowerCase()
+            if (mc !== 'any' && mc !== c) {
+              return
+            }
+          }
+          const cap = this._sprintBlocksToCompleted(loc)
+          const maxOne = Math.min(budget, cap)
+          if (maxOne <= 0) {
+            return
+          }
+          const dot = this._getTaskTokenColorCode(c)
+          const cn = this._getTaskTokenColorData(c)?.name || c
+          const locLabel = this._sprintLocationLabel(loc)
+          list.push(
+            `<div class="task-move-hint-modal__step">` +
+              `<div class="task-move-hint-modal__step-n">•</div>` +
+              `<div class="task-move-hint-modal__step-body">` +
+              `<div class="task-move-hint-modal__step-title">` +
+              `<span class="task-move-hint-modal__dot" style="background:${dot}"></span>` +
+              `<span>${cn}</span>` +
+              `</div>` +
+              `<div class="task-move-hint-modal__step-desc">` +
+              `${_('Сейчас')}: <strong>${locLabel}</strong> · ${_('можно')} ${_('до')} <strong>${maxOne}</strong> ${this._stepsWordRu(maxOne)}` +
+              `</div>` +
+              `</div>` +
+              `</div>`
+          )
+        })
+        if (!list.length) {
+          return ''
+        }
+        return (
+          `<div class="task-move-hint-modal__section">` +
+          `<div class="task-move-hint-modal__section-title">${_('Какие задачи можно передвинуть')}</div>` +
+          `<div class="task-move-hint-modal__steps">${list.join('')}</div>` +
+          `</div>`
+        )
+      }
+
+      if (isSprint) {
+        title = _('ФАЗА «СПРИНТ»')
+        intro = ''
+
+        const synthPm = this._isSprintPerColorTaskMoveMode(pm)
+          ? pm
+          : {
+              moveSource: 'sprint_phase',
+              fromEffect: false,
+              moves: pm && pm.moves ? [...pm.moves] : [],
+            }
+
+        const takeLimit =
+          Number(this.gamedatas?.sprintTasksTakeLimit) ||
+          Number(
+            this.gamedatas?.players?.[this.player_id]?.sprintColumnTasksProgress,
+          ) ||
+          1
+
+        const colorRows = []
+        colorOrder.forEach((c) => {
+          const budget = this._getSprintAvailableBlocksForColor(synthPm, c)
+          const colorName = this._getTaskTokenColorData(c)?.name || c
+          const colorCode = this._getTaskTokenColorCode(c)
+          colorRows.push(
+            `<div class="task-move-hint-sprint__color-row">` +
+              `<span class="task-move-hint-sprint__dot" style="background:${colorCode}"></span>` +
+              `<span class="task-move-hint-sprint__color-name">${colorName}</span>` +
+              `<span class="task-move-hint-sprint__color-val"><strong>${budget}</strong> ${this._stepsWordRu(budget)}</span>` +
+              `</div>`,
+          )
+        })
+
+        const mandatoryHint =
+          context === 'sprint_mandatory'
+            ? `<div class="task-move-hint-sprint__mandatory">${_('Нажмите «Подтвердить перемещения», затем можно завершить фазу спринта.')}</div>`
+            : ''
+
+        bodyHtml =
+          `<div class="task-move-hint-sprint">` +
+            `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--take">` +
+              `<div class="task-move-hint-sprint__badge">1</div>` +
+              `<div class="task-move-hint-sprint__card-text">` +
+                `${_('Возьмите')} <strong>${takeLimit}</strong> ${_('задач из банка в бэклог')}` +
+              `</div>` +
+            `</div>` +
+            `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--move">` +
+              `<div class="task-move-hint-sprint__badge">2</div>` +
+              `<div class="task-move-hint-sprint__card-main">` +
+                `<div class="task-move-hint-sprint__move-title">${_('Передвиньте задачи')}</div>` +
+                `<div class="task-move-hint-sprint__colors">${colorRows.join('')}</div>` +
+              `</div>` +
+            `</div>` +
+            mandatoryHint +
+          `</div>`
+      } else if (isEffect && pm) {
+        title = _('Передвиньте задачи')
+        const remaining = Math.max(
+          0,
+          (Number(pm.moveCount) || 0) - (Number(pm.usedMoves) || 0),
+        )
+        const mc = (pm.moveColor || 'any').toString().toLowerCase()
+        const fnRaw = (pm.founderName || '').toString().trim()
+        const fnEsc = this._escapeHtmlForHint(fnRaw)
+        const poolWord = this._stepsWordRu(remaining)
+        let introLine =
+          (fnRaw
+            ? `<span class="task-move-hint-modal__founder">${fnEsc}</span> · `
+            : '') +
+          _('общий запас') +
+          `: <span class="task-move-hint-modal__intro-strong">${remaining}</span> ${poolWord}. `
+        introLine +=
+          mc === 'any'
+            ? _('Любой цвет задач (не в «Завершено»).')
+            : `${_('Только цвет:')} <strong>${
+                this._getTaskTokenColorData(mc)?.name || mc
+              }</strong>.`
+        intro = introLine
+
+        let poolRows =
+          `<div class="task-move-hint-modal__pool">` +
+          `<div class="task-move-hint-modal__pool-cap">${_('Осталось ходов')}</div>` +
+          `<div class="task-move-hint-modal__pool-num">${remaining}</div>` +
+          `<div class="task-move-hint-modal__pool-unit">${poolWord}</div>` +
+          `</div>`
+
+        const byNorm = {}
+        movable.forEach((t) => {
+          const tc = (t.color || '').toString().toLowerCase()
+          const norm = tc === 'cayn' ? 'cyan' : tc
+          if (mc !== 'any' && norm !== mc) {
+            return
+          }
+          if (!byNorm[norm]) {
+            byNorm[norm] = []
+          }
+          byNorm[norm].push(t)
+        })
+        const effectRows = []
+        colorOrder.forEach((norm) => {
+          const list = byNorm[norm]
+          if (!list || !list.length) {
+            return
+          }
+          const maxOne = Math.max.apply(
+            null,
+            list.map((t) => {
+              const loc = (t.location || 'backlog').toString().toLowerCase()
+              const cap = this._sprintBlocksToCompleted(loc)
+              return Math.min(remaining, cap)
+            }),
+          )
+          const colorName = this._getTaskTokenColorData(norm)?.name || norm
+          const dot = this._getTaskTokenColorCode(norm)
+          effectRows.push(
+            `<div class="task-move-hint-modal__effect-row">` +
+              `<span class="task-move-hint-modal__dot" style="background:${dot}"></span>` +
+              `<span class="task-move-hint-modal__color-name">${colorName}</span>` +
+              `<span class="task-move-hint-modal__effect-max">${_('до')} <strong>${maxOne}</strong> ${_('за клик')}</span>` +
+              `</div>`,
+          )
+        })
+        if (!effectRows.length) {
+          poolRows += `<p class="task-move-hint-modal__p">${_('Нет подходящих задач на треке.')}</p>`
+        } else {
+          poolRows += `<div class="task-move-hint-modal__effect-rows">${effectRows.join('')}</div>`
+        }
+        bodyHtml = poolRows + buildMovableTokensBlock(pm, 'effect') + buildPlannedMovesBlock(pm)
+      } else {
+        intro = _(
+          'Выберите задачу на треке: подсветятся колонки, куда можно сходить.',
+        )
+        bodyHtml = `<p class="task-move-hint-modal__p">${_('Подсказка появится в режиме перемещения (эффект карты или спринт).')}</p>`
+      }
+
+      titleEl.textContent = title
+      introEl.innerHTML = intro
+      bodyEl.innerHTML = bodyHtml
+
+      const modalRoot = document.getElementById('task-move-hint-modal')
+      if (modalRoot) {
+        modalRoot.classList.toggle('task-move-hint-modal--sprint-card', isSprint)
+      }
+    },
+
+    /**
+     * Модальное окно подсказки по перемещению задач отключено (не показывать).
+     * @param {Object} [opts] игнорируется
+     */
+    _showTaskMoveHintModal: function (opts) {
+      this._hideTaskMoveHintModal()
+    },
+
+    _hideTaskMoveHintModal: function () {
+      this._taskMoveHintLastOpts = null
+      const modal = document.getElementById('task-move-hint-modal')
+      if (modal) {
+        modal.classList.remove('task-move-hint-modal--sprint-card')
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
     },
     _setupHandInteractions: function () {
       const handContainer = document.getElementById('active-player-hand-cards')

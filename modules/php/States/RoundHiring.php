@@ -35,6 +35,7 @@ class RoundHiring extends GameState
 
     public function getArgs(): array
     {
+        $round = (int) $this->game->getGameStateValue('round_number');
         $activePlayerIdRaw = $this->game->getActivePlayerId();
         if ($activePlayerIdRaw === null) {
             // Иногда при редиректе в состояние активный игрок может быть не установлен.
@@ -70,7 +71,24 @@ class RoundHiring extends GameState
             $gameData = [];
         }
         $hiringTrackValue = $this->game->getHiringTrackValue($activePlayerId);
-        $recruitingDone = $this->game->globals->get('hiring_recruiting_done_' . $activePlayerId, '') === '1';
+        // Флаги фазы «Найм» должны быть привязаны к раунду — иначе при refresh страницы/переходах
+        // предыдущий раунд может "залипнуть" и игрок не сможет нанимать.
+        $phaseRoundKey = 'hiring_phase_round_' . $activePlayerId;
+        $recruitingKey = 'hiring_recruiting_done_' . $activePlayerId;
+        $confirmedKey = 'hiring_confirmed_' . $activePlayerId;
+        $hiredCountKey = 'hiring_hired_count_' . $activePlayerId;
+        $bonusKey = 'hiring_bonus_hire_slots_' . $activePlayerId;
+
+        $savedRound = (int) ($this->game->globals->get($phaseRoundKey, '0') ?: 0);
+        if ($savedRound !== $round) {
+            $this->game->globals->delete($recruitingKey);
+            $this->game->globals->delete($confirmedKey);
+            $this->game->globals->set($hiredCountKey, '0');
+            $this->game->globals->set($bonusKey, '0');
+            $this->game->globals->set($phaseRoundKey, (string) $round);
+        }
+
+        $recruitingDone = $this->game->globals->get($recruitingKey, '') === '1';
         $hiringTrackHire = $this->game->getHiringTrackHireCount($activePlayerId);
         $badgers = $this->game->getPlayerBadgersForCheck($activePlayerId);
 
@@ -90,8 +108,8 @@ class RoundHiring extends GameState
             }
         }
 
-        $hiringConfirmed = $this->game->globals->get('hiring_confirmed_' . $activePlayerId, '') === '1';
-        $hiringHiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $activePlayerId, '0');
+        $hiringConfirmed = $this->game->globals->get($confirmedKey, '') === '1';
+        $hiringHiredCount = (int) $this->game->globals->get($hiredCountKey, '0');
         $roundOrder = $this->game->getCurrentRoundPlayerOrder();
 
         $pendingTaskJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, '');
@@ -127,6 +145,7 @@ class RoundHiring extends GameState
         return [
             'phaseKey' => 'hiring',
             'phaseName' => $this->game->getPhaseName('hiring'),
+            'activePlayerId' => $activePlayerId,
             'currentRoundPlayerOrder' => $roundOrder,
             'hiringTrackValue' => $hiringTrackValue,
             'recruitingDone' => $recruitingDone,
@@ -144,6 +163,7 @@ class RoundHiring extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'hiring');
+        $round = (int) $this->game->getGameStateValue('round_number');
         $activePlayerIdRaw = $this->game->getActivePlayerId();
         if ($activePlayerIdRaw === null) {
             $this->game->activeNextPlayer();
@@ -155,10 +175,15 @@ class RoundHiring extends GameState
             error_log('RoundHiring::onEnteringState - WARNING: invalid activePlayerId=' . $activePlayerId);
             return null;
         }
+        // Сброс флагов фазы для активного игрока в рамках текущего раунда
+        $this->game->globals->set('hiring_phase_round_' . $activePlayerId, (string) $round);
         $this->game->globals->delete('hiring_confirmed_' . $activePlayerId);
+        $this->game->globals->delete('hiring_recruiting_done_' . $activePlayerId);
         $this->game->globals->set('hiring_hired_count_' . $activePlayerId, '0');
         $this->game->resetHiringBonusHireSlots($activePlayerId);
-        // Сбрасываем ожидание выбора задач при входе в фазу найма — блокировка только после найма карты с эффектом task
+        // Сбрасываем ожидание выбора задач только у активного (его ход в найме).
+        // НЕ чистим у всех: при переходе к следующему игроку снова вызывается RoundHiring::onEnteringState,
+        // иначе сбросили бы чужой «живой» pending после найма специалиста с эффектом task.
         $this->game->globals->set('pending_task_selection_' . $activePlayerId, null);
         $this->game->ensureSpecialistDeckInitialized();
 
@@ -216,6 +241,8 @@ class RoundHiring extends GameState
     {
         $this->game->checkAction('actRecruiting');
         $playerId = (int) $this->game->getActivePlayerId();
+        $round = (int) $this->game->getGameStateValue('round_number');
+        $this->game->globals->set('hiring_phase_round_' . $playerId, (string) $round);
         if ($this->game->globals->get('hiring_recruiting_done_' . $playerId, '') === '1') {
             throw new UserException(clienttranslate('You have already performed recruiting this turn'));
         }
@@ -269,6 +296,8 @@ class RoundHiring extends GameState
     {
         $this->game->checkAction('actHireOneSpecialist');
         $playerId = (int) $this->game->getActivePlayerId();
+        $round = (int) $this->game->getGameStateValue('round_number');
+        $this->game->globals->set('hiring_phase_round_' . $playerId, (string) $round);
         $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
         $hiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $playerId, '0');
         if ($hiredCount >= $maxHire) {
@@ -387,6 +416,8 @@ class RoundHiring extends GameState
     {
         $this->game->checkAction('actConfirmHiringSelection');
         $playerId = (int) $this->game->getActivePlayerId();
+        $round = (int) $this->game->getGameStateValue('round_number');
+        $this->game->globals->set('hiring_phase_round_' . $playerId, (string) $round);
         if ($this->game->globals->get('hiring_confirmed_' . $playerId, '') === '1') {
             throw new UserException(clienttranslate('You have already confirmed hiring this turn'));
         }

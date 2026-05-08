@@ -30,6 +30,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 'toRoundSkills' => 16,
                 'toRoundHiring' => 17,
                 'toRoundSales' => 18,
+                'toRoundSprint' => 19,
             ],
         );
     }
@@ -405,9 +406,42 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 }
             }
             $nextPhaseIndex = $currentPhaseIndex + 1;
+            $nextPhaseAfterSales = $phases[$nextPhaseIndex] ?? null;
+            $roundOrderAfterSales = $this->game->getCurrentRoundPlayerOrder();
+            if (($nextPhaseAfterSales['key'] ?? '') === 'sprint' && $roundOrderAfterSales !== null && $roundOrderAfterSales !== []) {
+                $this->game->gamestate->changeActivePlayer($roundOrderAfterSales[0]);
+            }
             $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
             $this->game->setGameStateValue('players_completed_current_phase', 0);
-            error_log('NextPlayer - Фаза SALES завершена → следующий раунд');
+            error_log('NextPlayer - Фаза SALES завершена → следующая фаза или раунд');
+            return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+        }
+
+        $sprintJustFinished = $this->game->globals->get('sprint_phase_just_finished', '') === '1';
+        if ($sprintJustFinished) {
+            $this->game->globals->delete('sprint_phase_just_finished');
+            $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+            $playersCompletedCurrentPhase++;
+            $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
+            error_log('NextPlayer - Фаза SPRINT: закончили ход ' . $playersCompletedCurrentPhase . '/' . $playersCount);
+            if ($playersCompletedCurrentPhase < $playersCount) {
+                $this->game->advanceToNextPlayerInRound();
+                return 'toRoundSprint';
+            }
+            $order = $this->game->getCurrentRoundPlayerOrder();
+            if ($order !== null && $order !== []) {
+                $lastInOrder = $order[array_key_last($order)];
+                $activeId = (int) $this->game->getActivePlayerId();
+                if ($activeId !== $lastInOrder) {
+                    error_log('NextPlayer - Фаза SPRINT: завершил не последний в порядке (active=' . $activeId . ', last=' . $lastInOrder . ') — передаём ход следующему');
+                    $this->game->advanceToNextPlayerInRound();
+                    return 'toRoundSprint';
+                }
+            }
+            $nextPhaseIndex = $currentPhaseIndex + 1;
+            $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
+            error_log('NextPlayer - Фаза SPRINT завершена → следующий раунд');
             return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
         }
 
@@ -435,13 +469,15 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             $roundOrder = $this->game->getCurrentRoundPlayerOrder();
             if ($roundOrder !== null && $roundOrder !== [] && ($nextTransition === 'toRoundSales' || ($nextPhase['key'] ?? '') === 'sales')) {
                 $this->game->gamestate->changeActivePlayer($roundOrder[0]);
+            } elseif ($roundOrder !== null && $roundOrder !== [] && (($nextPhase['key'] ?? '') === 'sprint')) {
+                $this->game->gamestate->changeActivePlayer($roundOrder[0]);
             } else {
                 $this->game->advanceToNextPlayerInRound();
             }
             return (string)$nextTransition;
         }
 
-        if ($phaseKey === 'skills' || $phaseKey === 'hiring' || $phaseKey === 'sales' || $phaseTransition !== null) {
+        if ($phaseKey === 'skills' || $phaseKey === 'hiring' || $phaseKey === 'sales' || $phaseKey === 'sprint' || $phaseTransition !== null) {
             if ($skillsJustFinished) {
                 $this->game->globals->delete('skills_phase_just_finished');
                 $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
@@ -455,6 +491,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     $transition = match ($phaseKey) {
                         'hiring' => 'toRoundHiring',
                         'sales' => 'toRoundSales',
+                        'sprint' => 'toRoundSprint',
                         default => 'toRoundSkills',
                     };
                     return $transition;
@@ -491,6 +528,14 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                         $this->game->setSkillToken($pid, $skillKey);
                     }
                     $this->game->clearSkillsPhaseChoices();
+                    // Снять «ожидание выбора задач» у всех: у навыка «Дисциплина» не должно оставаться
+                    // pending_task_selection_* (старый баг с TaskEffectHandler); в найм это не переносим.
+                    foreach (array_keys($this->game->loadPlayersBasicInfos()) as $pid) {
+                        $pid = (int) $pid;
+                        if ($pid > 0) {
+                            $this->game->globals->set('pending_task_selection_' . $pid, null);
+                        }
+                    }
                     $newOrder = $this->game->getSkillOrderForNextRound();
                     $this->game->setCurrentRoundPlayerOrder($newOrder);
                     $this->game->gamestate->changeActivePlayer($newOrder[0]);
@@ -501,6 +546,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 $fallbackTransition = match ($nextPhase['key'] ?? '') {
                     'hiring' => 'toRoundHiring',
                     'sales' => 'toRoundSales',
+                    'sprint' => 'toRoundSprint',
                     default => 'toRoundSkills',
                 };
                 return (string)($nextTransition ?? $fallbackTransition);
@@ -509,6 +555,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             $transition = match ($phaseKey) {
                 'hiring' => 'toRoundHiring',
                 'sales' => 'toRoundSales',
+                'sprint' => 'toRoundSprint',
                 default => 'toRoundSkills',
             };
             error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . $transition);
@@ -559,6 +606,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             'skills' => 'toRoundSkills',
             'hiring' => 'toRoundHiring',
             'sales' => 'toRoundSales',
+            'sprint' => 'toRoundSprint',
             default => 'toRoundSkills',
         };
     }

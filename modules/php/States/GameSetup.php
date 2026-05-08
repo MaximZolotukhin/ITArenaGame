@@ -29,6 +29,8 @@ class GameSetup extends GameState
     public function onEnteringState()
     {
         $playerIds = array_keys($this->game->loadPlayersBasicInfos());
+        $playerIds = array_values(array_map('intval', $playerIds));
+        sort($playerIds);
         
         // Уведомляем игроков о начале этапа подготовки (без текста в логе)
         $this->notify->all('gameSetupStart', '', [
