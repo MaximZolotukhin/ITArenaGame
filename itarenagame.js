@@ -2245,9 +2245,20 @@ define([
               const sprintMovesConfirmed = this._coerceStateBool(
                 this.gamedatas.sprintTrackMovesConfirmed,
               )
+              const sprintBankConfirmed = this._coerceStateBool(
+                this.gamedatas.sprintBankConfirmed,
+              )
+              const sprintCompleteDisabled =
+                !sprintBankConfirmed ||
+                (sprintMoveMandatory && !sprintMovesConfirmed)
               this.statusBar.addActionButton(
                 _('Завершить фазу «Спринт»'),
                 () => {
+                  // Если кнопка заблокирована, просто подскажем/покажем индикатор (не шлём action).
+                  if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
+                    this._activateTaskSelectionForSprintPhase(sprintLimit)
+                    return
+                  }
                   const mandatory = this._coerceStateBool(
                     this.gamedatas?.sprintTrackMoveMandatory,
                   )
@@ -2263,15 +2274,17 @@ define([
                 {
                   primary: true,
                   id: 'complete-sprint-phase-button',
-                  disabled: false,
+                  disabled: sprintCompleteDisabled,
                   tooltip:
-                    sprintMoveMandatory && !sprintMovesConfirmed
-                    ? _(
-                        'Сначала переместите задачи по треку спринта и нажмите «Закончить перемещение».',
-                      )
-                    : _(
-                        'Завершите фазу после взятия задач из банка и перемещений по спринту',
-                      ),
+                    !sprintBankConfirmed
+                      ? _('Сначала возьмите задачи из банка и подтвердите выбор.')
+                      : sprintMoveMandatory && !sprintMovesConfirmed
+                        ? _(
+                            'Сначала переместите задачи по треку спринта и нажмите «Закончить перемещение».',
+                          )
+                        : _(
+                            'Завершите фазу после взятия задач из банка и перемещений по спринту',
+                          ),
                 },
               )
               // Панель спринта: всегда показываем активному игроку (данные с сервера + сброс по раунду/игроку выше).
@@ -8532,6 +8545,19 @@ define([
       return c
     },
 
+    _normalizeSprintTaskLocation: function (location) {
+      let loc = (location || 'backlog').toString().toLowerCase().trim()
+      // встречающиеся варианты
+      if (loc === 'inprogress' || loc === 'in_progress') {
+        loc = 'in-progress'
+      }
+      if (loc === 'in-progress' || loc === 'testing' || loc === 'completed') {
+        return loc
+      }
+      // по умолчанию — backlog
+      return 'backlog'
+    },
+
     /**
      * Режим «бюджет по цвету с трека техотдела» только для фазы Спринт без флага эффекта карты.
      * Эффект / основатель / «N ходов, любые задачи» — всегда общий пул (moveCount − usedMoves),
@@ -8575,10 +8601,7 @@ define([
       const tokens = pl?.taskTokens || []
       for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i]
-        let loc = (t.location || 'backlog').toString().toLowerCase()
-        if (loc === 'cayn') {
-          loc = 'cyan'
-        }
+        const loc = this._normalizeSprintTaskLocation(t.location)
         if (loc === 'completed') {
           continue
         }
@@ -8588,6 +8611,45 @@ define([
         }
       }
       return false
+    },
+
+    /**
+     * Максимально возможное количество шагов ВПЕРЁД по треку спринта для конкретного цвета
+     * с учётом текущего положения жетонов на поле (backlog→in-progress→testing→completed).
+     * Это верхняя граница: даже если бюджет техотдела больше, использовать больше невозможно.
+     */
+    _sprintMaxForwardBlocksForColorOnBoard: function (colorId) {
+      const cNeed = this._normalizeTaskColorForSprint(colorId)
+      if (!cNeed) {
+        return 0
+      }
+      const pid = Number(this.player_id)
+      const pl =
+        this.gamedatas?.players?.[pid] ??
+        this.gamedatas?.players?.[String(pid)]
+      const tokens = pl?.taskTokens || []
+      const order = {
+        backlog: 0,
+        'in-progress': 1,
+        testing: 2,
+        completed: 3,
+      }
+      let sum = 0
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i]
+        const c = this._normalizeTaskColorForSprint(t.color || '')
+        if (c !== cNeed) {
+          continue
+        }
+        const loc = this._normalizeSprintTaskLocation(t.location)
+        const fromIndex = order[loc]
+        if (fromIndex == null || loc === 'completed') {
+          continue
+        }
+        // максимум вперёд до completed
+        sum += Math.max(0, 3 - fromIndex)
+      }
+      return Math.max(0, sum)
     },
 
     /** Кнопка «Закончить перемещение» недоступна, пока не взяты задачи из банка и не закрыты лимиты по цветам. */
@@ -9018,7 +9080,9 @@ define([
       if (!norm) {
         return false
       }
-      const maxCap = this._getTechDepartmentPosition(norm)
+      const budget = this._getTechDepartmentPosition(norm)
+      const maxForward = this._sprintMaxForwardBlocksForColorOnBoard(norm)
+      const maxCap = Math.max(0, Math.min(budget, maxForward))
       if (maxCap <= 0) {
         return true
       }
@@ -9077,15 +9141,18 @@ define([
       const techRows = []
       const pm = this.gamedatas.pendingTaskMoves
       techColors.forEach((c) => {
-        const maxCap = this._getTechDepartmentPosition(c)
+        const budget = this._getTechDepartmentPosition(c)
+        const maxForward = this._sprintMaxForwardBlocksForColorOnBoard(c)
+        const maxCap = Math.max(0, Math.min(budget, maxForward))
         let confirmed = Number(this.gamedatas.sprintColorBlocksUsed?.[c]) || 0
         let live = 0
         if (this._isSprintPerColorTaskMoveMode(pm)) {
           live = this._getSprintUsedBlocksForColor(pm.moves || [], c)
         }
         const usedDisplay = confirmed + live
+        const usedShown = maxCap > 0 ? Math.min(usedDisplay, maxCap) : 0
         // Лимит техотдела / уже запланировано в этом спринте (читается как «used / max»)
-        const frac = `${usedDisplay}/${maxCap}`
+        const frac = `${usedShown}/${maxCap}`
         const colorName = this._getTaskTokenColorData(c)?.name || c
         const colorCode = this._getTaskTokenColorCode(c)
         const rowDone = this._sprintTechColorRowDone(c)
