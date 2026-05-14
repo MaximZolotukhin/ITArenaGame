@@ -56,12 +56,33 @@ final class RoundProjects extends GameState
             }
         }
 
+        // Количество выполненных задач активного игрока по цветам —
+        // нужно UI для подсветки доступных IT-проектов.
+        $completedByColor = $this->game->getCompletedTaskTokensCountByColor($activePlayerId);
+
+        // Список ID жетонов IT-проектов, которые активный игрок может купить
+        // в текущий момент (цвет совпадает, выполненных задач хватает).
+        $purchasableTokenIds = [];
+        foreach ($this->game->getProjectTokensOnBoard() as $token) {
+            $tid = (int) ($token['token_id'] ?? 0);
+            if ($tid <= 0) {
+                continue;
+            }
+            $color = strtolower(trim((string) ($token['color'] ?? '')));
+            $price = (int) ($token['price'] ?? 0);
+            if ($color !== '' && $price > 0 && ($completedByColor[$color] ?? 0) >= $price) {
+                $purchasableTokenIds[] = $tid;
+            }
+        }
+
         return [
             'phaseKey' => 'projects',
             'phaseName' => $this->game->getPhaseName('projects'),
             'activePlayerId' => $activePlayerId,
             'donePlayers' => $donePlayers,
             'canPass' => $canPass,
+            'completedByColor' => $completedByColor,
+            'purchasableTokenIds' => $purchasableTokenIds,
         ];
     }
 
@@ -82,6 +103,68 @@ final class RoundProjects extends GameState
         $this->game->checkAction('actPassProjects');
         $this->game->globals->set('projects_phase_pass', '1');
         return 'toNextPlayer';
+    }
+
+    /**
+     * Покупка IT-проекта. Списывает с активного игрока выполненные задачи
+     * совпадающего цвета (стоимость указана в самом жетоне проекта) и переводит
+     * жетон проекта в `player_project_token` с локацией 'completed'.
+     *
+     * Проверки выполняются в Game::canPlayerPurchaseProjectToken / purchaseProjectToken;
+     * при невозможности покупки выбрасывается UserException.
+     *
+     * После покупки игрок остаётся в состоянии RoundProjects — он может купить
+     * ещё проектов, нажать «Пас» или «Завершить ход».
+     */
+    #[PossibleAction]
+    public function actPurchaseProject(int $tokenId): ?string
+    {
+        $this->game->checkAction('actPurchaseProject');
+        $playerId = (int) $this->game->getActivePlayerId();
+        $result = $this->game->purchaseProjectToken($playerId, $tokenId);
+
+        $token = $result['token'];
+        $this->game->notify->all(
+            'projectTokenPurchased',
+            clienttranslate('${player_name} покупает IT-проект «${project_name}» за ${price} ${color_name}'),
+            [
+                'player_id' => $playerId,
+                'player_name' => $this->game->getPlayerNameById($playerId),
+                'project_name' => $token['name'],
+                'price' => (int) $token['price'],
+                'color' => $token['color'],
+                'color_name' => $this->colorDisplayName((string) $token['color']),
+                'tokenId' => (int) $token['token_id'],
+                'boardPosition' => $result['boardPosition'] ?? $token['board_position'],
+                'projectToken' => $token,
+                'spentTaskTokenIds' => $result['spent_task_token_ids'],
+                'completedByColor' => $result['completed_by_color'],
+                'projectTokensOnBoard' => $result['projectTokensOnBoard'],
+                'playerProjectTokens' => $result['playerProjectTokens'],
+                // Новый жетон, выложенный на освободившуюся ячейку (или null,
+                // если запас исчерпан и ячейка осталась пустой).
+                'replacementToken' => $result['replacementToken'] ?? null,
+                'i18n' => ['project_name', 'color_name'],
+            ],
+        );
+
+        // Остаёмся в RoundProjects — активный игрок может ещё покупать,
+        // спасовать или завершить ход.
+        return null;
+    }
+
+    /**
+     * Возвращает локализованное название цвета (для логов уведомления).
+     */
+    private function colorDisplayName(string $color): string
+    {
+        switch (strtolower(trim($color))) {
+            case 'cyan':   return clienttranslate('голубой');
+            case 'pink':   return clienttranslate('розовый');
+            case 'orange': return clienttranslate('оранжевый');
+            case 'purple': return clienttranslate('фиолетовый');
+            default:       return $color;
+        }
     }
 
     /**

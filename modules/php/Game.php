@@ -4276,6 +4276,298 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Возвращает количество выполненных задач (location='completed') по каждому цвету.
+     * Используется фазой «Проекты» для покупки IT-проектов.
+     *
+     * @param int $playerId
+     * @return array<string,int> ['cyan' => N, 'pink' => N, 'orange' => N, 'purple' => N]
+     */
+    public function getCompletedTaskTokensCountByColor(int $playerId): array
+    {
+        $counts = ['cyan' => 0, 'pink' => 0, 'orange' => 0, 'purple' => 0];
+        $rows = $this->getCollectionFromDb("
+            SELECT `color`, COUNT(*) AS cnt
+            FROM `player_task_token`
+            WHERE `player_id` = $playerId
+              AND `location` = 'completed'
+            GROUP BY `color`
+        ");
+        foreach ($rows as $row) {
+            $color = strtolower(trim((string) ($row['color'] ?? '')));
+            if ($color === 'cayn') {
+                $color = 'cyan';
+            }
+            if (array_key_exists($color, $counts)) {
+                $counts[$color] = (int) $row['cnt'];
+            }
+        }
+        return $counts;
+    }
+
+    /**
+     * Возвращает данные жетона IT-проекта по его token_id (включая board_position).
+     * Возвращает null, если жетон не найден.
+     *
+     * @param int $tokenId
+     * @return array<string,mixed>|null
+     */
+    public function getProjectTokenById(int $tokenId): ?array
+    {
+        $row = $this->getObjectFromDb("
+            SELECT
+                `token_id`, `number`, `color`, `shape`, `name`, `price`,
+                `effect`, `effect_description`, `victory_points`,
+                `player_count`, `image_url`, `board_position`
+            FROM `project_token`
+            WHERE `token_id` = $tokenId
+        ");
+        if (!$row) {
+            return null;
+        }
+        return [
+            'token_id' => (int) $row['token_id'],
+            'number' => (int) $row['number'],
+            'color' => strtolower(trim((string) $row['color'])),
+            'shape' => (string) $row['shape'],
+            'name' => (string) $row['name'],
+            'price' => (int) $row['price'],
+            'effect' => $row['effect'],
+            'effect_description' => $row['effect_description'],
+            'victory_points' => (int) $row['victory_points'],
+            'player_count' => (int) $row['player_count'],
+            'image_url' => $row['image_url'],
+            'board_position' => $row['board_position'],
+        ];
+    }
+
+    /**
+     * Проверяет, может ли игрок купить указанный IT-проект.
+     * Условия покупки в фазе «Проекты»:
+     *  - Жетон проекта находится на планшете (board_position не NULL и нет
+     *    привязки к игроку в `player_project_token`).
+     *  - У игрока в колонке sprint_track_completed достаточно задач того же
+     *    цвета, что и проект (цена = `project_token.price`).
+     *  - Покупать можно только жетонами цвета, совпадающего с цветом проекта
+     *    (orange-orange, pink-pink, purple-purple, cyan-cyan).
+     *
+     * @param int $playerId
+     * @param int $tokenId
+     * @return array{ok:bool, reason?:string, color?:string, price?:int, available?:int}
+     */
+    public function canPlayerPurchaseProjectToken(int $playerId, int $tokenId): array
+    {
+        $token = $this->getProjectTokenById($tokenId);
+        if ($token === null) {
+            return ['ok' => false, 'reason' => 'token_not_found'];
+        }
+        if ($token['board_position'] === null || $token['board_position'] === '') {
+            return ['ok' => false, 'reason' => 'token_not_on_board'];
+        }
+        $owned = $this->getUniqueValueFromDb("
+            SELECT COUNT(*) FROM `player_project_token` WHERE `token_id` = $tokenId
+        ");
+        if ((int) $owned > 0) {
+            return ['ok' => false, 'reason' => 'token_already_owned'];
+        }
+        $color = $token['color'];
+        $validColors = ['cyan', 'pink', 'orange', 'purple'];
+        if (!in_array($color, $validColors, true)) {
+            return ['ok' => false, 'reason' => 'invalid_color'];
+        }
+        $price = (int) $token['price'];
+        $counts = $this->getCompletedTaskTokensCountByColor($playerId);
+        $available = (int) ($counts[$color] ?? 0);
+        if ($available < $price) {
+            return [
+                'ok' => false,
+                'reason' => 'not_enough_completed_tasks',
+                'color' => $color,
+                'price' => $price,
+                'available' => $available,
+            ];
+        }
+        return [
+            'ok' => true,
+            'color' => $color,
+            'price' => $price,
+            'available' => $available,
+        ];
+    }
+
+    /**
+     * Пополняет ячейку планшета проектов: случайный жетон IT-проекта той же
+     * формы, что и освободившаяся позиция, помещается на этот `board_position`.
+     *
+     * Уникальность гарантируется отбором кандидатов: только жетоны с
+     * `board_position IS NULL`, не находящиеся ни у одного игрока, и
+     * соответствующие количеству игроков. Если кандидатов нет — ячейка
+     * остаётся пустой (это нормальное состояние конца игры).
+     *
+     * @param string $boardPosition Освободившаяся позиция, например 'red-circle-1'.
+     * @return array<string,mixed>|null Данные нового жетона на позиции или null.
+     */
+    public function replenishProjectBoardPosition(string $boardPosition): ?array
+    {
+        $shape = $this->getShapeFromBoardPosition($boardPosition);
+        if ($shape === null) {
+            error_log("replenishProjectBoardPosition - unknown shape for position '$boardPosition'");
+            return null;
+        }
+        $playerCount = count($this->loadPlayersBasicInfos());
+        $posEsc = addslashes($boardPosition);
+        $shapeEsc = addslashes($shape);
+
+        $candidates = $this->getCollectionFromDb("
+            SELECT `token_id`
+            FROM `project_token`
+            WHERE `shape` = '$shapeEsc'
+              AND `board_position` IS NULL
+              AND `token_id` NOT IN (SELECT `token_id` FROM `player_project_token`)
+              AND `player_count` <= $playerCount
+            ORDER BY RAND()
+            LIMIT 1
+        ");
+        if (empty($candidates)) {
+            error_log("replenishProjectBoardPosition - no '$shape' candidates left for '$boardPosition'");
+            return null;
+        }
+        $row = array_values($candidates)[0];
+        $newTokenId = (int) $row['token_id'];
+        $this->DbQuery("UPDATE `project_token` SET `board_position` = '$posEsc' WHERE `token_id` = $newTokenId");
+        error_log("replenishProjectBoardPosition - placed token $newTokenId ($shape) at $boardPosition");
+
+        return $this->getProjectTokenById($newTokenId);
+    }
+
+    /**
+     * Определяет форму проекта по идентификатору ячейки планшета.
+     * Соответствует разметке `.project-board-panel__row[data-label]`:
+     *  - `*-hex`    → 'hex'
+     *  - `*-square` → 'square'
+     *  - `*-circle-1|2` → 'circle'
+     */
+    public function getShapeFromBoardPosition(string $boardPosition): ?string
+    {
+        $pos = strtolower(trim($boardPosition));
+        if ($pos === '') {
+            return null;
+        }
+        if (str_ends_with($pos, '-hex')) {
+            return 'hex';
+        }
+        if (str_ends_with($pos, '-square')) {
+            return 'square';
+        }
+        if (str_ends_with($pos, '-circle-1') || str_ends_with($pos, '-circle-2')) {
+            return 'circle';
+        }
+        return null;
+    }
+
+    /**
+     * Покупка IT-проекта игроком в фазе «Проекты».
+     * Списывает $price выполненных задач совпадающего цвета и переводит
+     * жетон проекта в `player_project_token` с локацией 'completed'.
+     * Эффекты IT-проектов пока не применяются (см. требование «эффекты = null»).
+     *
+     * После покупки освободившаяся ячейка на планшете пополняется случайным
+     * проектом той же формы (см. replenishProjectBoardPosition). Уникальность
+     * проектов на планшете обеспечивается тем, что кандидаты выбираются из
+     * пула с `board_position IS NULL` и без записи в `player_project_token`.
+     *
+     * @param int $playerId
+     * @param int $tokenId
+     * @return array{
+     *     player_id:int,
+     *     token:array<string,mixed>,
+     *     spent_task_token_ids:int[],
+     *     completed_by_color:array<string,int>,
+     *     projectTokensOnBoard:array,
+     *     playerProjectTokens:array,
+     *     boardPosition:string|null,
+     *     replacementToken:array<string,mixed>|null
+     * }
+     * @throws \Bga\GameFramework\UserException
+     */
+    public function purchaseProjectToken(int $playerId, int $tokenId): array
+    {
+        $check = $this->canPlayerPurchaseProjectToken($playerId, $tokenId);
+        if (!($check['ok'] ?? false)) {
+            $reason = (string) ($check['reason'] ?? 'unknown');
+            switch ($reason) {
+                case 'token_not_found':
+                    throw new \Bga\GameFramework\UserException(clienttranslate('IT-проект не найден'));
+                case 'token_not_on_board':
+                case 'token_already_owned':
+                    throw new \Bga\GameFramework\UserException(clienttranslate('IT-проект уже недоступен'));
+                case 'invalid_color':
+                    throw new \Bga\GameFramework\UserException(clienttranslate('Некорректный цвет IT-проекта'));
+                case 'not_enough_completed_tasks':
+                    throw new \Bga\GameFramework\UserException(clienttranslate('Недостаточно выполненных задач нужного цвета'));
+                default:
+                    throw new \Bga\GameFramework\UserException(clienttranslate('Покупка IT-проекта невозможна'));
+            }
+        }
+
+        $color = (string) $check['color'];
+        $price = (int) $check['price'];
+        $token = $this->getProjectTokenById($tokenId);
+        $freedPosition = (string) ($token['board_position'] ?? '');
+
+        // 1. Списываем нужное количество выполненных задач совпадающего цвета.
+        $tokensToDelete = $this->getCollectionFromDb("
+            SELECT `token_id`
+            FROM `player_task_token`
+            WHERE `player_id` = $playerId
+              AND `location` = 'completed'
+              AND `color` = '" . addslashes($color) . "'
+            ORDER BY `token_id` ASC
+            LIMIT $price
+        ");
+        $spentIds = [];
+        foreach ($tokensToDelete as $row) {
+            $spentIds[] = (int) $row['token_id'];
+        }
+        if (count($spentIds) < $price) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Недостаточно выполненных задач нужного цвета'));
+        }
+        $spentIdsStr = implode(',', $spentIds);
+        $this->DbQuery("DELETE FROM `player_task_token` WHERE `token_id` IN ($spentIdsStr)");
+
+        // 2. Снимаем жетон проекта с планшета и привязываем к игроку.
+        $this->DbQuery("UPDATE `project_token` SET `board_position` = NULL WHERE `token_id` = $tokenId");
+        $this->DbQuery("
+            INSERT INTO `player_project_token` (`player_id`, `token_id`, `location`)
+            VALUES ($playerId, $tokenId, 'completed')
+        ");
+
+        // 3. Эффекты пока не применяем — по требованию «эффекты null».
+
+        // 4. На освободившуюся ячейку выкладываем новый проект той же формы.
+        $replacementToken = null;
+        if ($freedPosition !== '') {
+            $replacementToken = $this->replenishProjectBoardPosition($freedPosition);
+        }
+
+        $completedByColor = $this->getCompletedTaskTokensCountByColor($playerId);
+        $tokensOnBoard = $this->getProjectTokensOnBoard();
+        $playerProjects = $this->getProjectTokensByPlayer($playerId);
+
+        error_log("purchaseProjectToken - player $playerId bought project $tokenId ({$token['name']}), spent " . count($spentIds) . " $color tasks, replenished position '$freedPosition' with " . ($replacementToken['token_id'] ?? 'NONE'));
+
+        return [
+            'player_id' => $playerId,
+            'token' => $token,
+            'spent_task_token_ids' => $spentIds,
+            'completed_by_color' => $completedByColor,
+            'projectTokensOnBoard' => $tokensOnBoard,
+            'playerProjectTokens' => $playerProjects,
+            'boardPosition' => $freedPosition !== '' ? $freedPosition : null,
+            'replacementToken' => $replacementToken,
+        ];
+    }
+
+    /**
      * Добавляет жетон проекта игроку
      * @param int $playerId ID игрока
      * @param int $tokenId ID жетона проекта

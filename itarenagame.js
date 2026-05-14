@@ -730,6 +730,7 @@ define([
       // Отображаем жетоны проектов на планшете проектов (ВАЖНО: до return!)
       setTimeout(() => {
         this._renderProjectTokensOnBoard(gamedatas.projectTokensOnBoard || [])
+        this._renderCompletedProjectsPanel(this.player_id)
       }, 200)
 
       // Кубик PAEI и карты событий: данные приходят из getAllDatas (БД: round_cube_face, колода event_card в location table)
@@ -2187,6 +2188,14 @@ define([
             this._renderFounderCard(this.gamedatas.players, projectsActiveId)
             this._toggleActivePlayerHand(projectsActiveId)
             this._renderPlayerSpecialists()
+            // Перерисовываем колонку «Выполнено» для активного игрока,
+            // чтобы UI показывал сгруппированные жетоны (по цвету + бейдж).
+            this._renderTaskTokens(this.gamedatas.players)
+            // Перерисовываем панель выполненных IT-проектов текущего клиента.
+            this._renderCompletedProjectsPanel(this.player_id)
+            // Подсветка доступных IT-проектов на планшете и навешивание
+            // кликов покупки.
+            this._updateProjectTokensPurchaseUI()
             if (this.isCurrentPlayerActive()) {
               this.statusBar.setTitle(
                 (typeof _ !== 'undefined'
@@ -2695,6 +2704,11 @@ define([
       dojo.subscribe('skillSelected', this, 'notif_skillSelected')
       dojo.subscribe('skillTaskTokenAdded', this, 'notif_skillTaskTokenAdded')
       dojo.subscribe('salesPhasePayout', this, 'notif_salesPhasePayout')
+      dojo.subscribe(
+        'projectTokenPurchased',
+        this,
+        'notif_projectTokenPurchased',
+      )
 
       console.log(
         '✅ Notifications subscribed: badgersChanged, incomeTrackChanged, roundStart, founderSelected, founderPlaced, founderCardsDiscarded, specialistToggled, specialistsConfirmed, specialistsDealtToHand, specialistsDealt, founderEffectsApplied, taskSelectionRequired, tasksSelected, taskMovesRequired, taskMovesCompleted, debugUpdateTrack, visualTrackChanged, technicalDevelopmentMovesRequired, technicalDevelopmentMovesCompleted, initialPlayerValues, skillSelected, skillTaskTokenAdded',
@@ -3302,6 +3316,126 @@ define([
           .replace(/\$\{track\}/g, String(salesTrackValue))
         this.showMessage(msg, 'info')
       }
+    },
+
+    /**
+     * Уведомление о покупке IT-проекта в фазе «Проекты».
+     * Обновляет планшет проектов (удаляет купленный токен с поля), списывает
+     * выполненные задачи нужного цвета у покупателя и кладёт проект в
+     * «Выполненные проекты» панели игрока.
+     */
+    notif_projectTokenPurchased: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const tokenId = Number(args.tokenId || args.token_id || 0)
+      const spentIds = Array.isArray(args.spentTaskTokenIds)
+        ? args.spentTaskTokenIds.map((v) => Number(v))
+        : []
+      const completedByColor = args.completedByColor || {}
+
+      // 1. Обновить gamedatas: убрать купленный проект из projectTokensOnBoard.
+      if (Array.isArray(this.gamedatas?.projectTokensOnBoard)) {
+        this.gamedatas.projectTokensOnBoard =
+          this.gamedatas.projectTokensOnBoard.filter(
+            (t) => Number(t?.token_id) !== tokenId,
+          )
+      }
+      if (Array.isArray(args.projectTokensOnBoard)) {
+        this.gamedatas.projectTokensOnBoard = args.projectTokensOnBoard
+      }
+
+      // 2. Списать выполненные задачи у покупателя из его taskTokens.
+      const player = this.gamedatas?.players?.[playerId]
+      if (player && Array.isArray(player.taskTokens) && spentIds.length > 0) {
+        const idSet = new Set(spentIds.map((v) => Number(v)))
+        player.taskTokens = player.taskTokens.filter(
+          (t) => !idSet.has(Number(t?.token_id)),
+        )
+      }
+
+      // 3. Положить купленный проект в playerProjectTokens покупателя.
+      const projectToken = args.projectToken || null
+      if (player) {
+        if (!Array.isArray(player.projectTokens)) {
+          player.projectTokens = []
+        }
+        if (projectToken) {
+          player.projectTokens.push({
+            ...projectToken,
+            location: 'completed',
+            player_id: playerId,
+          })
+        }
+      }
+      if (Array.isArray(args.playerProjectTokens) && player) {
+        player.projectTokens = args.playerProjectTokens
+      }
+
+      // 4. Обновить args текущего стейта (completedByColor) для корректной
+      //    подсветки оставшихся проектов на планшете.
+      if (
+        this.gamedatas?.gamestate?.name === 'RoundProjects' &&
+        this.gamedatas?.gamestate?.args
+      ) {
+        this.gamedatas.gamestate.args.completedByColor = completedByColor
+      }
+
+      // 5. Перерисовать UI: планшет проектов, колонку «Выполнено» у покупателя
+      //    (если активный игрок — текущий клиент) и панель выполненных проектов.
+      this._renderProjectTokensOnBoard(
+        this.gamedatas.projectTokensOnBoard || [],
+      )
+      if (Number(playerId) === Number(this.player_id)) {
+        this._renderTaskTokens(this.gamedatas.players)
+      }
+      this._renderCompletedProjectsPanel(playerId)
+    },
+
+    /**
+     * Кладёт жетоны выполненных IT-проектов игрока в панель
+     * «Выполненные проекты» (.completed-projects__body).
+     * Используется как при покупке (notif_projectTokenPurchased), так и при
+     * первичной отрисовке планшета игрока.
+     */
+    _renderCompletedProjectsPanel: function (playerId) {
+      const player = this.gamedatas?.players?.[playerId]
+      if (!player) return
+      const projects = Array.isArray(player.projectTokens)
+        ? player.projectTokens
+        : []
+      const body = document.querySelector('.completed-projects__body')
+      if (!body) return
+      // Показываем проекты только владельца текущего экрана.
+      if (Number(playerId) !== Number(this.player_id)) return
+      body.innerHTML = ''
+      projects.forEach((tok) => {
+        if (!tok) return
+        const el = document.createElement('div')
+        el.className = 'project-token project-token--owned'
+        el.dataset.tokenId = String(tok.token_id || '')
+        if (tok.color) {
+          el.dataset.color = String(tok.color).toLowerCase()
+          el.classList.add(`project-token--${String(tok.color).toLowerCase()}`)
+        }
+        if (tok.image_url) {
+          const img = document.createElement('img')
+          img.src = String(tok.image_url).startsWith('http')
+            ? tok.image_url
+            : `${g_gamethemeurl}${tok.image_url}`
+          img.alt = tok.name || 'Project token'
+          img.className = 'project-token__image'
+          el.appendChild(img)
+        } else {
+          const text = document.createElement('div')
+          text.className = 'project-token__text'
+          text.textContent = tok.name || `Token ${tok.number || ''}`
+          el.appendChild(text)
+        }
+        if (tok.name) {
+          el.title = tok.name
+        }
+        body.appendChild(el)
+      })
     },
 
     notif_incomeTrackChanged: async function (notif) {
@@ -7980,12 +8114,7 @@ define([
       console.log('projectTokens type:', typeof projectTokens)
       console.log('projectTokens length:', projectTokens?.length || 0)
 
-      if (!projectTokens || projectTokens.length === 0) {
-        console.warn(
-          '⚠️ No project tokens to render - array is empty or undefined',
-        )
-        return
-      }
+      const tokens = Array.isArray(projectTokens) ? projectTokens : []
 
       // Проверяем наличие контейнера
       const allRows = document.querySelectorAll(
@@ -7997,8 +8126,16 @@ define([
         Array.from(allRows).map((r) => r.dataset.label),
       )
 
+      // ВАЖНО: всегда очищаем ВСЕ ячейки планшета перед перерисовкой.
+      // Иначе купленный жетон остаётся в DOM, если на его место не пришёл
+      // новый (или массив пуст). Только после очистки заполняем ячейки
+      // актуальными жетонами из projectTokens.
+      allRows.forEach((row) => {
+        row.innerHTML = ''
+      })
+
       // Отображаем каждый жетон в соответствующей позиции
-      projectTokens.forEach((tokenData) => {
+      tokens.forEach((tokenData) => {
         const boardPosition = tokenData.board_position
         console.log('Processing token:', {
           token_id: tokenData.token_id,
@@ -8026,14 +8163,27 @@ define([
           return
         }
 
-        // Очищаем строку от старых жетонов
-        rowElement.innerHTML = ''
+        // Ячейка уже очищена в начале функции (общий проход по allRows).
 
         // Создаем элемент жетона
         const tokenElement = document.createElement('div')
         tokenElement.className = 'project-token'
         tokenElement.dataset.tokenId = tokenData.token_id
         tokenElement.dataset.position = boardPosition
+        if (tokenData.color) {
+          tokenElement.dataset.color = String(tokenData.color).toLowerCase()
+          tokenElement.classList.add(
+            `project-token--${String(tokenData.color).toLowerCase()}`,
+          )
+        }
+        if (tokenData.price != null) {
+          tokenElement.dataset.price = String(tokenData.price)
+        }
+        if (tokenData.name) {
+          tokenElement.title = `${tokenData.name}${
+            tokenData.price ? ` — ${tokenData.price}` : ''
+          }`
+        }
 
         // Создаем изображение жетона
         if (tokenData.image_url) {
@@ -8067,6 +8217,130 @@ define([
           rowElement,
         )
       })
+
+      // После рендера жетонов на планшете — пересчитываем доступность покупки
+      // (если активна фаза «Проекты» и текущий игрок может покупать).
+      this._updateProjectTokensPurchaseUI()
+    },
+
+    /**
+     * Обновляет доступность жетонов IT-проектов на планшете для покупки.
+     * Вызывается при входе/обновлении RoundProjects и при изменении задач.
+     *
+     * - В фазе «Проекты» для активного игрока подсвечивает жетоны проектов,
+     *   у которых цвет совпадает с одним из цветов выполненных задач игрока
+     *   и количества задач хватает на цену.
+     * - Жетоны не своего цвета или с недостатком задач помечаются как
+     *   project-token--unavailable.
+     * - Вне RoundProjects или не для активного игрока — клик-обработчики
+     *   снимаются, классы доступности сбрасываются.
+     */
+    _updateProjectTokensPurchaseUI: function () {
+      const tokens = document.querySelectorAll('.project-token[data-token-id]')
+      if (!tokens || tokens.length === 0) {
+        return
+      }
+
+      const stateName = this.gamedatas?.gamestate?.name
+      const isProjectsPhase = stateName === 'RoundProjects'
+      const activeId = this._getActivePlayerIdFromDatas(this.gamedatas)
+      const isMyTurn =
+        isProjectsPhase &&
+        activeId != null &&
+        Number(activeId) === Number(this.player_id)
+
+      const completedByColor =
+        this.gamedatas?.gamestate?.args?.completedByColor ||
+        this._getCompletedByColorFromGamedatas()
+
+      tokens.forEach((tokenEl) => {
+        tokenEl.classList.remove(
+          'project-token--purchasable',
+          'project-token--unavailable',
+        )
+        if (tokenEl._purchaseClickHandler) {
+          tokenEl.removeEventListener('click', tokenEl._purchaseClickHandler)
+          tokenEl._purchaseClickHandler = null
+        }
+        tokenEl.style.cursor = ''
+
+        if (!isMyTurn) {
+          return
+        }
+
+        const tokenId = parseInt(tokenEl.dataset.tokenId, 10)
+        const color = (tokenEl.dataset.color || '').toLowerCase()
+        const price = parseInt(tokenEl.dataset.price || '0', 10)
+        if (!color || !price || !Number.isFinite(tokenId)) {
+          return
+        }
+        const available = parseInt(completedByColor?.[color] || 0, 10) || 0
+        const canBuy = available >= price
+
+        if (canBuy) {
+          tokenEl.classList.add('project-token--purchasable')
+          tokenEl.style.cursor = 'pointer'
+          // У .project-board-panel__columns стоит pointer-events: none —
+          // явно включаем приём событий на самом жетоне, чтобы клик дошёл
+          // до обработчика покупки.
+          tokenEl.style.pointerEvents = 'auto'
+          const handler = (e) => {
+            e.stopPropagation()
+            console.log('🛒 project token clicked for purchase', {
+              tokenId,
+              color,
+              price,
+            })
+            this._handleProjectTokenPurchaseClick(tokenId, color, price)
+          }
+          tokenEl.addEventListener('click', handler)
+          tokenEl._purchaseClickHandler = handler
+        } else {
+          tokenEl.classList.add('project-token--unavailable')
+        }
+      })
+    },
+
+    /**
+     * Считает количество выполненных задач у текущего игрока по цветам
+     * напрямую из gamedatas (на случай, если args фазы не пришли).
+     *
+     * @returns {{cyan:number,pink:number,orange:number,purple:number}}
+     */
+    _getCompletedByColorFromGamedatas: function () {
+      const result = { cyan: 0, pink: 0, orange: 0, purple: 0 }
+      const player = this.gamedatas?.players?.[this.player_id]
+      const tokens = player?.taskTokens || []
+      tokens.forEach((t) => {
+        if (!t || t.location !== 'completed') return
+        const c = (t.color || '').toString().toLowerCase()
+        if (result[c] != null) {
+          result[c] += 1
+        }
+      })
+      return result
+    },
+
+    /**
+     * Клик по жетону IT-проекта в фазе «Проекты» — отправляет actPurchaseProject.
+     * Доступность жетона уже проверена в _updateProjectTokensPurchaseUI, но
+     * сервер сделает повторную валидацию (canPlayerPurchaseProjectToken).
+     */
+    _handleProjectTokenPurchaseClick: function (tokenId, color, price) {
+      const completed =
+        this.gamedatas?.gamestate?.args?.completedByColor ||
+        this._getCompletedByColorFromGamedatas()
+      const available = parseInt(completed?.[color] || 0, 10) || 0
+      if (available < price) {
+        if (typeof this.showMessage === 'function') {
+          this.showMessage(
+            _('Недостаточно выполненных задач нужного цвета'),
+            'error',
+          )
+        }
+        return
+      }
+      this.bgaPerformAction('actPurchaseProject', { tokenId })
     },
 
     _renderTaskTokens: function (players) {
@@ -8162,6 +8436,18 @@ define([
 
         // Очищаем контейнер
         tokensContainer.innerHTML = ''
+
+        // Колонка «Выполнено» отображается сгруппированно по цвету:
+        // один жетон на цвет, с бейджем-числом, если задач больше одной.
+        // Это нужно фазе «Проекты», где задачи тратятся целым цветом.
+        if (location === 'completed') {
+          this._renderCompletedColumnGrouped(
+            tokensContainer,
+            locationTokens,
+            currentPlayerId,
+          )
+          return
+        }
 
         // Отображаем жетоны задач
         locationTokens.forEach((tokenData, index) => {
@@ -8471,6 +8757,82 @@ define([
 
         console.log(`${location} tokens rendered:`, locationTokens.length)
       })
+    },
+
+    /**
+     * Рендер колонки «Выполнено»: один токен на цвет с бейджем количества.
+     * Используется для оплаты IT-проектов в фазе «Проекты»: цвет токена должен
+     * совпадать с цветом IT-проекта, а количество — покрывать его цену.
+     *
+     * @param {HTMLElement} tokensContainer контейнер колонки sprint-column-completed
+     * @param {Array} locationTokens жетоны в локации 'completed'
+     * @param {number|string} currentPlayerId id текущего игрока (для data-атрибута)
+     */
+    _renderCompletedColumnGrouped: function (
+      tokensContainer,
+      locationTokens,
+      currentPlayerId,
+    ) {
+      const colorOrder = ['cyan', 'pink', 'orange', 'purple']
+      const groups = {}
+      locationTokens.forEach((t) => {
+        const c = (t?.color || '').toString().toLowerCase()
+        if (!c) return
+        if (!groups[c]) {
+          groups[c] = { count: 0, tokenIds: [] }
+        }
+        groups[c].count += 1
+        if (t?.token_id != null) {
+          groups[c].tokenIds.push(t.token_id)
+        }
+      })
+
+      const presentColors = colorOrder.filter(
+        (c) => groups[c] && groups[c].count > 0,
+      )
+
+      presentColors.forEach((color, index) => {
+        const group = groups[color]
+        const token = document.createElement('div')
+        token.className = 'task-token task-token--stacked'
+        token.dataset.playerId = currentPlayerId
+        token.dataset.color = color
+        token.dataset.location = 'completed'
+        token.dataset.count = String(group.count)
+        token.dataset.tokenIds = group.tokenIds.join(',')
+        token.classList.add(`task-token--${color}`)
+
+        const colorData = this._getTaskTokenColorData(color)
+        if (colorData && colorData.image_url) {
+          const tokenImage = document.createElement('img')
+          tokenImage.src = `${g_gamethemeurl}${colorData.image_url}`
+          tokenImage.alt = colorData.name || _('Жетон задачи')
+          tokenImage.className = 'task-token__image'
+          token.appendChild(tokenImage)
+        } else {
+          token.style.backgroundColor = this._getTaskTokenColorCode(color)
+          token.style.borderRadius = '50%'
+        }
+
+        if (group.count > 1) {
+          const badge = document.createElement('div')
+          badge.className = 'task-token__count-badge'
+          badge.textContent = String(group.count)
+          token.appendChild(badge)
+        }
+
+        token.style.position = 'absolute'
+        token.style.left = '50%'
+        token.style.transform = 'translateX(-50%)'
+        token.style.top = `${20 + index * 50}px`
+
+        tokensContainer.appendChild(token)
+      })
+
+      console.log(
+        'completed (grouped) tokens rendered:',
+        presentColors.map((c) => `${c}=${groups[c].count}`).join(', '),
+      )
     },
 
     _getTaskTokenColorData: function (colorId) {
@@ -8960,9 +9322,11 @@ define([
             },
           )
 
-          // Активируем жетон визуально (убираем неактивное состояние)
+          // Активируем жетон визуально (убираем неактивное состояние).
+          // Селектор сужен до .task-token, чтобы не зацепить .project-token
+          // с тем же data-token-id.
           const tokenElement = document.querySelector(
-            `[data-token-id="${tokenId}"]`,
+            `.task-token[data-token-id="${tokenId}"]`,
           )
           if (tokenElement) {
             tokenElement.classList.remove('task-token--inactive')
@@ -9586,9 +9950,10 @@ define([
               cancelable: e.cancelable,
             })
 
-            // Находим элемент жетона в DOM
+            // Находим элемент жетона задачи в DOM (только .task-token,
+            // чтобы не зацепить .project-token с тем же data-token-id).
             const tokenElement = document.querySelector(
-              `[data-token-id="${tokenId}"]`,
+              `.task-token[data-token-id="${tokenId}"]`,
             )
             const isTokenInactive =
               tokenElement &&
@@ -10378,8 +10743,9 @@ define([
             token.location = newLocation
 
             // Также обновляем в DOM сразу для мгновенной визуальной обратной связи
+            // (только .task-token, чтобы не зацепить .project-token).
             const tokenElement = document.querySelector(
-              `[data-token-id="${tokenId}"]`,
+              `.task-token[data-token-id="${tokenId}"]`,
             )
             if (tokenElement) {
               tokenElement.dataset.location = newLocation
@@ -12002,8 +12368,11 @@ define([
         }
       }
 
-      // Если не нашли в gamedatas, проверяем DOM
-      const token = document.querySelector(`[data-token-id="${tokenId}"]`)
+      // Если не нашли в gamedatas, проверяем DOM (только task-token, чтобы
+      // не зацепить IT-проект с тем же token_id).
+      const token = document.querySelector(
+        `.task-token[data-token-id="${tokenId}"]`,
+      )
       const location = token?.dataset.location || 'backlog'
       console.log('🔍 _getTokenCurrentLocation from DOM:', {
         tokenId,
@@ -12013,10 +12382,17 @@ define([
     },
 
     /**
-     * Получает цвет жетона: сначала из DOM (data-color), при отсутствии — из gamedatas.players[].taskTokens.
+     * Получает цвет жетона задачи: сначала из DOM (data-color), при отсутствии — из gamedatas.players[].taskTokens.
+     *
+     * ВАЖНО: селектор сужен до `.task-token`, иначе тот же `data-token-id`
+     * может матчиться на `.project-token` (IT-проекты на планшете и в панели
+     * выполненных проектов — у них независимые ID пространства, но числа могут
+     * совпадать), и мы получим цвет IT-проекта вместо цвета задачи.
      */
     _getTokenColor: function (tokenId) {
-      const token = document.querySelector(`[data-token-id="${tokenId}"]`)
+      const token = document.querySelector(
+        `.task-token[data-token-id="${tokenId}"]`,
+      )
       let color = (token?.dataset.color || '').toString().toLowerCase()
       if (color) return color
       const player = this.gamedatas?.players?.[this.player_id]
