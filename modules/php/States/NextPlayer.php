@@ -31,6 +31,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 'toRoundHiring' => 17,
                 'toRoundSales' => 18,
                 'toRoundSprint' => 19,
+                'toRoundProjects' => 21,
             ],
         );
     }
@@ -383,6 +384,8 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         $hiringJustFinished = $this->game->globals->get('hiring_phase_just_finished', '') === '1';
         $salesJustFinished = $this->game->globals->get('sales_phase_just_finished', '') === '1';
         $skillsJustFinished = $this->game->globals->get('skills_phase_just_finished', '') === '1';
+        $projectsJustFinished = $this->game->globals->get('projects_phase_just_finished', '') === '1';
+        $projectsJustPassed = $this->game->globals->get('projects_phase_pass', '') === '1';
 
         if ($salesJustFinished) {
             $this->game->globals->delete('sales_phase_just_finished');
@@ -439,9 +442,60 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 }
             }
             $nextPhaseIndex = $currentPhaseIndex + 1;
+            $nextPhaseAfterSprint = $phases[$nextPhaseIndex] ?? null;
+            $roundOrderAfterSprint = $this->game->getCurrentRoundPlayerOrder();
+            // При переходе sprint → projects первым ходит игрок №1 по треку навыков,
+            // а флаги «завершил ход» от прошлого раунда чистим заранее.
+            if (($nextPhaseAfterSprint['key'] ?? '') === 'projects') {
+                $this->game->clearProjectsPhaseDone();
+                if ($roundOrderAfterSprint !== null && $roundOrderAfterSprint !== []) {
+                    $this->game->gamestate->changeActivePlayer($roundOrderAfterSprint[0]);
+                }
+            }
             $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
             $this->game->setGameStateValue('players_completed_current_phase', 0);
-            error_log('NextPlayer - Фаза SPRINT завершена → следующий раунд');
+            error_log('NextPlayer - Фаза SPRINT завершена → следующая фаза или раунд');
+            return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+        }
+
+        // --- Фаза «Проекты»: «Пас» — передать ход следующему незавершившему игроку ---
+        if ($projectsJustPassed) {
+            $this->game->globals->delete('projects_phase_pass');
+            $activeId = (int) $this->game->getActivePlayerId();
+            error_log('NextPlayer - Фаза PROJECTS: PASS от игрока ' . $activeId);
+            if ($this->game->allProjectsPhaseDone()) {
+                // Защита: если каким-то образом все уже завершили — выходим к следующей фазе.
+                $nextPhaseIndex = $currentPhaseIndex + 1;
+                $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+                $this->game->setGameStateValue('players_completed_current_phase', 0);
+                $this->game->clearProjectsPhaseDone();
+                error_log('NextPlayer - Фаза PROJECTS: PASS, но все уже завершили → следующая фаза');
+                return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
+            }
+            $this->game->advanceToNextNotDonePlayerInProjects();
+            return 'toRoundProjects';
+        }
+
+        // --- Фаза «Проекты»: «Завершить ход» — игрок выпадает из очерёдности фазы ---
+        if ($projectsJustFinished) {
+            $this->game->globals->delete('projects_phase_just_finished');
+            $activeId = (int) $this->game->getActivePlayerId();
+            $this->game->setProjectsPhaseDone($activeId);
+            $playersCompletedCurrentPhase = (int)$this->game->getGameStateValue('players_completed_current_phase');
+            $playersCompletedCurrentPhase++;
+            $this->game->setGameStateValue('players_completed_current_phase', $playersCompletedCurrentPhase);
+            $donePlayers = $this->game->getProjectsPhaseDonePlayers();
+            error_log('NextPlayer - Фаза PROJECTS: FINISH от игрока ' . $activeId . ', завершили ' . count($donePlayers) . '/' . $playersCount);
+            if (!$this->game->allProjectsPhaseDone()) {
+                $this->game->advanceToNextNotDonePlayerInProjects();
+                return 'toRoundProjects';
+            }
+            // Все игроки завершили ход — выходим к следующей фазе или к следующему раунду.
+            $nextPhaseIndex = $currentPhaseIndex + 1;
+            $this->game->setGameStateValue('current_phase_index', $nextPhaseIndex);
+            $this->game->setGameStateValue('players_completed_current_phase', 0);
+            $this->game->clearProjectsPhaseDone();
+            error_log('NextPlayer - Фаза PROJECTS завершена всеми игроками → следующая фаза или раунд');
             return $this->goToNextRoundOrNextPhase($currentRound, $nextPhaseIndex, $numberOfPhases, $playersCount);
         }
 
@@ -547,6 +601,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                     'hiring' => 'toRoundHiring',
                     'sales' => 'toRoundSales',
                     'sprint' => 'toRoundSprint',
+                    'projects' => 'toRoundProjects',
                     default => 'toRoundSkills',
                 };
                 return (string)($nextTransition ?? $fallbackTransition);
@@ -556,6 +611,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
                 'hiring' => 'toRoundHiring',
                 'sales' => 'toRoundSales',
                 'sprint' => 'toRoundSprint',
+                'projects' => 'toRoundProjects',
                 default => 'toRoundSkills',
             };
             error_log('NextPlayer - Фаза ' . $phaseKey . ': первый игрок → ' . $transition);
@@ -607,6 +663,7 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
             'hiring' => 'toRoundHiring',
             'sales' => 'toRoundSales',
             'sprint' => 'toRoundSprint',
+            'projects' => 'toRoundProjects',
             default => 'toRoundSkills',
         };
     }

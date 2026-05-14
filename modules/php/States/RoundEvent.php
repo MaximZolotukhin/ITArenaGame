@@ -38,39 +38,21 @@ class RoundEvent extends GameState
     public function getArgs(): array
     {
         error_log('🎲 RoundEvent::getArgs() CALLED');
-        
+
+        // ВАЖНО: getArgs() должен быть строго read-only.
+        // Бросок кости и подготовка карт событий выполняются в onEnteringState() —
+        // одного раза на раунд достаточно. Запись из getArgs() приводила к
+        // mysql_deadlock_restart_transaction при параллельных вызовах
+        // (reload страницы / multiple clients), поэтому здесь только чтение.
+
         $round = (int)$this->game->getGameStateValue('round_number');
         $faceIndex = (int)$this->game->getGameStateValue('round_cube_face');
-        $lastCubeRound = (int)$this->game->getGameStateValue('last_cube_round', 0);
-        
-        error_log('🎲 RoundEvent::getArgs() - round: ' . $round . ', faceIndex: ' . $faceIndex . ', lastCubeRound: ' . $lastCubeRound);
-        
-        // Действие 2: Бросок кости — сохраняем значение в round_cube_face и round_cube_paei_count
-        if ($lastCubeRound !== $round || $faceIndex < 0 || $faceIndex >= count($this->game->getCubeFaces())) {
-            error_log('🎲 RoundEvent::getArgs() - Rolling NEW cube for round ' . $round);
-            $cubeFace = $this->game->rollRoundCube();
-            $this->game->setGameStateValue('last_cube_round', $round);
-            error_log('🎲 RoundEvent::getArgs() - Cube rolled: ' . $cubeFace);
-        } else {
-            $faces = $this->game->getCubeFaces();
-            $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
-            error_log('🎲 RoundEvent::getArgs() - Using existing cube face for round ' . $round . ': ' . $cubeFace);
-        }
-        
-        // Действие 1: Карта событий раунда — выбираем из колоды и кладём на стол
-        $lastEventCardsRound = (int)$this->game->getGameStateValue('last_event_cards_round', 0);
-        if ($lastEventCardsRound !== $round) {
-            error_log('🎲 RoundEvent::getArgs() - Preparing NEW event cards for round ' . $round);
-            $roundEventCards = $this->game->prepareRoundEventCard();
-            $this->game->setGameStateValue('last_event_cards_round', $round);
-            error_log('🎲 RoundEvent::getArgs() - Event cards prepared: ' . count($roundEventCards));
-        } else {
-            $roundEventCards = $this->game->getRoundEventCards();
-            error_log('🎲 RoundEvent::getArgs() - Using existing event cards for round ' . $round . ': ' . count($roundEventCards));
-        }
-        
-        // Логирование для отладки
-        error_log('🎲 RoundEvent::getArgs() - FINAL: round: ' . $round . ', cubeFace: ' . $cubeFace . ', cards count: ' . count($roundEventCards));
+        $faces = $this->game->getCubeFaces();
+        $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+
+        $roundEventCards = $this->game->getRoundEventCards();
+
+        error_log('🎲 RoundEvent::getArgs() - READ-ONLY: round=' . $round . ', cubeFace=' . $cubeFace . ', cards count=' . count($roundEventCards));
         
         // Получаем данные фазы из массива фаз
         $phase = $this->game->getPhaseByKey('event');

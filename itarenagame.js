@@ -768,10 +768,22 @@ define([
         this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
 
-      // После перезагрузки в фазах Продажи/Найм: подставляем руку из players[id].specialists, если playerSpecialists пусто
+      // После перезагрузки в любой фазе раунда (Навыки/Найм/Продажи/Спринт/Проекты):
+      // подставляем руку из players[id].specialists, если playerSpecialists пусто.
+      // players[id].specialists приходит из getAllDatas — это БД (источник истины),
+      // он остаётся непустым даже когда корневой gamedatas.playerSpecialists почему-то
+      // пришёл пустым (например, во время фазы «Проекты» при F5).
       const stateName = gamedatas?.gamestate?.name
+      const isRoundPhaseState =
+        stateName === 'RoundSkills' ||
+        stateName === 'RoundHiring' ||
+        stateName === 'RoundSales' ||
+        stateName === 'RoundSprint' ||
+        stateName === 'RoundProjects' ||
+        stateName === 'RoundEvent' ||
+        stateName === 'PlayerTurn'
       if (
-        (stateName === 'RoundSales' || stateName === 'RoundHiring') &&
+        isRoundPhaseState &&
         (!gamedatas.playerSpecialists || gamedatas.playerSpecialists.length === 0) &&
         gamedatas.players?.[this.player_id]?.specialists?.length > 0
       ) {
@@ -2153,6 +2165,71 @@ define([
                     'Подтвердите получение баджерсов по треку продаж и завершите фазу',
                   ),
                 },
+              )
+            }
+            break
+          }
+          case 'RoundProjects': {
+            this._updateStageBanner()
+            const phaseNameProjects =
+              args?.args?.phaseName ||
+              (typeof _ !== 'undefined' ? _('Проекты') : 'Проекты')
+            // Перерендериваем карты сотрудников на руке активного игрока:
+            // в фазе «Проекты» нужны те же карты, что были в фазе «Спринт»,
+            // но onEnteringState для RoundProjects не вызывает renderer,
+            // поэтому при смене активного игрока контейнер мог стать пустым.
+            const projectsActiveId =
+              args?.args?.activePlayerId ??
+              this._getActivePlayerIdFromDatas(this.gamedatas) ??
+              this.player_id
+            this._clearDepartmentsForNewPlayer(projectsActiveId)
+            this._renderPlayerMoney(this.gamedatas.players, projectsActiveId)
+            this._renderFounderCard(this.gamedatas.players, projectsActiveId)
+            this._toggleActivePlayerHand(projectsActiveId)
+            this._renderPlayerSpecialists()
+            if (this.isCurrentPlayerActive()) {
+              this.statusBar.setTitle(
+                (typeof _ !== 'undefined'
+                  ? _('Фаза «${phase}» — ваш ход')
+                  : 'Фаза «' + phaseNameProjects + '» — ваш ход'
+                ).replace('${phase}', phaseNameProjects),
+              )
+              // «Пас» — передать ход следующему игроку, оставаясь в очерёдности
+              // фазы. Показываем всегда: даже если других не-завершивших нет,
+              // сервер обработает «пас» как no-op и оставит активного игрока.
+              this.statusBar.addActionButton(
+                _('Пас'),
+                () => this.bgaPerformAction('actPassProjects'),
+                {
+                  id: 'projects-pass-button',
+                  tooltip: _('Передать ход следующему игроку, не выходя из очерёдности фазы'),
+                },
+              )
+              // «Завершить ход» — игрок выпадает из очерёдности до следующей фазы.
+              this.statusBar.addActionButton(
+                _('Завершить ход'),
+                () => this.bgaPerformAction('actFinishProjectsTurn'),
+                {
+                  primary: true,
+                  id: 'projects-finish-turn-button',
+                  tooltip: _('Завершить ход в фазе «Проекты» — выйти из очерёдности до следующей фазы'),
+                },
+              )
+            } else {
+              const activeId = this.gamedatas?.gamestate?.active_player
+              const activeName =
+                activeId && this.gamedatas?.players?.[activeId]?.name
+                  ? this.gamedatas.players[activeId].name
+                  : typeof _ !== 'undefined'
+                    ? _('Игрок')
+                    : 'Игрок'
+              this.statusBar.setTitle(
+                (typeof _ !== 'undefined'
+                  ? _('Фаза «${phase}» — ожидание ${player}')
+                  : 'Фаза «' + phaseNameProjects + '» — ожидание ' + activeName
+                )
+                  .replace('${phase}', phaseNameProjects)
+                  .replace('${player}', activeName),
               )
             }
             break
@@ -6150,6 +6227,18 @@ define([
             : typeof _ !== 'undefined'
               ? _('Спринт')
               : 'Спринт'
+        }
+        // В состоянии RoundProjects баннер показывает фазу «Проекты»
+        if (currentState === 'RoundProjects') {
+          phaseKey = 'projects'
+          const projectsPhase = roundPhases.find((p) => p.key === 'projects')
+          phaseNumber = projectsPhase ? projectsPhase.number : 6
+          phaseNameFromState = projectsPhase
+            ? projectsPhase.name ||
+              (typeof _ !== 'undefined' ? _('Проекты') : 'Проекты')
+            : typeof _ !== 'undefined'
+              ? _('Проекты')
+              : 'Проекты'
         }
 
         // Если phaseNumber не пришел, пытаемся найти по phaseKey или currentState

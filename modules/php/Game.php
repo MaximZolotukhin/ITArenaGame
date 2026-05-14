@@ -166,6 +166,13 @@ class Game extends \Bga\GameFramework\Table
                 'state' => \Bga\Games\itarenagame\States\RoundSprint::class,
                 'transition' => 'toRoundSprint',
             ],
+            [
+                'key' => 'projects',
+                'number' => 6,
+                'name' => clienttranslate('Проекты'),
+                'state' => \Bga\Games\itarenagame\States\RoundProjects::class,
+                'transition' => 'toRoundProjects',
+            ],
         ];
     }
 
@@ -659,15 +666,14 @@ class Game extends \Bga\GameFramework\Table
         $round = (int)$this->getGameStateValue('round_number');
         error_log('🎲 Game::getAllDatas() - currentState: ' . $currentState . ', round: ' . $round);
         
-        // Если мы на этапе 2 (round > 0) и кубик еще не брошен, подготавливаем данные СЕЙЧАС
-        // Это гарантирует, что данные будут доступны даже если RoundEvent был пропущен
-        if ($round > 0 && ($faceIndex < 0 || $faceIndex >= count($faces))) {
-            error_log('🎲 Game::getAllDatas() - Round > 0 but cube not rolled! Rolling now...');
-            $cubeFace = $this->rollRoundCube();
-            $faceIndex = (int)$this->getGameStateValue('round_cube_face');
-            error_log('🎲 Game::getAllDatas() - Cube rolled in getAllDatas: ' . $cubeFace);
-        } else {
-            $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+        // ВАЖНО: getAllDatas() должен быть строго read-only.
+        // Бросок кости делается в RoundEvent::onEnteringState() (один раз на раунд).
+        // Запись отсюда вызывала mysql_deadlock_restart_transaction при параллельных
+        // вызовах (reload страницы / несколько клиентов), поэтому здесь только чтение.
+        // Если данные отсутствуют — отдаём пустое значение, клиент дождётся roundStart.
+        $cubeFace = ($faceIndex >= 0 && $faceIndex < count($faces)) ? $faces[$faceIndex] : '';
+        if ($round > 0 && $cubeFace === '') {
+            error_log('🎲 Game::getAllDatas() - WARNING: round > 0 but cube face is empty (read-only mode)');
         }
         
         $result['cubeFace'] = $cubeFace; // Значение кубика на раунд
@@ -705,14 +711,16 @@ class Game extends \Bga\GameFramework\Table
         // $result['eventCards'] = EventCardsData::getAllCards();
         $result['specialists'] = SpecialistsData::getAllCards(); // Все карты специалистов для клиента
         
-        // ВАЖНО: Если мы на этапе 2 и карты событий пустые, подготавливаем их СЕЙЧАС
+        // ВАЖНО: getAllDatas() должен быть строго read-only.
+        // Карты события готовятся в RoundEvent::onEnteringState() (один раз на раунд).
+        // Запись отсюда вызывала mysql_deadlock_restart_transaction при параллельных
+        // вызовах, поэтому только чтение; если пусто — клиент получит карты через
+        // уведомление roundStart при следующем входе в RoundEvent.
         $roundEventCards = $this->getRoundEventCards();
         if ($round > 0 && empty($roundEventCards)) {
-            error_log('🎲 Game::getAllDatas() - Round > 0 but event cards empty! Preparing now...');
-            $roundEventCards = $this->prepareRoundEventCard();
-            error_log('🎲 Game::getAllDatas() - Event cards prepared in getAllDatas: ' . count($roundEventCards));
+            error_log('🎲 Game::getAllDatas() - WARNING: round > 0 but event cards are empty (read-only mode)');
         }
-        
+
         $result['roundEventCards'] = $roundEventCards;
         $result['roundEventCard'] = $roundEventCards[0] ?? null;
         $result['badgers'] = $this->getBadgersSupply();
@@ -3747,6 +3755,100 @@ class Game extends \Bga\GameFramework\Table
             $this->activeNextPlayer();
         }
     }
+
+    // =========================
+    // Фаза «Проекты»: трекинг «завершивших ход» игроков
+    // =========================
+    // В фазе проектов игрок может нажать «Пас» (просто передаёт ход) или
+    // «Завершить ход» (выпадает из очерёдности до следующей фазы). Хранение —
+    // в globals под ключом `projects_phase_done_<playerId>` = '1'.
+
+    /**
+     * Сбрасывает все флаги «игрок завершил ход в фазе проектов».
+     * Вызывается при первом входе в фазу проектов в текущем раунде.
+     */
+    public function clearProjectsPhaseDone(): void
+    {
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            $this->globals->set('projects_phase_done_' . (int) $playerId, null);
+        }
+    }
+
+    /**
+     * Помечает игрока как «завершившего ход» в фазе проектов.
+     */
+    public function setProjectsPhaseDone(int $playerId): void
+    {
+        $this->globals->set('projects_phase_done_' . $playerId, '1');
+    }
+
+    /**
+     * Завершил ли игрок ход в фазе проектов.
+     */
+    public function isProjectsPhaseDone(int $playerId): bool
+    {
+        return $this->globals->get('projects_phase_done_' . $playerId, '') === '1';
+    }
+
+    /**
+     * Список ID игроков, завершивших ход в фазе проектов.
+     *
+     * @return list<int>
+     */
+    public function getProjectsPhaseDonePlayers(): array
+    {
+        $done = [];
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            $pid = (int) $playerId;
+            if ($this->isProjectsPhaseDone($pid)) {
+                $done[] = $pid;
+            }
+        }
+        return $done;
+    }
+
+    /**
+     * Все ли игроки завершили ход в фазе проектов.
+     */
+    public function allProjectsPhaseDone(): bool
+    {
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            if (!$this->isProjectsPhaseDone((int) $playerId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Передаёт ход следующему игроку по порядку раунда, пропуская тех,
+     * кто уже нажал «Завершить ход» в фазе проектов. Возвращает true, если
+     * найден активный игрок (включая случай «остался только текущий»), и
+     * false — если все игроки уже завершили ход.
+     */
+    public function advanceToNextNotDonePlayerInProjects(): bool
+    {
+        if ($this->allProjectsPhaseDone()) {
+            return false;
+        }
+        $order = $this->getCurrentRoundPlayerOrder();
+        if ($order === null || $order === []) {
+            $order = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
+        }
+        $activeId = (int) $this->getActivePlayerId();
+        $startIdx = array_search($activeId, $order, true);
+        $startIdx = $startIdx === false ? -1 : (int) $startIdx;
+        $count = count($order);
+        for ($i = 1; $i <= $count; $i++) {
+            $candidate = (int) $order[($startIdx + $i) % $count];
+            if (!$this->isProjectsPhaseDone($candidate)) {
+                $this->gamestate->changeActivePlayer($candidate);
+                return true;
+            }
+        }
+        return false;
+    }
+
     
     /**
      * Универсальное применение улучшения трека спринта (sprint-column-tasks).

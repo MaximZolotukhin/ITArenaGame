@@ -5,19 +5,51 @@ declare(strict_types=1);
 namespace Bga\Games\itarenagame;
 
 /**
- * Данные жетонов проектов.
+ * Единственный источник данных по жетонам IT-проектов для игры.
  *
- * Жетоны проектов закрепляются за планшетом проектов.
- * В ходе игры они будут добавляться игрокам.
+ * Состав, цвет, форма, стоимость (`price`), эффекты и прочие поля задаются здесь;
+ * при первом запуске они попадают в таблицу `project_token` (см. Game::initializeProjectTokensIfNeeded).
+ * Жетоны проектов закрепляются за планшетом проектов и в ходе партии могут переходить игрокам.
+ *
+ * Правило оплаты стоимости проекта: стоимость (`price`) снимается только жетонами задач
+ * того же цвета, что и цвет проекта — взаимно однозначно для четырёх цветов:
+ * оранжевый проект → только `orange`, розовый → `pink`, фиолетовый → `purple`, голубой → `cyan`.
+ * Эти идентификаторы совпадают с цветами жетонов задач в TaskTokensData.
  */
 class ProjectTokensData
 {
     /**
+     * Допустимые значения поля `color` у записей IT-проекта; при оплате используются жетоны задач с тем же id цвета.
+     *
+     * @var list<string>
+     */
+    public const IT_PROJECT_COLORS = ['orange', 'pink', 'purple', 'cyan'];
+
+    /**
      * Кэш для жетонов проектов
-     * 
+     *
      * @var array<int, array<string, mixed>>|null
      */
     private static ?array $tokensCache = null;
+
+    /**
+     * Проверяет, что строка — один из допустимых цветов IT-проекта (и цвет жетонов задач для оплаты этого проекта).
+     */
+    public static function isValidItProjectColor(string $color): bool
+    {
+        $c = strtolower(trim($color));
+
+        return in_array($c, self::IT_PROJECT_COLORS, true);
+    }
+
+    /**
+     * Жетоны задач цвета $taskTokenColor могут тратиться на оплату проекта цвета $projectColor (только если цвета совпадают и это один из IT_PROJECT_COLORS).
+     */
+    public static function taskTokenColorPaysForProjectColor(string $taskTokenColor, string $projectColor): bool
+    {
+        return strtolower(trim($taskTokenColor)) === strtolower(trim($projectColor))
+            && self::isValidItProjectColor($projectColor);
+    }
 
     /**
      * Возвращает все жетоны проектов
@@ -31,10 +63,10 @@ class ProjectTokensData
         }
 
         self::$tokensCache = [
-        // Пример структуры - нужно будет заполнить реальными данными
+        // Пример структуры — color один из IT_PROJECT_COLORS (оплата теми же жетонами задач)
         // [
         //     'number' => 1,
-        //     'color' => 'red',
+        //     'color' => 'cyan',
         //     'shape' => 'square',
         //     'name' => clienttranslate('Название проекта'),
         //     'price' => '10',
