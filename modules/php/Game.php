@@ -1871,6 +1871,248 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Эффект IT-проекта из ProjectTokensData (источник истины), не из varchar в БД.
+     *
+     * @return array<string, mixed>|null Массив effect как у специалистов, или null если эффекта нет
+     */
+    public function resolveProjectTokenEffectFromData(int $number): ?array
+    {
+        $static = ProjectTokensData::getTokenByNumber($number);
+        if ($static === null) {
+            return null;
+        }
+        $effect = $static['effect'] ?? null;
+        if ($effect === null) {
+            return null;
+        }
+        if (is_string($effect)) {
+            $s = trim($effect);
+            if ($s === '' || $s === 'effect_type') {
+                return null;
+            }
+            return null;
+        }
+        if (!is_array($effect)) {
+            return null;
+        }
+        if ($effect === []) {
+            return null;
+        }
+
+        return $effect;
+    }
+
+    /**
+     * Универсальное применение эффектов карты/жетона (специалист, основатель, IT-проект).
+     *
+     * @param int $playerId
+     * @param array<string, mixed> $effect
+     * @param array<string, mixed> $cardData name, id и пр. для сообщений
+     * @return list<array<string, mixed>>
+     */
+    public function applyCardEffects(int $playerId, array $effect, array $cardData): array
+    {
+        $effect = $this->normalizeCardEffectArray($effect);
+        $appliedEffects = [];
+        foreach ($effect as $effectType => $effectValue) {
+            if ($effectType === 'updateTrackSprints' || $effectType === 'updateTrackSprintColumnTasks') {
+                $effectType = 'updateTrack';
+                $trackId = 'sprint-column-tasks';
+                $items = is_array($effectValue) && isset($effectValue[0]) ? $effectValue : [$effectValue];
+                $effectValue = [];
+                foreach ($items as $item) {
+                    $amount = (is_array($item) && isset($item['amount'])) ? $item['amount'] : '+ 1';
+                    $effectValue[] = ['track' => $trackId, 'amount' => $amount];
+                }
+            }
+            if (is_array($effectValue) && $effectType !== 'updateTrack' && $effectType !== 'updateTrackDepartmentTechnical') {
+                $effectValue = json_encode($effectValue);
+            }
+            $result = $this->processCardEffectType($playerId, $effectType, $effectValue, $cardData);
+            if ($result !== null) {
+                $appliedEffects[] = $result;
+            }
+        }
+
+        return $appliedEffects;
+    }
+
+    /**
+     * Применяет эффект купленного IT-проекта (данные из ProjectTokensData по number).
+     *
+     * @param int $playerId
+     * @param array<string, mixed> $token Данные жетона (token_id, number, name, …)
+     * @return list<array<string, mixed>>
+     */
+    public function applyProjectTokenEffect(int $playerId, array $token): array
+    {
+        $number = (int) ($token['number'] ?? 0);
+        $effect = $this->resolveProjectTokenEffectFromData($number);
+        if ($effect === null) {
+            return [];
+        }
+
+        $cardData = [
+            'name' => $token['name'] ?? ('IT-проект #' . $number),
+            'id' => (int) ($token['token_id'] ?? 0),
+            'type' => 'project',
+            'number' => $number,
+        ];
+
+        $applied = $this->applyCardEffects($playerId, $effect, $cardData);
+        if (!empty($applied)) {
+            error_log('applyProjectTokenEffect - player ' . $playerId . ' project #' . $number . ': ' . json_encode($applied));
+        }
+
+        return $applied;
+    }
+
+    /**
+     * После применения эффектов: если среди них есть улучшение техотдела (column => any),
+     * сохраняет ожидание выбора колонки и возвращает данные для уведомления.
+     *
+     * @param list<array<string, mixed>> $appliedEffects
+     * @return array{move_count:int, source_name:string}|null
+     */
+    public function hasPendingTechnicalDevelopmentMoves(int $playerId): bool
+    {
+        $pending = $this->globals->get('pending_technical_development_moves_' . $playerId, null);
+
+        return $pending !== null && $pending !== '';
+    }
+
+    public function assertNoPendingTechnicalDevelopmentMoves(int $playerId): void
+    {
+        if ($this->hasPendingTechnicalDevelopmentMoves($playerId)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Сначала улучшите трек в техотделе'));
+        }
+    }
+
+    /**
+     * После применения эффектов: если среди них есть улучшение техотдела (column => any),
+     * сохраняет ожидание выбора колонки и возвращает данные для уведомления.
+     *
+     * @param list<array<string, mixed>> $appliedEffects
+     * @return array{move_count:int, source_name:string}|null
+     */
+    public function setupPendingTechnicalDevelopmentFromApplied(int $playerId, array $appliedEffects, string $sourceName): ?array
+    {
+        $moveCount = 0;
+        foreach ($appliedEffects as $effect) {
+            if (($effect['type'] ?? '') !== 'updateTrack' || !is_array($effect['tracks'] ?? null)) {
+                continue;
+            }
+            foreach ($effect['tracks'] as $track) {
+                if (
+                    ($track['trackId'] ?? '') === 'player-department-technical-development'
+                    && ($track['column'] ?? '') === 'any'
+                ) {
+                    $moveCount += abs((int) ($track['amount'] ?? 0));
+                }
+            }
+        }
+        if ($moveCount <= 0) {
+            return null;
+        }
+
+        $globalsKey = 'pending_technical_development_moves_' . $playerId;
+        $existingJson = $this->globals->get($globalsKey, null);
+        if ($existingJson !== null && $existingJson !== '') {
+            $existing = json_decode((string) $existingJson, true);
+            if (is_array($existing) && isset($existing['move_count'])) {
+                $moveCount += (int) $existing['move_count'];
+                $sourceName = (string) ($existing['source_name'] ?? $existing['founder_name'] ?? $sourceName);
+            }
+        }
+
+        $pendingData = [
+            'move_count' => $moveCount,
+            'founder_name' => $sourceName,
+            'source_name' => $sourceName,
+        ];
+        $this->globals->set($globalsKey, json_encode($pendingData, JSON_UNESCAPED_UNICODE));
+
+        return [
+            'move_count' => $moveCount,
+            'source_name' => $sourceName,
+        ];
+    }
+
+    /**
+     * Подтверждение распределения очков улучшения техотдела (основатель, IT-проект и т.д.).
+     */
+    public function confirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): void
+    {
+        $globalsKey = 'pending_technical_development_moves_' . $activePlayerId;
+        $pendingMovesJson = $this->globals->get($globalsKey, null);
+
+        if ($pendingMovesJson === null || $pendingMovesJson === '') {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающих перемещений техотдела'));
+        }
+
+        $pendingMoves = json_decode((string) $pendingMovesJson, true);
+        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверные данные ожидающих перемещений'));
+        }
+
+        $requiredMoves = (int) $pendingMoves['move_count'];
+        $moves = json_decode($movesJson, true);
+        if (!is_array($moves)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверный формат данных перемещений'));
+        }
+
+        $totalAmount = 0;
+        foreach ($moves as $move) {
+            if (!is_array($move) || !isset($move['column']) || !isset($move['amount'])) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Неверный формат перемещения'));
+            }
+            $totalAmount += (int) $move['amount'];
+        }
+
+        if ($totalAmount !== $requiredMoves) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Использовано неверное количество очков: ${used} из ${required}', [
+                'used' => $totalAmount,
+                'required' => $requiredMoves,
+            ]));
+        }
+
+        foreach ($moves as $move) {
+            $column = (int) $move['column'];
+            if ($column < 1 || $column > 4) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Неверный номер колонки: ${column}', [
+                    'column' => $column,
+                ]));
+            }
+            $amount = (int) $move['amount'];
+            $this->incTechDevColumn($activePlayerId, $column, $amount);
+        }
+
+        $this->globals->set($globalsKey, null);
+
+        $sourceName = (string) ($pendingMoves['source_name'] ?? $pendingMoves['founder_name'] ?? '');
+        $this->notify->all('technicalDevelopmentMovesCompleted', clienttranslate('${player_name} улучшил техотдел благодаря «${source_name}»'), [
+            'player_id' => $activePlayerId,
+            'player_name' => $this->getPlayerNameById($activePlayerId),
+            'founder_name' => $sourceName,
+            'source_name' => $sourceName,
+            'moves' => $moves,
+            'i18n' => ['source_name'],
+        ]);
+    }
+
+    /**
+     * Сериализация поля effect для INSERT в project_token (эффект в рантайме берётся из ProjectTokensData).
+     */
+    /**
+     * Поле project_token.effect в БД не используется в рантайме (см. resolveProjectTokenEffectFromData).
+     * Колонка varchar(50) — JSON эффектов не помещается, поэтому в INSERT всегда пустая строка.
+     */
+    private function serializeProjectTokenEffectForDb(mixed $effect): string
+    {
+        return '';
+    }
+
+    /**
      * Применяет эффект карты специалиста при найме (если effect != null).
      * effect — массив [ effectType => effectValue, ... ], те же типы, что у основателей (badger, updateTrack, move_task и т.д.).
      *
@@ -1902,28 +2144,8 @@ class Game extends \Bga\GameFramework\Table
         if ($effect === null || !is_array($effect)) {
             return [];
         }
-        $effect = $this->normalizeCardEffectArray($effect);
-        $appliedEffects = [];
-        foreach ($effect as $effectType => $effectValue) {
-            // Короткий тип эффекта: трек спринта (sprint-column-tasks) — вертикальный трек на панели спринта
-            if ($effectType === 'updateTrackSprints' || $effectType === 'updateTrackSprintColumnTasks') {
-                $effectType = 'updateTrack';
-                $trackId = 'sprint-column-tasks';
-                $items = is_array($effectValue) && isset($effectValue[0]) ? $effectValue : [ $effectValue ];
-                $effectValue = [];
-                foreach ($items as $item) {
-                    $amount = (is_array($item) && isset($item['amount'])) ? $item['amount'] : '+ 1';
-                    $effectValue[] = [ 'track' => $trackId, 'amount' => $amount ];
-                }
-            }
-            if (is_array($effectValue) && $effectType !== 'updateTrack' && $effectType !== 'updateTrackDepartmentTechnical') {
-                $effectValue = json_encode($effectValue);
-            }
-            $result = $this->processCardEffectType($playerId, $effectType, $effectValue, $card);
-            if ($result !== null) {
-                $appliedEffects[] = $result;
-            }
-        }
+
+        $appliedEffects = $this->applyCardEffects($playerId, $effect, $card);
 
         if (!empty($appliedEffects)) {
             $this->globals->set($appliedKey, '1');
@@ -4324,7 +4546,7 @@ class Game extends \Bga\GameFramework\Table
         if (!$row) {
             return null;
         }
-        return [
+        $result = [
             'token_id' => (int) $row['token_id'],
             'number' => (int) $row['number'],
             'color' => strtolower(trim((string) $row['color'])),
@@ -4338,6 +4560,10 @@ class Game extends \Bga\GameFramework\Table
             'image_url' => $row['image_url'],
             'board_position' => $row['board_position'],
         ];
+        $staticEffect = $this->resolveProjectTokenEffectFromData((int) $result['number']);
+        $result['effect'] = $staticEffect;
+
+        return $result;
     }
 
     /**
@@ -4468,7 +4694,7 @@ class Game extends \Bga\GameFramework\Table
      * Покупка IT-проекта игроком в фазе «Проекты».
      * Списывает $price выполненных задач совпадающего цвета и переводит
      * жетон проекта в `player_project_token` с локацией 'completed'.
-     * Эффекты IT-проектов пока не применяются (см. требование «эффекты = null»).
+     * Эффекты IT-проектов применяются из ProjectTokensData (если effect не null).
      *
      * После покупки освободившаяся ячейка на планшете пополняется случайным
      * проектом той же формы (см. replenishProjectBoardPosition). Уникальность
@@ -4485,7 +4711,8 @@ class Game extends \Bga\GameFramework\Table
      *     projectTokensOnBoard:array,
      *     playerProjectTokens:array,
      *     boardPosition:string|null,
-     *     replacementToken:array<string,mixed>|null
+     *     replacementToken:array<string,mixed>|null,
+     *     applied_effects:list<array<string,mixed>>
      * }
      * @throws \Bga\GameFramework\UserException
      */
@@ -4541,7 +4768,8 @@ class Game extends \Bga\GameFramework\Table
             VALUES ($playerId, $tokenId, 'completed')
         ");
 
-        // 3. Эффекты пока не применяем — по требованию «эффекты null».
+        // 3. Эффект IT-проекта (трек спринта, трек дохода и т.д.) из ProjectTokensData.
+        $appliedEffects = $this->applyProjectTokenEffect($playerId, $token);
 
         // 4. На освободившуюся ячейку выкладываем новый проект той же формы.
         $replacementToken = null;
@@ -4564,6 +4792,7 @@ class Game extends \Bga\GameFramework\Table
             'playerProjectTokens' => $playerProjects,
             'boardPosition' => $freedPosition !== '' ? $freedPosition : null,
             'replacementToken' => $replacementToken,
+            'applied_effects' => $appliedEffects,
         ];
     }
 
@@ -4629,7 +4858,7 @@ class Game extends \Bga\GameFramework\Table
                 $shape = addslashes($token['shape'] ?? '');
                 $name = addslashes($token['name'] ?? '');
                 $price = addslashes($token['price'] ?? '');
-                $effect = addslashes($token['effect'] ?? '');
+                $effect = $this->serializeProjectTokenEffectForDb($token['effect'] ?? null);
                 $effectDescription = addslashes($token['effect_description'] ?? '');
                 $victoryPoints = (int)($token['victory_points'] ?? 0);
                 $playerCount = (int)($token['player_count'] ?? 0);

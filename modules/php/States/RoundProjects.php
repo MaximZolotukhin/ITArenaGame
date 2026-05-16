@@ -101,6 +101,7 @@ final class RoundProjects extends GameState
     public function actPassProjects(): string
     {
         $this->game->checkAction('actPassProjects');
+        $this->game->assertNoPendingTechnicalDevelopmentMoves((int) $this->game->getActivePlayerId());
         $this->game->globals->set('projects_phase_pass', '1');
         return 'toNextPlayer';
     }
@@ -121,6 +122,8 @@ final class RoundProjects extends GameState
     {
         $this->game->checkAction('actPurchaseProject');
         $playerId = (int) $this->game->getActivePlayerId();
+        // В одном ходе фазы можно купить несколько проектов; выбор колонки
+        // техотдела обязателен перед «Пас» / «Завершить ход», но не блокирует покупки.
         $result = $this->game->purchaseProjectToken($playerId, $tokenId);
 
         $token = $result['token'];
@@ -144,13 +147,40 @@ final class RoundProjects extends GameState
                 // Новый жетон, выложенный на освободившуюся ячейку (или null,
                 // если запас исчерпан и ячейка осталась пустой).
                 'replacementToken' => $result['replacementToken'] ?? null,
+                'appliedEffects' => $result['applied_effects'] ?? [],
+                'hasPendingTechnicalDevelopment' => $this->game->hasPendingTechnicalDevelopmentMoves($playerId),
                 'i18n' => ['project_name', 'color_name'],
             ],
         );
 
+        $pendingTech = $this->game->setupPendingTechnicalDevelopmentFromApplied(
+            $playerId,
+            $result['applied_effects'] ?? [],
+            (string) $token['name'],
+        );
+        if ($pendingTech !== null) {
+            $sourceName = $pendingTech['source_name'];
+            $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
+                'player_id' => $playerId,
+                'move_count' => $pendingTech['move_count'],
+                'founder_name' => $sourceName,
+                'source_name' => $sourceName,
+            ]);
+        }
+
         // Остаёмся в RoundProjects — активный игрок может ещё покупать,
         // спасовать или завершить ход.
         return null;
+    }
+
+    /**
+     * Подтверждение улучшения техотдела после покупки IT-проекта с эффектом «выбор колонки».
+     */
+    #[PossibleAction]
+    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): void
+    {
+        $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
+        $this->game->confirmTechnicalDevelopmentMoves($activePlayerId, $movesJson);
     }
 
     /**
@@ -177,6 +207,7 @@ final class RoundProjects extends GameState
     {
         $this->game->checkAction('actFinishProjectsTurn');
         $playerId = (int) $this->game->getActivePlayerId();
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($playerId);
         $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('projects_phase_just_finished', '1');
         return 'toNextPlayer';

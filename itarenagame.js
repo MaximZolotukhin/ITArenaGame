@@ -2302,6 +2302,11 @@ define([
               saSprintArgs.sprintTrackMoveMandatory !== undefined &&
               saSprintArgs.sprintTrackMoveMandatory !== null
 
+            if (saSprintArgs.sprintBankTasksTaken != null) {
+              this.gamedatas.sprintBankTakenCount = Number(
+                saSprintArgs.sprintBankTasksTaken,
+              )
+            }
             if (hasBankFlag) {
               this.gamedatas.sprintBankConfirmed = this._coerceStateBool(
                 saSprintArgs.sprintBankConfirmed,
@@ -2321,7 +2326,18 @@ define([
               : false
             if (this.isCurrentPlayerActive()) {
               if (!this._coerceStateBool(this.gamedatas.sprintBankConfirmed)) {
-                this._activateTaskSelectionForSprintPhase(sprintLimit)
+                const bankRemaining =
+                  saSprintArgs.sprintBankTasksRemaining != null
+                    ? Number(saSprintArgs.sprintBankTasksRemaining)
+                    : Math.max(
+                        0,
+                        sprintLimit -
+                          (Number(this.gamedatas.sprintBankTakenCount) || 0),
+                      )
+                this._activateTaskSelectionForSprintPhase(
+                  sprintLimit,
+                  bankRemaining,
+                )
               } else {
                 this._deactivateTaskSelection()
               }
@@ -2342,7 +2358,10 @@ define([
                 () => {
                   // Если кнопка заблокирована, просто подскажем/покажем индикатор (не шлём action).
                   if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
-                    this._activateTaskSelectionForSprintPhase(sprintLimit)
+                    this._activateTaskSelectionForSprintPhase(
+                      sprintLimit,
+                      this._getSprintBankTasksRemaining(),
+                    )
                     return
                   }
                   const mandatory = this._coerceStateBool(
@@ -2594,6 +2613,15 @@ define([
             }
             break
         }
+      }
+
+      // Стопка купленных IT-проектов — обновляем при любой смене состояния
+      // (покупка, перезагрузка, смена фазы), кроме подготовки стола.
+      if (
+        stateName !== 'GameSetup' &&
+        this.gamedatas?.players?.[this.player_id]
+      ) {
+        this._renderCompletedProjectsPanel(this.player_id)
       }
     },
 
@@ -3389,53 +3417,124 @@ define([
         this._renderTaskTokens(this.gamedatas.players)
       }
       this._renderCompletedProjectsPanel(playerId)
+
+      const appliedEffects = args.appliedEffects || []
+      const badgerDelta = appliedEffects
+        .filter((eff) => (eff?.type || '') === 'badger')
+        .reduce((sum, eff) => sum + Number(eff.amount || 0), 0)
+      if (player && badgerDelta !== 0) {
+        player.badgers = Math.max(0, Number(player.badgers || 0) + badgerDelta)
+      }
+      if (appliedEffects.length > 0) {
+        this._renderPlayerMoney(this.gamedatas.players, playerId)
+        try {
+          this._applyUpdateTrackEffectsFromApplied(playerId, appliedEffects)
+        } catch (e) {
+          console.error('❌ projectTokenPurchased _applyUpdateTrackEffectsFromApplied:', e)
+        }
+      }
+
+      if (Number(playerId) === Number(this.player_id)) {
+        this._updateFinishTurnButtonForTechnicalDevelopment()
+        if (
+          this.gamedatas?.gamestate?.name === 'RoundProjects' &&
+          this.isCurrentPlayerActive()
+        ) {
+          this._updateProjectTokensPurchaseUI()
+        }
+      }
     },
 
     /**
-     * Кладёт жетоны выполненных IT-проектов игрока в панель
-     * «Выполненные проекты» (.completed-projects__body).
-     * Используется как при покупке (notif_projectTokenPurchased), так и при
-     * первичной отрисовке планшета игрока.
+     * Купленные IT-проекты в «Выполненные проекты» — горизонтальная стопка
+     * (specialist-card + hired-specialist-card), перекрытие ~70%, scale(2) при hover.
      */
     _renderCompletedProjectsPanel: function (playerId) {
       const player = this.gamedatas?.players?.[playerId]
       if (!player) return
-      const projects = Array.isArray(player.projectTokens)
-        ? player.projectTokens
-        : []
       const body = document.querySelector('.completed-projects__body')
       if (!body) return
-      // Показываем проекты только владельца текущего экрана.
       if (Number(playerId) !== Number(this.player_id)) return
+
+      const allProjects = Array.isArray(player.projectTokens)
+        ? player.projectTokens
+        : []
+      const projects = allProjects
+        .filter((tok) => {
+          if (!tok) return false
+          const loc = (tok.location || 'completed').toString().toLowerCase()
+          return loc === 'completed' || loc === 'owned'
+        })
+        .sort((a, b) => {
+          const idA = Number(a.id ?? a.token_id ?? 0)
+          const idB = Number(b.id ?? b.token_id ?? 0)
+          return idA - idB
+        })
+
       body.innerHTML = ''
-      projects.forEach((tok) => {
-        if (!tok) return
-        const el = document.createElement('div')
-        el.className = 'project-token project-token--owned'
-        el.dataset.tokenId = String(tok.token_id || '')
-        if (tok.color) {
-          el.dataset.color = String(tok.color).toLowerCase()
-          el.classList.add(`project-token--${String(tok.color).toLowerCase()}`)
-        }
-        if (tok.image_url) {
-          const img = document.createElement('img')
-          img.src = String(tok.image_url).startsWith('http')
-            ? tok.image_url
-            : `${g_gamethemeurl}${tok.image_url}`
-          img.alt = tok.name || 'Project token'
-          img.className = 'project-token__image'
-          el.appendChild(img)
-        } else {
-          const text = document.createElement('div')
-          text.className = 'project-token__text'
-          text.textContent = tok.name || `Token ${tok.number || ''}`
-          el.appendChild(text)
-        }
-        if (tok.name) {
-          el.title = tok.name
-        }
-        body.appendChild(el)
+      body.classList.toggle(
+        'completed-projects__body--empty',
+        projects.length === 0,
+      )
+
+      if (projects.length === 0) {
+        const hint = document.createElement('div')
+        hint.className = 'completed-projects__empty-hint'
+        hint.textContent =
+          typeof _ !== 'undefined'
+            ? _('Купленные IT-проекты появятся здесь')
+            : 'Купленные IT-проекты появятся здесь'
+        body.appendChild(hint)
+        return
+      }
+
+      projects.forEach((tok, index) => {
+        body.appendChild(this._createCompletedProjectCardElement(tok, index))
       })
+    },
+
+    /**
+     * Одна карта купленного IT-проекта — те же классы, что у сотрудников в отделах.
+     */
+    _createCompletedProjectCardElement: function (tok, stackIndex) {
+      const color = (tok.color || '').toString().toLowerCase()
+      const imgUrl = tok.image_url
+        ? String(tok.image_url).startsWith('http')
+          ? tok.image_url
+          : `${g_gamethemeurl}${tok.image_url}`
+        : ''
+      const safeName = (tok.name || '').replace(/"/g, '&quot;')
+      const card = document.createElement('div')
+      card.className =
+        'specialist-card hired-specialist-card completed-project-card'
+      if (color) {
+        card.classList.add(`completed-project-card--${color}`)
+      }
+      card.dataset.tokenId = String(tok.token_id || '')
+      card.dataset.color = color
+      card.style.zIndex = String(stackIndex + 1)
+      if (tok.name) {
+        card.title = tok.name
+      }
+
+      const overlayBlock = tok.name
+        ? `<div class="specialist-card__overlay completed-project-card__overlay">
+            <div class="specialist-card__name completed-project-card__name">${tok.name}</div>
+          </div>`
+        : ''
+
+      card.innerHTML = `
+        <div class="specialist-card__inner completed-project-card__inner">
+          ${
+            imgUrl
+              ? `<img src="${imgUrl}" alt="${safeName}" class="specialist-card__image completed-project-card__image" />`
+              : `<span class="completed-project-card__fallback">${tok.name || `№${tok.number || ''}`}</span>`
+          }
+          ${overlayBlock}
+        </div>
+      `
+
+      return card
     },
 
     notif_incomeTrackChanged: async function (notif) {
@@ -5079,15 +5178,16 @@ define([
       const args = notif.args || notif
       const playerId = Number(args.player_id || 0)
       const moveCount = Number(args.move_count || 0)
-      const founderName = args.founder_name || 'Основатель'
+      const sourceName =
+        args.source_name || args.founder_name || 'Основатель'
 
       console.log(
         '🔧🔧🔧 notif_technicalDevelopmentMovesRequired received for player:',
         playerId,
         'moveCount:',
         moveCount,
-        'founderName:',
-        founderName,
+        'sourceName:',
+        sourceName,
       )
 
       // Если это текущий игрок, активируем режим выбора колонок
@@ -5095,7 +5195,7 @@ define([
         console.log(
           '✅ This is current player, activating technical development move mode',
         )
-        this._activateTechnicalDevelopmentMoveMode(moveCount, founderName)
+        this._activateTechnicalDevelopmentMoveMode(moveCount, sourceName)
       } else {
         console.log('⏭️ This is not current player, skipping')
       }
@@ -5104,23 +5204,39 @@ define([
     notif_technicalDevelopmentMovesCompleted: async function (notif) {
       const args = notif.args || notif
       const playerId = Number(args.player_id || 0)
+      const moves = Array.isArray(args.moves) ? args.moves : []
 
       console.log(
         '✅ notif_technicalDevelopmentMovesCompleted received for player:',
         playerId,
       )
 
-      // Если это текущий игрок, деактивируем режим выбора
+      const pl = this.gamedatas?.players?.[playerId]
+      if (pl) {
+        moves.forEach((move) => {
+          const col = Number(move.column || 0)
+          const amount = Number(move.amount || 0)
+          if (col >= 1 && col <= 4 && amount > 0) {
+            const key = 'techDevCol' + col
+            pl[key] = Number(pl[key] || 0) + amount
+          }
+        })
+      }
+
       if (Number(playerId) === Number(this.player_id)) {
         this._deactivateTechnicalDevelopmentMoveMode()
-
-        // Теперь можно разблокировать кнопку "Завершить ход"
-        const finishButton = document.getElementById('finish-turn-button')
-        if (finishButton) {
-          finishButton.disabled = false
-          finishButton.removeAttribute('title')
-        }
+        this._positionTechnicalDevelopmentTokensFromGamedatas(playerId)
       }
+
+      if (
+        this.gamedatas?.gamestate?.name === 'RoundProjects' &&
+        Number(playerId) === Number(this.player_id) &&
+        this.isCurrentPlayerActive()
+      ) {
+        this._updateProjectTokensPurchaseUI()
+      }
+
+      this._updateFinishTurnButtonForTechnicalDevelopment()
     },
 
     notif_tasksSelected: async function (notif) {
@@ -5171,17 +5287,44 @@ define([
 
       if (args.sprint_phase) {
         if (Number(playerId) === Number(this.player_id)) {
-          // Может быть 0 задач — но это тоже осознанный выбор игрока в этом спринте
-          const taken = Array.isArray(selectedTasks)
+          const batchTaken = Array.isArray(selectedTasks)
             ? selectedTasks.reduce(
                 (s, t) => s + (Number(t?.quantity) || 0),
                 0,
               )
             : 0
-          this.gamedatas.sprintBankTakenCount = taken
-          this.gamedatas.sprintBankConfirmed = true
+          if (args.sprint_bank_tasks_taken != null) {
+            this.gamedatas.sprintBankTakenCount = Number(
+              args.sprint_bank_tasks_taken,
+            )
+          } else {
+            this.gamedatas.sprintBankTakenCount =
+              (Number(this.gamedatas.sprintBankTakenCount) || 0) + batchTaken
+          }
+          if (args.sprint_tasks_take_limit != null) {
+            this.gamedatas.sprintTasksTakeLimit = Number(
+              args.sprint_tasks_take_limit,
+            )
+          }
+          const limit = Math.max(
+            1,
+            Number(this.gamedatas.sprintTasksTakeLimit) || 1,
+          )
+          const bankComplete =
+            args.sprint_bank_complete != null
+              ? !!args.sprint_bank_complete
+              : this.gamedatas.sprintBankTakenCount >= limit
+          this.gamedatas.sprintBankConfirmed = bankComplete
           this._refreshSprintTaskMoveIndicator()
-          this._deactivateTaskSelection()
+          if (bankComplete) {
+            this._deactivateTaskSelection()
+          } else {
+            const left =
+              args.sprint_bank_tasks_remaining != null
+                ? Number(args.sprint_bank_tasks_remaining)
+                : Math.max(0, limit - this.gamedatas.sprintBankTakenCount)
+            this._activateTaskSelectionForSprintPhase(limit, left)
+          }
         }
         return
       }
@@ -5840,6 +5983,14 @@ define([
           const newVal = Number(track.newValue ?? 0)
           const amount = Number(track.amount ?? 0)
           const pl = this.gamedatas?.players?.[pid]
+
+          // Выбор колонки техотдела — отдельный UI (technicalDevelopmentMovesRequired)
+          if (
+            (trackId || '') === 'player-department-technical-development' &&
+            (track.column || '') === 'any'
+          ) {
+            return
+          }
 
           // Трек дохода (income-track)
           if ((trackId || '') === 'income-track') {
@@ -8327,6 +8478,15 @@ define([
      * сервер сделает повторную валидацию (canPlayerPurchaseProjectToken).
      */
     _handleProjectTokenPurchaseClick: function (tokenId, color, price) {
+      if (
+        this.gamedatas?.gamestate?.name !== 'RoundProjects' ||
+        !this.isCurrentPlayerActive()
+      ) {
+        return
+      }
+      if (this._projectPurchaseInFlight) {
+        return
+      }
       const completed =
         this.gamedatas?.gamestate?.args?.completedByColor ||
         this._getCompletedByColorFromGamedatas()
@@ -8340,7 +8500,26 @@ define([
         }
         return
       }
-      this.bgaPerformAction('actPurchaseProject', { tokenId })
+      this._projectPurchaseInFlight = true
+      const ret = this.bgaPerformAction(
+        'actPurchaseProject',
+        { tokenId },
+        { lock: true, checkAction: true },
+      )
+      const done = () => {
+        this._projectPurchaseInFlight = false
+        if (
+          this.gamedatas?.gamestate?.name === 'RoundProjects' &&
+          this.isCurrentPlayerActive()
+        ) {
+          this._updateProjectTokensPurchaseUI()
+        }
+      }
+      if (ret != null && typeof ret.then === 'function') {
+        ret.then(done).catch(done)
+      } else {
+        done()
+      }
     },
 
     _renderTaskTokens: function (players) {
@@ -11884,34 +12063,45 @@ define([
 
     _updateFinishTurnButtonForTechnicalDevelopment: function () {
       const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
-      const finishButton = document.getElementById('finish-turn-button')
+      const finishButtons = [
+        document.getElementById('finish-turn-button'),
+        document.getElementById('projects-finish-turn-button'),
+      ].filter(Boolean)
 
-      if (!finishButton) return
+      if (finishButtons.length === 0) return
 
-      if (pendingMoves && pendingMoves.usedMoves > 0) {
-        // Блокируем кнопку завершения, пока есть ожидающие перемещения
-        finishButton.disabled = true
-        finishButton.setAttribute('title', _('Завершите улучшение техотдела'))
+      const setFinishDisabled = (disabled, title) => {
+        finishButtons.forEach((btn) => {
+          btn.disabled = disabled
+          if (disabled && title) {
+            btn.setAttribute('title', title)
+          } else {
+            btn.removeAttribute('title')
+          }
+        })
+      }
+
+      if (pendingMoves) {
+        setFinishDisabled(true, _('Завершите улучшение техотдела'))
         console.log(
           '🔒 Finish turn button disabled - technical development moves pending',
         )
-      } else if (!pendingMoves) {
-        // Если нет ожидающих перемещений, проверяем другие условия
-        const hasPendingTaskSelection =
-          this.gamedatas?.pendingTaskSelection || false
-        const hasPendingTaskMoves = this.gamedatas?.pendingTaskMoves || false
-        const hasPendingTaskMovesJson =
-          this.gamedatas?.pendingTaskMovesJson || false
+        return
+      }
 
-        if (
-          !hasPendingTaskSelection &&
-          !hasPendingTaskMoves &&
-          !hasPendingTaskMovesJson
-        ) {
-          finishButton.disabled = false
-          finishButton.removeAttribute('title')
-          console.log('✅ Finish turn button enabled - no pending moves')
-        }
+      const hasPendingTaskSelection =
+        this.gamedatas?.pendingTaskSelection || false
+      const hasPendingTaskMoves = this.gamedatas?.pendingTaskMoves || false
+      const hasPendingTaskMovesJson =
+        this.gamedatas?.pendingTaskMovesJson || false
+
+      if (
+        !hasPendingTaskSelection &&
+        !hasPendingTaskMoves &&
+        !hasPendingTaskMovesJson
+      ) {
+        setFinishDisabled(false)
+        console.log('✅ Finish turn button enabled - no pending moves')
       }
     },
 
@@ -12814,9 +13004,37 @@ define([
     },
 
     /**
-     * Фаза «Спринт»: из банка (parts-of-projects) можно взять не более maxTasks задач суммарно.
+     * Сколько задач ещё нужно взять из банка в фазе «Спринт».
      */
-    _activateTaskSelectionForSprintPhase: function (maxTasks) {
+    _getSprintBankTasksRemaining: function () {
+      const limit = Math.max(
+        1,
+        Number(
+          this.gamedatas?.sprintTasksTakeLimit ??
+            this.gamedatas?.players?.[Number(this.player_id)]
+              ?.sprintColumnTasksProgress ??
+            1,
+        ),
+      )
+      const taken = Math.max(0, Number(this.gamedatas?.sprintBankTakenCount) || 0)
+      return Math.max(0, limit - taken)
+    },
+
+    /**
+     * Фаза «Спринт»: из банка нужно взять ровно tasksRemaining задач (остаток лимита).
+     */
+    _activateTaskSelectionForSprintPhase: function (takeLimit, tasksRemaining) {
+      const remaining =
+        tasksRemaining != null
+          ? Math.max(0, Number(tasksRemaining))
+          : this._getSprintBankTasksRemaining()
+      const maxTotal = Math.max(1, Number(takeLimit) || remaining || 1)
+
+      if (remaining <= 0) {
+        this._deactivateTaskSelection()
+        return
+      }
+
       const taskColors = ['cyan', 'orange', 'pink', 'purple']
       taskColors.forEach((color) => {
         const input = document.querySelector(
@@ -12824,7 +13042,7 @@ define([
         )
         if (input) {
           input.disabled = false
-          input.max = maxTasks
+          input.max = remaining
           input.value = 0
           input.classList.remove('task-input__field--disabled')
         }
@@ -12855,9 +13073,9 @@ define([
       button.id = 'task-selection-confirm-button'
       button.className = 'task-selection-confirm-button'
       button.textContent = _('Подтвердить задачи из банка')
-      button.disabled = false
+      button.disabled = true
       button.addEventListener('click', () => {
-        this._confirmTaskSelectionSprint(maxTasks)
+        this._confirmTaskSelectionSprint(maxTotal, remaining)
       })
       container.appendChild(button)
 
@@ -12872,9 +13090,14 @@ define([
           }
         })
         if (button) {
-          button.disabled = total > maxTasks
-          if (total > maxTasks) {
+          const canConfirm = total === remaining && total > 0
+          button.disabled = !canConfirm
+          if (total > remaining) {
             button.title = _('Слишком много задач для этой фазы')
+          } else if (total < remaining) {
+            button.title = _(
+              'Выберите все доступные задачи (${n})',
+            ).replace('${n}', String(remaining))
           } else {
             button.title = ''
           }
@@ -12886,8 +13109,8 @@ define([
           if (input && !input.disabled) {
             const currentValue = parseInt(input.value, 10) || 0
             const otherTotal = total - currentValue
-            const remaining = maxTasks - otherTotal
-            const cap = Math.max(0, remaining)
+            const capLeft = remaining - otherTotal
+            const cap = Math.max(0, capLeft)
             input.max = cap
             if (currentValue > cap) {
               input.value = String(cap)
@@ -12921,7 +13144,7 @@ define([
       validateSelection()
     },
 
-    _confirmTaskSelectionSprint: function (maxTasks) {
+    _confirmTaskSelectionSprint: function (takeLimit, tasksRemaining) {
       if (
         this.gamedatas?.gamestate?.name !== 'RoundSprint' ||
         !this.isCurrentPlayerActive()
@@ -12935,11 +13158,25 @@ define([
       if (this._sprintConfirmBankInFlight) {
         return
       }
+      const remaining =
+        tasksRemaining != null
+          ? Math.max(0, Number(tasksRemaining))
+          : this._getSprintBankTasksRemaining()
       const selectedTasks = this._getSelectedTasks()
       const total = selectedTasks.reduce((sum, task) => sum + task.quantity, 0)
-      if (total > maxTasks) {
+      if (total !== remaining || total <= 0) {
         this.showMessage(
-          _('Слишком много задач (максимум ${n})', { n: maxTasks }),
+          _('Выберите все доступные задачи (${n})').replace(
+            '${n}',
+            String(remaining),
+          ),
+          'error',
+        )
+        return
+      }
+      if (total > takeLimit) {
+        this.showMessage(
+          _('Слишком много задач (максимум ${n})', { n: takeLimit }),
           'error',
         )
         return
@@ -12958,10 +13195,21 @@ define([
         }
       }
       const applySuccessUi = () => {
-        this.gamedatas.sprintBankTakenCount = total
-        this.gamedatas.sprintBankConfirmed = true
+        const prevTaken = Number(this.gamedatas.sprintBankTakenCount) || 0
+        this.gamedatas.sprintBankTakenCount = prevTaken + total
+        const limit = Math.max(
+          1,
+          Number(this.gamedatas.sprintTasksTakeLimit) || takeLimit || total,
+        )
+        const bankComplete = this.gamedatas.sprintBankTakenCount >= limit
+        this.gamedatas.sprintBankConfirmed = bankComplete
         this._refreshSprintTaskMoveIndicator()
-        this._deactivateTaskSelection()
+        if (bankComplete) {
+          this._deactivateTaskSelection()
+        } else {
+          const left = limit - this.gamedatas.sprintBankTakenCount
+          this._activateTaskSelectionForSprintPhase(limit, left)
+        }
       }
       // Третий аргумент bgaPerformAction — объект { lock, checkAction }, не колбэк (см. bga-framework.d.ts).
       const ret = this.bgaPerformAction(
@@ -13173,7 +13421,8 @@ define([
      */
     _confirmTaskSelection: function (maxTasks) {
       if (this.gamedatas?.gamestate?.name === 'RoundSprint') {
-        return this._confirmTaskSelectionSprint(maxTasks)
+        const remaining = this._getSprintBankTasksRemaining()
+        return this._confirmTaskSelectionSprint(maxTasks, remaining)
       }
 
       const selectedTasks = this._getSelectedTasks()

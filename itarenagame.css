@@ -217,6 +217,7 @@
   padding: 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
+  overflow: visible;
 }
 
 .it-projects__header {
@@ -231,6 +232,7 @@
   flex-direction: column;
   gap: 12px;
   flex: 1 1 auto;
+  overflow: visible;
 }
 
 .founder-card {
@@ -357,6 +359,11 @@
   gap: 8px;
 }
 
+/* Купленные IT-проекты: при hover карта может выезжать за границы блока */
+.completed-projects {
+  overflow: visible;
+}
+
 .completed-projects__header,
 .parts-of-projects__header {
   font-weight: 600;
@@ -366,9 +373,108 @@
   text-align: center;
 }
 
-.completed-projects__body,
 .parts-of-projects__body {
   min-height: 120px;
+}
+
+/*
+ * Стопка купленных IT-проектов — как карты сотрудников в отделах:
+ * горизонтальный ряд с перекрытием ~70%, при наведении scale(2).
+ */
+.completed-projects__body {
+  min-height: 140px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: visible;
+  position: relative;
+  padding: 12px 8px 8px;
+}
+
+.completed-projects__body--empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+
+.completed-projects__empty-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  padding: 8px;
+}
+
+/* Стопка купленных IT-проектов — те же правила, что у карт в отделах */
+.completed-projects__body > .completed-project-card.specialist-card:first-child {
+  margin-left: 0;
+}
+
+.completed-projects__body > .completed-project-card.specialist-card:not(:first-child) {
+  margin-left: -77px; /* 70% от ширины карты 110px */
+}
+
+.completed-projects__body .completed-project-card.specialist-card {
+  width: 110px;
+  min-width: 110px;
+  height: 155px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  cursor: default;
+}
+
+.completed-projects__body .completed-project-card.specialist-card:hover {
+  z-index: 1000;
+}
+
+.completed-project-card__inner {
+  width: 100%;
+  height: 100%;
+}
+
+.completed-project-card__image {
+  object-fit: contain;
+}
+
+.completed-project-card__overlay {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.completed-projects__body .completed-project-card.specialist-card:hover .completed-project-card__overlay {
+  opacity: 1;
+}
+
+.completed-project-card__name {
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.completed-project-card--cyan .completed-project-card__inner {
+  border-color: #00ced1;
+}
+
+.completed-project-card--pink .completed-project-card__inner {
+  border-color: #ff69b4;
+}
+
+.completed-project-card--orange .completed-project-card__inner {
+  border-color: #ff8c00;
+}
+
+.completed-project-card--purple .completed-project-card__inner {
+  border-color: #9370db;
+}
+
+.completed-project-card__fallback {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  padding: 6px;
+  line-height: 1.2;
 }
 
 .player-personal-board {

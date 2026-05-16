@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS `project_token` (
   `shape` varchar(20) NOT NULL,
   `name` varchar(255) NOT NULL,
   `price` varchar(20) NOT NULL,
-  `effect` varchar(50) NOT NULL,
+  `effect` text DEFAULT NULL COMMENT 'Не используется: эффекты в ProjectTokensData.php',
   `effect_description` text,
   `victory_points` int(11) NOT NULL DEFAULT 0,
   `player_count` int(11) NOT NULL,

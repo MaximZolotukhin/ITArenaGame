@@ -46,12 +46,14 @@ class RoundSprint extends GameState
         $bankRoundKey = 'sprint_bank_confirmed_round_' . $activePlayerId;
         $movesRoundKey = 'sprint_track_moves_done_round_' . $activePlayerId;
         $bankKey = 'sprint_bank_confirmed_' . $activePlayerId;
+        $bankTakenKey = 'sprint_bank_tasks_taken_' . $activePlayerId;
         $movesKey = 'sprint_track_moves_done_' . $activePlayerId;
 
         $bankRound = (int) ($this->game->globals->get($bankRoundKey, '0') ?: 0);
         $movesRound = (int) ($this->game->globals->get($movesRoundKey, '0') ?: 0);
         if ($bankRound !== $round) {
             $this->game->globals->delete($bankKey);
+            $this->game->globals->delete($bankTakenKey);
             $this->game->globals->set($bankRoundKey, (string) $round);
         }
         if ($movesRound !== $round) {
@@ -59,7 +61,12 @@ class RoundSprint extends GameState
             $this->game->globals->set($movesRoundKey, (string) $round);
         }
 
-        $bankConfirmed = $this->game->globals->get($bankKey, '') === '1';
+        $bankTasksTaken = max(0, (int) ($this->game->globals->get($bankTakenKey, '0') ?: 0));
+        $bankTasksRemaining = max(0, $takeLimit - $bankTasksTaken);
+        $bankConfirmed = $bankTasksTaken >= $takeLimit;
+        if ($bankConfirmed) {
+            $this->game->globals->set($bankKey, '1');
+        }
         $sprintTrackMoveMandatory = $this->game->playerMustSprintTrackMoveBeforeComplete($activePlayerId);
         $sprintTrackMovesConfirmed = $this->game->globals->get($movesKey, '') === '1';
 
@@ -71,6 +78,8 @@ class RoundSprint extends GameState
             'roundName' => $this->game->getRoundName($round),
             'activePlayerId' => $activePlayerId,
             'sprintTasksTakeLimit' => $takeLimit,
+            'sprintBankTasksTaken' => $bankTasksTaken,
+            'sprintBankTasksRemaining' => $bankTasksRemaining,
             'sprintBankConfirmed' => $bankConfirmed,
             'sprintTrackMoveMandatory' => $sprintTrackMoveMandatory,
             'sprintTrackMovesConfirmed' => $sprintTrackMovesConfirmed,
@@ -84,6 +93,7 @@ class RoundSprint extends GameState
         // На входе состояния сбрасываем подтверждения для текущего активного игрока в рамках текущего раунда.
         $round = (int) $this->game->getGameStateValue('round_number');
         $this->game->globals->delete('sprint_bank_confirmed_' . $aid);
+        $this->game->globals->delete('sprint_bank_tasks_taken_' . $aid);
         $this->game->globals->delete('sprint_track_moves_done_' . $aid);
         $this->game->globals->set('sprint_bank_confirmed_round_' . $aid, (string) $round);
         $this->game->globals->set('sprint_track_moves_done_round_' . $aid, (string) $round);
@@ -92,7 +102,8 @@ class RoundSprint extends GameState
     }
 
     /**
-     * Взять задачи из банка в бэклог (не более лимита по треку sprint-column-tasks). Один раз за фазу.
+     * Взять задачи из банка в бэклог: за фазу суммарно не больше лимита по треку sprint-column-tasks.
+     * За одно подтверждение нужно выбрать ровно все оставшиеся доступные задачи.
      */
     #[PossibleAction]
     public function actConfirmSprintTasks(string $selectedTasksJson): void
@@ -100,12 +111,16 @@ class RoundSprint extends GameState
         $this->game->checkAction('actConfirmSprintTasks');
         $playerId = (int) $this->game->getActivePlayerId();
         $round = (int) $this->game->getGameStateValue('round_number');
-
-        if ($this->game->globals->get('sprint_bank_confirmed_' . $playerId, '') === '1') {
-            throw new UserException(clienttranslate('Вы уже брали задачи из банка в этой фазе'));
-        }
+        $takenKey = 'sprint_bank_tasks_taken_' . $playerId;
 
         $limit = $this->game->getSprintColumnTasksTakeLimit($playerId);
+        $alreadyTaken = max(0, (int) ($this->game->globals->get($takenKey, '0') ?: 0));
+        $remaining = $limit - $alreadyTaken;
+
+        if ($remaining <= 0) {
+            throw new UserException(clienttranslate('Вы уже взяли все доступные задачи из банка'));
+        }
+
         $selected = json_decode($selectedTasksJson, true);
         if (!is_array($selected)) {
             throw new UserException(clienttranslate('Неверный формат выбранных задач'));
@@ -123,17 +138,26 @@ class RoundSprint extends GameState
             $total += $q;
         }
 
-        if ($total > $limit) {
+        if ($total > $remaining) {
             throw new UserException(clienttranslate('Слишком много задач для этой фазы'));
         }
 
-        $addedTokens = [];
-        if ($total > 0) {
-            $addedTokens = $this->game->addTaskTokens($playerId, $selected, 'backlog');
+        if ($total < $remaining) {
+            throw new UserException(clienttranslate('Нужно взять все доступные задачи из банка (${remaining})', [
+                'remaining' => $remaining,
+            ]));
         }
 
-        $this->game->globals->set('sprint_bank_confirmed_' . $playerId, '1');
+        $addedTokens = $this->game->addTaskTokens($playerId, $selected, 'backlog');
+
+        $newTaken = $alreadyTaken + $total;
+        $this->game->globals->set($takenKey, (string) $newTaken);
         $this->game->globals->set('sprint_bank_confirmed_round_' . $playerId, (string) $round);
+
+        $bankComplete = $newTaken >= $limit;
+        if ($bankComplete) {
+            $this->game->globals->set('sprint_bank_confirmed_' . $playerId, '1');
+        }
 
         $this->notify->all('tasksSelected', clienttranslate('${player_name} берёт задачи из банка в бэклог'), [
             'player_id' => $playerId,
@@ -142,6 +166,10 @@ class RoundSprint extends GameState
             'selected_tasks' => $selected,
             'added_tokens' => $addedTokens,
             'sprint_phase' => true,
+            'sprint_bank_tasks_taken' => $newTaken,
+            'sprint_bank_tasks_remaining' => max(0, $limit - $newTaken),
+            'sprint_bank_complete' => $bankComplete,
+            'sprint_tasks_take_limit' => $limit,
             'i18n' => [],
         ]);
     }
@@ -212,6 +240,12 @@ class RoundSprint extends GameState
     {
         $this->game->checkAction('actCompleteSprintPhase');
         $playerId = (int) $this->game->getActivePlayerId();
+
+        $takeLimit = $this->game->getSprintColumnTasksTakeLimit($playerId);
+        $taken = max(0, (int) ($this->game->globals->get('sprint_bank_tasks_taken_' . $playerId, '0') ?: 0));
+        if ($taken < $takeLimit) {
+            throw new UserException(clienttranslate('Сначала возьмите все доступные задачи из банка'));
+        }
 
         if ($this->game->playerMustSprintTrackMoveBeforeComplete($playerId)) {
             if ($this->game->globals->get('sprint_track_moves_done_' . $playerId, '') !== '1') {

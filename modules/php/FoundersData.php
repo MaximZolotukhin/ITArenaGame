@@ -204,12 +204,12 @@ class FoundersData
                 'updateTrack' => [
                     ['track' => 'income-track', 'amount' => '+ 1'], // Трек дохода в отделе продаж
                     ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
-                    ['track' => 'player-department-technical-development', 'amount' => '+ 1', 'column' => 'any'], // Трек технического развития в любом отделе
-                ]
+                ],
+                'updateTrackSprints' => [['amount' => '+ 1']], // Трек спринта (sprint-column-tasks) +1
             ], // Эффект
             'department' => 'back-office', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Отличник. Улучшите на 1 трек дохода в отделе продаж и на 1 трек найма и 1 трек задач в бэк–офисе', // Описание эффекта
+            'effectDescription' => 'Отличник. Улучшите на 1 трек дохода в отделе продаж, на 1 трек найма в бэк–офисе и на 1 трек спринта', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'E', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты

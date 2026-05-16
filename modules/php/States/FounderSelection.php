@@ -955,78 +955,7 @@ class FounderSelection extends GameState
     public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson)
     {
         $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
-        
-        error_log("🔧🔧🔧 actConfirmTechnicalDevelopmentMoves - START: activePlayerId=$activePlayerId");
-        error_log("🔧 actConfirmTechnicalDevelopmentMoves - movesJson: $movesJson");
-        
-        // Проверяем, что есть ожидающие перемещения
-        $globalsKey = 'pending_technical_development_moves_' . $activePlayerId;
-        $pendingMovesJson = $this->game->globals->get($globalsKey, null);
-        
-        if ($pendingMovesJson === null) {
-            throw new UserException(clienttranslate('Нет ожидающих перемещений техотдела'));
-        }
-        
-        $pendingMoves = json_decode($pendingMovesJson, true);
-        if (!is_array($pendingMoves) || !isset($pendingMoves['move_count'])) {
-            throw new UserException(clienttranslate('Неверные данные ожидающих перемещений'));
-        }
-        
-        $requiredMoves = (int)$pendingMoves['move_count'];
-        
-        // Декодируем JSON строку перемещений
-        $moves = json_decode($movesJson, true);
-        if (!is_array($moves)) {
-            throw new UserException(clienttranslate('Неверный формат данных перемещений'));
-        }
-        
-        // Проверяем, что использовано правильное количество очков
-        $totalAmount = 0;
-        foreach ($moves as $move) {
-            if (!is_array($move) || !isset($move['column']) || !isset($move['amount'])) {
-                throw new UserException(clienttranslate('Неверный формат перемещения'));
-            }
-            $totalAmount += (int)$move['amount'];
-        }
-        
-        if ($totalAmount !== $requiredMoves) {
-            throw new UserException(clienttranslate('Использовано неверное количество очков: ${used} из ${required}', [
-                'used' => $totalAmount,
-                'required' => $requiredMoves
-            ]));
-        }
-        
-        // Проверяем, что колонки валидны (1-4)
-        foreach ($moves as $move) {
-            $column = (int)$move['column'];
-            if ($column < 1 || $column > 4) {
-                throw new UserException(clienttranslate('Неверный номер колонки: ${column}', [
-                    'column' => $column
-                ]));
-            }
-        }
-        
-        // Сохраняем перемещения в БД (таблица player_game_data)
-        foreach ($moves as $move) {
-            $column = (int)$move['column'];
-            $amount = (int)$move['amount'];
-            $this->game->incTechDevColumn($activePlayerId, $column, $amount);
-            error_log("🔧 actConfirmTechnicalDevelopmentMoves - Updated techDevCol$column for player $activePlayerId by $amount");
-        }
-        
-        // Очищаем ожидающие перемещения из globals
-        $this->game->globals->set($globalsKey, null);
-        
-        // Отправляем уведомление о завершении перемещений
-        $this->notify->all('technicalDevelopmentMovesCompleted', clienttranslate('${player_name} улучшил техотдел благодаря эффекту карты «${founder_name}»'), [
-            'player_id' => $activePlayerId,
-            'player_name' => $this->game->getPlayerNameById($activePlayerId),
-            'founder_name' => $pendingMoves['founder_name'] ?? 'Основатель',
-            'moves' => $moves,
-            'i18n' => ['founder_name'],
-        ]);
-        
-        error_log("🔧 actConfirmTechnicalDevelopmentMoves - Player $activePlayerId moved technical development tokens: " . json_encode($moves));
+        $this->game->confirmTechnicalDevelopmentMoves($activePlayerId, $movesJson);
     }
 
     /**
