@@ -1793,6 +1793,13 @@ define([
           break
         case 'RoundSprint':
           this._hideTaskMoveHintModal()
+          this._hideSprintTaskMoveIndicator()
+          if (
+            this.gamedatas?.pendingTaskMoves &&
+            this.gamedatas.pendingTaskMoves.moveSource === 'sprint_phase'
+          ) {
+            this.gamedatas.pendingTaskMoves = null
+          }
           break
         case 'dummy':
           break
@@ -1808,6 +1815,16 @@ define([
       console.log('isCurrentPlayerActive:', this.isCurrentPlayerActive())
       console.log('player_id:', this.player_id)
       console.log('gamedatas.gamestate:', this.gamedatas?.gamestate)
+
+      if (stateName !== 'RoundSprint') {
+        this._hideSprintTaskMoveIndicator()
+        if (
+          this.gamedatas?.pendingTaskMoves &&
+          this.gamedatas.pendingTaskMoves.moveSource === 'sprint_phase'
+        ) {
+          this.gamedatas.pendingTaskMoves = null
+        }
+      }
 
       // Для состояния GameSetup - переход происходит автоматически
       if (stateName === 'GameSetup') {
@@ -2013,9 +2030,6 @@ define([
             this._updateStageBanner()
             if (this.isCurrentPlayerActive()) {
               const a = this._getStateArgsPayload(args)
-              const hiringTrackValue = a.hiringTrackValue ?? 0
-              const recruitingDone = a.recruitingDone === true
-              const canRecruit = hiringTrackValue > 0 && !recruitingDone
               const maxHireCount = Math.max(
                 0,
                 parseInt(a.maxHireCount, 10) || 0,
@@ -2034,33 +2048,6 @@ define([
               this._hiringHiredCount = hiringHiredCount
 
               this._bindHiringCardSelection()
-
-              if (!recruitingDone && canRecruit) {
-                this.statusBar.addActionButton(
-                  _('Рекрутинг'),
-                  () => this.bgaPerformAction('actRecruiting'),
-                  {
-                    primary: false,
-                    disabled: !canRecruit,
-                    tooltip: canRecruit
-                      ? typeof _ !== 'undefined'
-                        ? _(
-                            'Взять ${n} карт из колоды найма по треку бэк-офиса',
-                          ).replace('${n}', String(hiringTrackValue))
-                        : 'Взять ' +
-                          hiringTrackValue +
-                          ' карт из колоды найма по треку бэк-офиса'
-                      : recruitingDone
-                        ? typeof _ !== 'undefined'
-                          ? _('Рекрутинг уже выполнен')
-                          : 'Рекрутинг уже выполнен'
-                        : typeof _ !== 'undefined'
-                          ? _('Трек найма на 0')
-                          : 'Трек найма на 0',
-                    id: 'hiring-recruiting-button',
-                  },
-                )
-              }
 
               // Блокируем «Завершить фазу найм» когда сработал эффект task или move_task у нанятого специалиста
               if (a.pendingTaskSelection != null) {
@@ -2324,8 +2311,33 @@ define([
             this.gamedatas.sprintTrackMoveMandatory = hasMandatoryFlag
               ? this._coerceStateBool(saSprintArgs.sprintTrackMoveMandatory)
               : false
+            const pendingTechDevelopment =
+              saSprintArgs.pendingTechnicalDevelopmentMoves || null
+            if (
+              this.isCurrentPlayerActive() &&
+              pendingTechDevelopment &&
+              Number(pendingTechDevelopment.move_count || 0) > 0
+            ) {
+              this._activateTechnicalDevelopmentMoveMode(
+                Number(pendingTechDevelopment.move_count || 0),
+                pendingTechDevelopment.source_name ||
+                  pendingTechDevelopment.founder_name ||
+                  'Основатель',
+                {
+                  allowedColumns:
+                    pendingTechDevelopment.allowed_columns || [],
+                  effectType: pendingTechDevelopment.effect_type || '',
+                  message: pendingTechDevelopment.message || '',
+                  sprintPhase: true,
+                },
+              )
+            }
             if (this.isCurrentPlayerActive()) {
-              if (!this._coerceStateBool(this.gamedatas.sprintBankConfirmed)) {
+              const hasPendingTechDevelopment =
+                !!this.gamedatas.pendingTechnicalDevelopmentMoves
+              if (hasPendingTechDevelopment) {
+                this._deactivateTaskSelection()
+              } else if (!this._coerceStateBool(this.gamedatas.sprintBankConfirmed)) {
                 const bankRemaining =
                   saSprintArgs.sprintBankTasksRemaining != null
                     ? Number(saSprintArgs.sprintBankTasksRemaining)
@@ -2351,12 +2363,20 @@ define([
                 this.gamedatas.sprintBankConfirmed,
               )
               const sprintCompleteDisabled =
+                hasPendingTechDevelopment ||
                 !sprintBankConfirmed ||
                 (sprintMoveMandatory && !sprintMovesConfirmed)
               this.statusBar.addActionButton(
                 _('Завершить фазу «Спринт»'),
                 () => {
                   // Если кнопка заблокирована, просто подскажем/покажем индикатор (не шлём action).
+                  if (this.gamedatas?.pendingTechnicalDevelopmentMoves) {
+                    this.showMessage(
+                      _('Сначала подтвердите улучшение трека в техотделе.'),
+                      'info',
+                    )
+                    return
+                  }
                   if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
                     this._activateTaskSelectionForSprintPhase(
                       sprintLimit,
@@ -2381,7 +2401,9 @@ define([
                   id: 'complete-sprint-phase-button',
                   disabled: sprintCompleteDisabled,
                   tooltip:
-                    !sprintBankConfirmed
+                    hasPendingTechDevelopment
+                      ? _('Сначала подтвердите улучшение трека в техотделе.')
+                      : !sprintBankConfirmed
                       ? _('Сначала возьмите задачи из банка и подтвердите выбор.')
                       : sprintMoveMandatory && !sprintMovesConfirmed
                         ? _(
@@ -2393,8 +2415,10 @@ define([
                 },
               )
               // Панель спринта: всегда показываем активному игроку (данные с сервера + сброс по раунду/игроку выше).
-              this._showSprintTaskMoveIndicator()
-              this._refreshSprintTaskMoveIndicator()
+              if (!hasPendingTechDevelopment) {
+                this._showSprintTaskMoveIndicator()
+                this._refreshSprintTaskMoveIndicator()
+              }
             } else {
               const sprInd = document.getElementById('task-move-mode-indicator')
               if (
@@ -3425,8 +3449,10 @@ define([
       if (player && badgerDelta !== 0) {
         player.badgers = Math.max(0, Number(player.badgers || 0) + badgerDelta)
       }
-      if (appliedEffects.length > 0) {
+      if (player) {
         this._renderPlayerMoney(this.gamedatas.players, playerId)
+      }
+      if (appliedEffects.length > 0) {
         try {
           this._applyUpdateTrackEffectsFromApplied(playerId, appliedEffects)
         } catch (e) {
@@ -3438,7 +3464,9 @@ define([
         this._updateFinishTurnButtonForTechnicalDevelopment()
         if (
           this.gamedatas?.gamestate?.name === 'RoundProjects' &&
-          this.isCurrentPlayerActive()
+          this.isCurrentPlayerActive() &&
+          !args.purchaseEndsTurn &&
+          !args.hasPendingTechnicalDevelopment
         ) {
           this._updateProjectTokensPurchaseUI()
         }
@@ -3775,6 +3803,17 @@ define([
           }`,
           'info',
         )
+      }
+
+      if (
+        args.sprint_phase &&
+        Number(playerId) === Number(this.player_id) &&
+        this.gamedatas?.gamestate?.name === 'RoundSprint'
+      ) {
+        this._positionTechnicalDevelopmentTokensFromGamedatas(playerId)
+        if (typeof this._refreshSprintTaskMoveIndicator === 'function') {
+          this._refreshSprintTaskMoveIndicator()
+        }
       }
     },
 
@@ -5180,6 +5219,9 @@ define([
       const moveCount = Number(args.move_count || 0)
       const sourceName =
         args.source_name || args.founder_name || 'Основатель'
+      const allowedColumns = Array.isArray(args.allowed_columns)
+        ? args.allowed_columns
+        : []
 
       console.log(
         '🔧🔧🔧 notif_technicalDevelopmentMovesRequired received for player:',
@@ -5195,7 +5237,25 @@ define([
         console.log(
           '✅ This is current player, activating technical development move mode',
         )
-        this._activateTechnicalDevelopmentMoveMode(moveCount, sourceName)
+        this._activateTechnicalDevelopmentMoveMode(moveCount, sourceName, {
+          allowedColumns,
+          effectType: args.effect_type || '',
+          message: args.message || '',
+          sprintPhase: !!args.sprint_phase,
+        })
+        if (this.gamedatas?.gamestate?.name === 'RoundProjects') {
+          this._updateProjectTokensPurchaseUI()
+        }
+        if (args.sprint_phase) {
+          this._deactivateTaskSelection()
+          const sprintIndicator = document.getElementById('task-move-mode-indicator')
+          if (
+            sprintIndicator &&
+            sprintIndicator.classList.contains('task-move-mode-indicator--sprint')
+          ) {
+            this._hideTaskMoveModeIndicator()
+          }
+        }
       } else {
         console.log('⏭️ This is not current player, skipping')
       }
@@ -5213,12 +5273,22 @@ define([
 
       const pl = this.gamedatas?.players?.[playerId]
       if (pl) {
+        const defaults = {
+          techDevCol1: 1,
+          techDevCol2: 0,
+          techDevCol3: 1,
+          techDevCol4: 0,
+        }
         moves.forEach((move) => {
           const col = Number(move.column || 0)
           const amount = Number(move.amount || 0)
           if (col >= 1 && col <= 4 && amount > 0) {
             const key = 'techDevCol' + col
-            pl[key] = Number(pl[key] || 0) + amount
+            const current =
+              pl[key] !== null && pl[key] !== undefined && pl[key] !== ''
+                ? Number(pl[key])
+                : defaults[key] || 0
+            pl[key] = current + amount
           }
         })
       }
@@ -5226,6 +5296,38 @@ define([
       if (Number(playerId) === Number(this.player_id)) {
         this._deactivateTechnicalDevelopmentMoveMode()
         this._positionTechnicalDevelopmentTokensFromGamedatas(playerId)
+        if (this.gamedatas?.gamestate?.name === 'RoundSprint') {
+          if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
+            this._showSprintTaskMoveIndicator()
+            this._refreshSprintTaskMoveIndicator()
+            this._activateTaskSelectionForSprintPhase(
+              Number(this.gamedatas?.sprintTasksTakeLimit) || 1,
+              this._getSprintBankTasksRemaining(),
+            )
+          } else if (
+            this._coerceStateBool(this.gamedatas?.sprintTrackMoveMandatory) &&
+            !this._coerceStateBool(this.gamedatas?.sprintTrackMovesConfirmed)
+          ) {
+            this._showSprintTaskMoveIndicator()
+            this._refreshSprintTaskMoveIndicator()
+          }
+          const sprintCompleteButton = document.getElementById(
+            'complete-sprint-phase-button',
+          )
+          if (sprintCompleteButton) {
+            const bankConfirmed = this._coerceStateBool(
+              this.gamedatas?.sprintBankConfirmed,
+            )
+            const moveMandatory = this._coerceStateBool(
+              this.gamedatas?.sprintTrackMoveMandatory,
+            )
+            const movesConfirmed = this._coerceStateBool(
+              this.gamedatas?.sprintTrackMovesConfirmed,
+            )
+            sprintCompleteButton.disabled =
+              !bankConfirmed || (moveMandatory && !movesConfirmed)
+          }
+        }
       }
 
       if (
@@ -7340,8 +7442,7 @@ define([
     },
     /**
      * Победные очки (как на сервере): каждые 3 баджерса = 1 ПО;
-     * сумма victoryPoints по нанятым специалистам (playerHiredSpecialists);
-     * victoryPoints карты основателя.
+     * victoryPoints нанятых специалистов, основателя и купленных IT-проектов.
      */
     _computeVictoryPointsForPlayer: function (playerId) {
       const pid = Number(playerId)
@@ -7395,7 +7496,16 @@ define([
           parseInt(String(founder.victoryPoints ?? 0), 10) || 0
       }
 
-      return fromBadgers + fromSpecialists + fromFounder
+      const projectTokens = Array.isArray(p.projectTokens) ? p.projectTokens : []
+      const fromProjectTokens = projectTokens.reduce((sum, token) => {
+        return (
+          sum +
+          (parseInt(String(token?.victory_points ?? token?.victoryPoints ?? 0), 10) ||
+            0)
+        )
+      }, 0)
+
+      return fromBadgers + fromSpecialists + fromFounder + fromProjectTokens
     },
     _renderPlayerMoney: function (players, targetPlayerId, overrideAmount) {
       const panelBody = document.querySelector('.player-money-panel__body')
@@ -7510,7 +7620,7 @@ define([
           <span class="player-money-panel__amount">${amount}</span>
         </div>
         <div class="player-money-panel__vp" title="${_(
-          'Победные очки: 3 баджерса = 1 ПО; карты нанятых специалистов и основателя',
+          'Победные очки: 3 баджерса = 1 ПО; карты нанятых специалистов, основатель и IT-проекты',
         )}">
           <span class="player-money-panel__vp-label">${_('Победа')}</span>
           <span class="player-money-panel__vp-value">${vpDetail}</span>
@@ -8398,7 +8508,9 @@ define([
       const isMyTurn =
         isProjectsPhase &&
         activeId != null &&
-        Number(activeId) === Number(this.player_id)
+        Number(activeId) === Number(this.player_id) &&
+        !this.gamedatas?.pendingTechnicalDevelopmentMoves &&
+        !this._projectPurchaseInFlight
 
       const completedByColor =
         this.gamedatas?.gamestate?.args?.completedByColor ||
@@ -8506,9 +8618,10 @@ define([
         { tokenId },
         { lock: true, checkAction: true },
       )
-      const done = () => {
+      const done = (success = true) => {
         this._projectPurchaseInFlight = false
         if (
+          !success &&
           this.gamedatas?.gamestate?.name === 'RoundProjects' &&
           this.isCurrentPlayerActive()
         ) {
@@ -8516,9 +8629,9 @@ define([
         }
       }
       if (ret != null && typeof ret.then === 'function') {
-        ret.then(done).catch(done)
+        ret.then(() => done(true)).catch(() => done(false))
       } else {
-        done()
+        done(true)
       }
     },
 
@@ -9435,6 +9548,16 @@ define([
 
       // Проверяем, находимся ли мы в режиме перемещения задач (эффект move_task)
       const pendingMoves = this.gamedatas?.pendingTaskMoves
+      if (
+        pendingMoves &&
+        this.gamedatas?.gamestate?.name !== 'RoundSprint' &&
+        pendingMoves.fromEffect !== true &&
+        pendingMoves.moveSource !== 'founder_effect'
+      ) {
+        this.gamedatas.pendingTaskMoves = null
+        this._hideSprintTaskMoveIndicator()
+        return
+      }
 
       console.log('🔍🔍🔍 _handleTaskTokenClick - Checking mode:', {
         hasPendingMoves: !!pendingMoves,
@@ -9654,6 +9777,14 @@ define([
           '  → This means: NO effect mode, using tech department logic',
         )
 
+        if (
+          this.gamedatas?.gamestate?.name !== 'RoundSprint' ||
+          !this.isCurrentPlayerActive()
+        ) {
+          this._hideSprintTaskMoveIndicator()
+          return
+        }
+
         // Обычный режим (фаза Спринт) - используем стандартную логику
         // Получаем максимальное количество блоков для перемещения из техотдела
         const maxBlocks = this._getTechDepartmentPosition(color)
@@ -9774,17 +9905,17 @@ define([
       const pm = this.gamedatas.pendingTaskMoves
       techColors.forEach((c) => {
         const budget = this._getTechDepartmentPosition(c)
-        const maxForward = this._sprintMaxForwardBlocksForColorOnBoard(c)
-        const maxCap = Math.max(0, Math.min(budget, maxForward))
         let confirmed = Number(this.gamedatas.sprintColorBlocksUsed?.[c]) || 0
         let live = 0
         if (this._isSprintPerColorTaskMoveMode(pm)) {
           live = this._getSprintUsedBlocksForColor(pm.moves || [], c)
         }
         const usedDisplay = confirmed + live
-        const usedShown = maxCap > 0 ? Math.min(usedDisplay, maxCap) : 0
-        // Лимит техотдела / уже запланировано в этом спринте (читается как «used / max»)
-        const frac = `${usedShown}/${maxCap}`
+        const budgetShown = Math.max(0, budget)
+        const usedShown = budgetShown > 0 ? Math.min(usedDisplay, budgetShown) : 0
+        // Показываем именно бюджет техотдела: до взятия задач из банка новые задачи
+        // ещё не лежат на доске, поэтому maxForward может быть 0.
+        const frac = `${usedShown}/${budgetShown}`
         const colorName = this._getTaskTokenColorData(c)?.name || c
         const colorCode = this._getTaskTokenColorCode(c)
         const rowDone = this._sprintTechColorRowDone(c)
@@ -9846,6 +9977,10 @@ define([
      * Нужен, чтобы игрок мог нажать «Подтвердить перемещения» и разблокировать завершение фазы.
      */
     _showSprintTaskMoveIndicator: function () {
+      if (this.gamedatas?.gamestate?.name !== 'RoundSprint') {
+        this._hideSprintTaskMoveIndicator()
+        return
+      }
       let el = document.getElementById('task-move-mode-indicator')
       if (el && !el.classList.contains('task-move-mode-indicator--sprint')) {
         el.remove()
@@ -11090,10 +11225,27 @@ define([
     /**
      * Деактивирует режим перемещения задач
      */
-    _activateTechnicalDevelopmentMoveMode: function (moveCount, founderName) {
+    _isTechnicalDevelopmentColumnAllowed: function (columnNum) {
+      const pendingMoves = this.gamedatas?.pendingTechnicalDevelopmentMoves
+      if (!pendingMoves || !Array.isArray(pendingMoves.allowedColumns)) {
+        return true
+      }
+      if (pendingMoves.allowedColumns.length === 0) {
+        return true
+      }
+
+      return pendingMoves.allowedColumns.map(Number).includes(Number(columnNum))
+    },
+
+    _activateTechnicalDevelopmentMoveMode: function (
+      moveCount,
+      founderName,
+      options = {},
+    ) {
       console.log('🔧🔧🔧 _activateTechnicalDevelopmentMoveMode called:', {
         moveCount,
         founderName,
+        options,
       })
 
       // Сохраняем данные о режиме выбора
@@ -11103,7 +11255,11 @@ define([
         moves: [], // Массив перемещений: [{column: 1, amount: 1}, {column: 2, amount: 1}] или [{column: 1, amount: 2}]
         founderName: founderName,
         fromEffect: true,
-        moveSource: 'founder_effect',
+        moveSource: options.effectType || 'founder_effect',
+        allowedColumns: Array.isArray(options.allowedColumns)
+          ? options.allowedColumns.map(Number).filter((n) => n >= 1 && n <= 4)
+          : [],
+        sprintPhase: !!options.sprintPhase,
       }
 
       console.log(
@@ -11154,7 +11310,7 @@ define([
             }
           })
 
-          // Обновляем кликабельные строки для этой колонки (с учетом доступных очков)
+          // Обновляем кликабельные строки для этой колонки (с учетом доступных очков и ограничений эффекта)
           if (currentTokenRowIndex !== null) {
             // Используем функцию обновления, которая учитывает доступные очки
             this._updateClickableRowsForColumn(columnNum)
@@ -11173,10 +11329,19 @@ define([
       }
 
       // Показываем подсказку
+      const message =
+        options.message ||
+        (this.gamedatas.pendingTechnicalDevelopmentMoves.allowedColumns.length > 0
+          ? _(
+              'Выберите минимальный трек техотдела для улучшения (всего ${count} очков)',
+            )
+          : _(
+              'Выберите колонки техотдела для улучшения (всего ${count} очков)',
+            ))
       this.showMessage(
-        _(
-          'Выберите колонки техотдела для улучшения (всего ${count} очков)',
-        ).replace('${count}', moveCount),
+        message
+          .replace('${count}', moveCount)
+          .replace('${source_name}', founderName),
         'info',
       )
 
@@ -11206,7 +11371,10 @@ define([
         row.classList.remove('technical-development-row--clickable')
         row.style.cursor = ''
         row.style.position = ''
+        row.style.pointerEvents = ''
+        row.style.zIndex = ''
         row.removeAttribute('data-clickable')
+        row.removeAttribute('data-undo')
       })
 
       // Удаляем обработчики делегирования с контейнеров
@@ -11229,6 +11397,14 @@ define([
             true,
           )
           container._technicalDevClickHandler = null
+        }
+        if (container._technicalDevMouseDownHandler) {
+          container.removeEventListener(
+            'mousedown',
+            container._technicalDevMouseDownHandler,
+            true,
+          )
+          container._technicalDevMouseDownHandler = null
         }
       })
 
@@ -11345,6 +11521,10 @@ define([
       const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
       if (!pendingMoves) {
         console.warn('⚠️ No pending technical development moves')
+        return
+      }
+      if (!this._isTechnicalDevelopmentColumnAllowed(columnNum)) {
+        this.showMessage(_('Можно улучшить только минимальный трек техотдела'), 'error')
         return
       }
 
@@ -11816,6 +11996,31 @@ define([
         )
         container._technicalDevClickHandler = null
       }
+      if (container._technicalDevMouseDownHandler) {
+        container.removeEventListener(
+          'mousedown',
+          container._technicalDevMouseDownHandler,
+          true,
+        )
+        container._technicalDevMouseDownHandler = null
+      }
+
+      const clearRowClickState = () => {
+        rows.forEach((row) => {
+          row.classList.remove('technical-development-row--clickable')
+          row.style.cursor = ''
+          row.style.position = ''
+          row.style.pointerEvents = ''
+          row.style.zIndex = ''
+          row.removeAttribute('data-clickable')
+          row.removeAttribute('data-undo')
+        })
+      }
+
+      if (!this._isTechnicalDevelopmentColumnAllowed(columnNum)) {
+        clearRowClickState()
+        return
+      }
 
       // Находим текущую позицию жетона (ВАЖНО: вычисляем заново каждый раз)
       let currentTokenRowIndex = null
@@ -11834,7 +12039,10 @@ define([
       const pendingMoves = this.gamedatas.pendingTechnicalDevelopmentMoves
       if (!pendingMoves) return
 
-      const availableMoves = pendingMoves.moveCount - pendingMoves.usedMoves
+      const availableMoves = Math.max(
+        0,
+        Number(pendingMoves.moveCount || 0) - Number(pendingMoves.usedMoves || 0),
+      )
 
       // Сохраняем текущий индекс для использования в замыкании
       const currentRowIndex = currentTokenRowIndex
@@ -11951,6 +12159,31 @@ define([
 
         // Подсвечиваем жетон в текущей позиции
         if (actualCurrentRowIndex !== null) {
+          const livePending = self.gamedatas?.pendingTechnicalDevelopmentMoves
+          if (!livePending || !self._isTechnicalDevelopmentColumnAllowed(columnNum)) {
+            self._updateClickableRowsForColumn(columnNum)
+            return
+          }
+
+          const liveAvailable = Math.max(
+            0,
+            Number(livePending.moveCount || 0) -
+              Number(livePending.usedMoves || 0),
+          )
+          const liveExistingMove = Array.isArray(livePending.moves)
+            ? livePending.moves.find((m) => Number(m.column) === Number(columnNum))
+            : null
+          const targetMoveAmount = targetRowIndex - actualCurrentRowIndex
+          const isUndo =
+            liveExistingMove &&
+            Number(liveExistingMove.amount || 0) > 0 &&
+            targetRowIndex === Number(liveExistingMove.fromRowIndex)
+
+          if (!isUndo && (targetMoveAmount <= 0 || targetMoveAmount > liveAvailable)) {
+            self._updateClickableRowsForColumn(columnNum)
+            return
+          }
+
           currentRows.forEach((r) => {
             const t = r.querySelector(
               '.player-department-technical-development__token',
@@ -11973,24 +12206,22 @@ define([
       }
 
       // Добавляем обработчики на разные события для надежности
-      container.addEventListener(
-        'mousedown',
-        function (e) {
-          console.log('🔴 MOUSEDOWN on container, target:', e.target)
-          const clickedRow = e.target.closest(
-            '.player-department-technical-development__row',
-          )
-          if (clickedRow && clickedRow.hasAttribute('data-clickable')) {
-            console.log('🔴✅ MOUSEDOWN on clickable row!')
-            e.preventDefault()
-            clickHandler(e)
-          }
-        },
-        true,
-      )
+      const mouseDownHandler = function (e) {
+        console.log('🔴 MOUSEDOWN on container, target:', e.target)
+        const clickedRow = e.target.closest(
+          '.player-department-technical-development__row',
+        )
+        if (clickedRow && clickedRow.hasAttribute('data-clickable')) {
+          console.log('🔴✅ MOUSEDOWN on clickable row!')
+          e.preventDefault()
+          clickHandler(e)
+        }
+      }
+      container.addEventListener('mousedown', mouseDownHandler, true)
 
       container.addEventListener('click', clickHandler, true)
       container._technicalDevClickHandler = clickHandler
+      container._technicalDevMouseDownHandler = mouseDownHandler
 
       console.log(
         '🔴✅ Event listeners added to container:',
@@ -12067,8 +12298,11 @@ define([
         document.getElementById('finish-turn-button'),
         document.getElementById('projects-finish-turn-button'),
       ].filter(Boolean)
+      const sprintCompleteButton = document.getElementById(
+        'complete-sprint-phase-button',
+      )
 
-      if (finishButtons.length === 0) return
+      if (finishButtons.length === 0 && !sprintCompleteButton) return
 
       const setFinishDisabled = (disabled, title) => {
         finishButtons.forEach((btn) => {
@@ -12083,6 +12317,13 @@ define([
 
       if (pendingMoves) {
         setFinishDisabled(true, _('Завершите улучшение техотдела'))
+        if (sprintCompleteButton) {
+          sprintCompleteButton.disabled = true
+          sprintCompleteButton.setAttribute(
+            'title',
+            _('Сначала подтвердите улучшение трека в техотделе.'),
+          )
+        }
         console.log(
           '🔒 Finish turn button disabled - technical development moves pending',
         )
@@ -12130,6 +12371,7 @@ define([
           this.game_name +
           '/actConfirmTechnicalDevelopmentMoves.html',
         {
+          activePlayerId: this.player_id,
           movesJson: JSON.stringify(pendingMoves.moves),
         },
         this,
@@ -12263,6 +12505,16 @@ define([
     _hideTaskMoveModeIndicator: function () {
       const indicator = document.getElementById('task-move-mode-indicator')
       if (indicator) {
+        indicator.remove()
+      }
+    },
+
+    _hideSprintTaskMoveIndicator: function () {
+      const indicator = document.getElementById('task-move-mode-indicator')
+      if (
+        indicator &&
+        indicator.classList.contains('task-move-mode-indicator--sprint')
+      ) {
         indicator.remove()
       }
     },
@@ -13024,6 +13276,10 @@ define([
      * Фаза «Спринт»: из банка нужно взять ровно tasksRemaining задач (остаток лимита).
      */
     _activateTaskSelectionForSprintPhase: function (takeLimit, tasksRemaining) {
+      if (this.gamedatas?.gamestate?.name !== 'RoundSprint') {
+        this._hideSprintTaskMoveIndicator()
+        return
+      }
       const remaining =
         tasksRemaining != null
           ? Math.max(0, Number(tasksRemaining))

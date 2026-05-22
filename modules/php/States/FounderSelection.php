@@ -517,8 +517,8 @@ class FounderSelection extends GameState
                                 
                                 error_log('✅✅✅ FounderSelection - incomeTrackChanged notification SENT for player ' . $targetPlayerId . ' from ' . $oldValue . ' to ' . $newValue);
                             }
-                            // Для визуальных треков отделов отправляем уведомление для обновления на клиенте
-                            elseif (str_starts_with($trackId, 'player-department-')) {
+                            // Для визуальных треков отделов и панели спринта отправляем уведомление для обновления на клиенте
+                            elseif (str_starts_with($trackId, 'player-department-') || $trackId === 'sprint-column-tasks') {
                                 error_log('🔵 FounderSelection - Processing visual track: ' . $trackId);
                                 error_log('🔵 FounderSelection - trackUpdate keys: ' . implode(', ', array_keys($trackUpdate)));
                                 error_log('🔵 FounderSelection - trackUpdate full: ' . json_encode($trackUpdate));

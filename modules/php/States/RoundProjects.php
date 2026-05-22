@@ -114,19 +114,24 @@ final class RoundProjects extends GameState
      * Проверки выполняются в Game::canPlayerPurchaseProjectToken / purchaseProjectToken;
      * при невозможности покупки выбрасывается UserException.
      *
-     * После покупки игрок остаётся в состоянии RoundProjects — он может купить
-     * ещё проектов, нажать «Пас» или «Завершить ход».
+     * После покупки ход передаётся следующему игроку в очереди проектов.
+     * Если эффект проекта требует выбора трека техотдела, переход выполняется
+     * после подтверждения этого выбора.
      */
     #[PossibleAction]
     public function actPurchaseProject(int $tokenId): ?string
     {
         $this->game->checkAction('actPurchaseProject');
         $playerId = (int) $this->game->getActivePlayerId();
-        // В одном ходе фазы можно купить несколько проектов; выбор колонки
-        // техотдела обязателен перед «Пас» / «Завершить ход», но не блокирует покупки.
         $result = $this->game->purchaseProjectToken($playerId, $tokenId);
 
         $token = $result['token'];
+        $pendingTech = $this->game->setupPendingTechnicalDevelopmentFromApplied(
+            $playerId,
+            $result['applied_effects'] ?? [],
+            (string) $token['name'],
+        );
+        $turnPassesAfterPurchase = $pendingTech === null;
         $this->game->notify->all(
             'projectTokenPurchased',
             clienttranslate('${player_name} покупает IT-проект «${project_name}» за ${price} ${color_name}'),
@@ -148,18 +153,15 @@ final class RoundProjects extends GameState
                 // если запас исчерпан и ячейка осталась пустой).
                 'replacementToken' => $result['replacementToken'] ?? null,
                 'appliedEffects' => $result['applied_effects'] ?? [],
-                'hasPendingTechnicalDevelopment' => $this->game->hasPendingTechnicalDevelopmentMoves($playerId),
+                'hasPendingTechnicalDevelopment' => $pendingTech !== null,
+                'purchaseEndsTurn' => true,
                 'i18n' => ['project_name', 'color_name'],
             ],
         );
 
-        $pendingTech = $this->game->setupPendingTechnicalDevelopmentFromApplied(
-            $playerId,
-            $result['applied_effects'] ?? [],
-            (string) $token['name'],
-        );
         if ($pendingTech !== null) {
             $sourceName = $pendingTech['source_name'];
+            $this->game->globals->set('projects_phase_pass_after_technical_development_' . $playerId, '1');
             $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
                 'player_id' => $playerId,
                 'move_count' => $pendingTech['move_count'],
@@ -168,8 +170,11 @@ final class RoundProjects extends GameState
             ]);
         }
 
-        // Остаёмся в RoundProjects — активный игрок может ещё покупать,
-        // спасовать или завершить ход.
+        if ($turnPassesAfterPurchase) {
+            $this->game->globals->set('projects_phase_pass', '1');
+            return 'toNextPlayer';
+        }
+
         return null;
     }
 
@@ -177,10 +182,23 @@ final class RoundProjects extends GameState
      * Подтверждение улучшения техотдела после покупки IT-проекта с эффектом «выбор колонки».
      */
     #[PossibleAction]
-    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): void
+    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): ?string
     {
         $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
-        $this->game->confirmTechnicalDevelopmentMoves($activePlayerId, $movesJson);
+        $playerId = (int) $activePlayerId;
+        if ($playerId !== (int) $this->game->getActivePlayerId()) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Не ваш ход'));
+        }
+        $this->game->confirmTechnicalDevelopmentMoves($playerId, $movesJson);
+
+        $passAfterTechKey = 'projects_phase_pass_after_technical_development_' . $playerId;
+        if ($this->game->globals->get($passAfterTechKey, '') === '1') {
+            $this->game->globals->delete($passAfterTechKey);
+            $this->game->globals->set('projects_phase_pass', '1');
+            return 'toNextPlayer';
+        }
+
+        return null;
     }
 
     /**

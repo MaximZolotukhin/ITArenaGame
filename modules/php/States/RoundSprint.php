@@ -69,6 +69,7 @@ class RoundSprint extends GameState
         }
         $sprintTrackMoveMandatory = $this->game->playerMustSprintTrackMoveBeforeComplete($activePlayerId);
         $sprintTrackMovesConfirmed = $this->game->globals->get($movesKey, '') === '1';
+        $pendingTechnicalDevelopment = $this->game->getPendingTechnicalDevelopmentMovesData($activePlayerId);
 
         return [
             'phaseKey' => 'sprint',
@@ -83,6 +84,7 @@ class RoundSprint extends GameState
             'sprintBankConfirmed' => $bankConfirmed,
             'sprintTrackMoveMandatory' => $sprintTrackMoveMandatory,
             'sprintTrackMovesConfirmed' => $sprintTrackMovesConfirmed,
+            'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
         ];
     }
 
@@ -98,6 +100,33 @@ class RoundSprint extends GameState
         $this->game->globals->set('sprint_bank_confirmed_round_' . $aid, (string) $round);
         $this->game->globals->set('sprint_track_moves_done_round_' . $aid, (string) $round);
 
+        foreach ($this->game->applyFounderEffectsForStage($aid, 'SprintPhase') as $effect) {
+            if (
+                ($effect['type'] ?? '') !== 'minTechDevTrack'
+                || empty($effect['pending'])
+                || (int) ($effect['moveCount'] ?? 0) <= 0
+            ) {
+                continue;
+            }
+            $sourceName = (string) ($effect['sourceName'] ?? $effect['founderName'] ?? '');
+            $this->notify->player(
+                $aid,
+                'technicalDevelopmentMovesRequired',
+                clienttranslate('Выберите минимальный трек техотдела для улучшения благодаря «${source_name}»'),
+                [
+                    'player_id' => $aid,
+                    'move_count' => (int) $effect['moveCount'],
+                    'founder_name' => $sourceName,
+                    'source_name' => $sourceName,
+                    'allowed_columns' => $effect['allowedColumns'] ?? [],
+                    'effect_type' => 'minTechDevTrack',
+                    'message' => clienttranslate('Выберите минимальный трек техотдела для улучшения благодаря «${source_name}»'),
+                    'sprint_phase' => true,
+                    'i18n' => ['source_name'],
+                ],
+            );
+        }
+
         return null;
     }
 
@@ -110,6 +139,7 @@ class RoundSprint extends GameState
     {
         $this->game->checkAction('actConfirmSprintTasks');
         $playerId = (int) $this->game->getActivePlayerId();
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($playerId);
         $round = (int) $this->game->getGameStateValue('round_number');
         $takenKey = 'sprint_bank_tasks_taken_' . $playerId;
 
@@ -186,6 +216,7 @@ class RoundSprint extends GameState
         if ($playerId !== (int) $this->game->getActivePlayerId()) {
             throw new UserException(clienttranslate('Не ваш ход'));
         }
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($playerId);
         $round = (int) $this->game->getGameStateValue('round_number');
 
         $moves = json_decode($movesJson, true);
@@ -240,6 +271,7 @@ class RoundSprint extends GameState
     {
         $this->game->checkAction('actCompleteSprintPhase');
         $playerId = (int) $this->game->getActivePlayerId();
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($playerId);
 
         $takeLimit = $this->game->getSprintColumnTasksTakeLimit($playerId);
         $taken = max(0, (int) ($this->game->globals->get('sprint_bank_tasks_taken_' . $playerId, '0') ?: 0));
@@ -256,6 +288,17 @@ class RoundSprint extends GameState
         $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('sprint_phase_just_finished', '1');
         return 'toNextPlayer';
+    }
+
+    #[PossibleAction]
+    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): void
+    {
+        $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
+        $playerId = (int) $activePlayerId;
+        if ($playerId !== (int) $this->game->getActivePlayerId()) {
+            throw new UserException(clienttranslate('Не ваш ход'));
+        }
+        $this->game->confirmTechnicalDevelopmentMoves($playerId, $movesJson);
     }
 
     public function zombie(int $playerId): string

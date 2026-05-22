@@ -35,6 +35,7 @@ use Bga\Games\itarenagame\Effects\TaskEffectHandler;
 use Bga\Games\itarenagame\Effects\MoveTaskEffectHandler;
 use Bga\Games\itarenagame\Effects\TrackEffectHandler;
 use Bga\Games\itarenagame\Effects\UpdateTrackEffectHandler;
+use Bga\Games\itarenagame\Effects\MinTechDevTrackEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -1720,6 +1721,7 @@ class Game extends \Bga\GameFramework\Table
             error_log("applyFounderEffect - No effect or invalid format");
             return [];
         }
+        $effect = $this->normalizeCardEffectArray($effect);
         
         $appliedEffects = [];
         
@@ -1734,7 +1736,7 @@ class Game extends \Bga\GameFramework\Table
         foreach ($effect as $effectType => $effectValue) {
             // Для массивов (например, move_task) преобразуем в JSON строку
             // НО: для updateTrack оставляем массив как есть
-            if (is_array($effectValue) && $effectType !== 'updateTrack') {
+            if (is_array($effectValue) && !in_array($effectType, ['updateTrack', 'minTechDevTrack'], true)) {
                 $effectValue = json_encode($effectValue);
                 error_log("🔍 applyFounderEffect - Converted array to JSON for $effectType: $effectValue");
             }
@@ -1751,6 +1753,25 @@ class Game extends \Bga\GameFramework\Table
         error_log("applyFounderEffect - Applied effects: " . json_encode($appliedEffects));
         
         return $appliedEffects;
+    }
+
+    /**
+     * Применяет эффекты основателя игрока на указанном этапе (по карте из размещения).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function applyFounderEffectsForStage(int $playerId, string $stage): array
+    {
+        $placed = $this->getFounderForPlayer($playerId);
+        if ($placed === null) {
+            return [];
+        }
+        $cardId = (int) ($placed['id'] ?? 0);
+        if ($cardId <= 0) {
+            return [];
+        }
+
+        return $this->applyFounderEffect($playerId, $cardId, $stage);
     }
     
     /**
@@ -1780,6 +1801,7 @@ class Game extends \Bga\GameFramework\Table
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentSales' => new UpdateTrackEffectHandler($this),
+            'minTechDevTrack' => new MinTechDevTrackEffectHandler($this),
             'hire_from_hand' => new class implements EffectHandlerInterface {
                 public function apply(int $playerId, mixed $effectValue, array $cardData): array
                 {
@@ -1981,6 +2003,18 @@ class Game extends \Bga\GameFramework\Table
         return $pending !== null && $pending !== '';
     }
 
+    public function getPendingTechnicalDevelopmentMovesData(int $playerId): ?array
+    {
+        $pending = $this->globals->get('pending_technical_development_moves_' . $playerId, null);
+        if ($pending === null || $pending === '') {
+            return null;
+        }
+
+        $data = json_decode((string) $pending, true);
+
+        return is_array($data) ? $data : null;
+    }
+
     public function assertNoPendingTechnicalDevelopmentMoves(int $playerId): void
     {
         if ($this->hasPendingTechnicalDevelopmentMoves($playerId)) {
@@ -2066,7 +2100,11 @@ class Game extends \Bga\GameFramework\Table
             if (!is_array($move) || !isset($move['column']) || !isset($move['amount'])) {
                 throw new \Bga\GameFramework\UserException(clienttranslate('Неверный формат перемещения'));
             }
-            $totalAmount += (int) $move['amount'];
+            $amount = (int) $move['amount'];
+            if ($amount <= 0) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Количество улучшений должно быть положительным'));
+            }
+            $totalAmount += $amount;
         }
 
         if ($totalAmount !== $requiredMoves) {
@@ -2076,12 +2114,20 @@ class Game extends \Bga\GameFramework\Table
             ]));
         }
 
+        $allowedColumns = [];
+        if (is_array($pendingMoves['allowed_columns'] ?? null)) {
+            $allowedColumns = array_map('intval', $pendingMoves['allowed_columns']);
+        }
+
         foreach ($moves as $move) {
             $column = (int) $move['column'];
             if ($column < 1 || $column > 4) {
                 throw new \Bga\GameFramework\UserException(clienttranslate('Неверный номер колонки: ${column}', [
                     'column' => $column,
                 ]));
+            }
+            if (!empty($allowedColumns) && !in_array($column, $allowedColumns, true)) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Можно улучшить только минимальный трек техотдела'));
             }
             $amount = (int) $move['amount'];
             $this->incTechDevColumn($activePlayerId, $column, $amount);
@@ -2096,6 +2142,8 @@ class Game extends \Bga\GameFramework\Table
             'founder_name' => $sourceName,
             'source_name' => $sourceName,
             'moves' => $moves,
+            'allowed_columns' => $allowedColumns,
+            'effect_type' => $pendingMoves['effect_type'] ?? null,
             'i18n' => ['source_name'],
         ]);
     }
@@ -2207,6 +2255,35 @@ class Game extends \Bga\GameFramework\Table
             }
 
             unset($effect['track'], $effect['amount'], $effect['column']);
+        }
+
+        foreach (['updateTrackSprints', 'updateTrackSprintColumnTasks'] as $sprintEffectKey) {
+            if (!array_key_exists($sprintEffectKey, $effect)) {
+                continue;
+            }
+
+            $effectValue = $effect[$sprintEffectKey];
+            $items = is_array($effectValue) && isset($effectValue[0]) ? $effectValue : [$effectValue];
+            $sprintTrackUpdates = [];
+            foreach ($items as $item) {
+                $amount = (is_array($item) && isset($item['amount'])) ? $item['amount'] : '+ 1';
+                $sprintTrackUpdates[] = [
+                    'track' => 'sprint-column-tasks',
+                    'amount' => $amount,
+                ];
+            }
+
+            if (isset($effect['updateTrack']) && is_array($effect['updateTrack'])) {
+                $existing = $effect['updateTrack'];
+                if (isset($existing['track']) && isset($existing['amount'])) {
+                    $existing = [$existing];
+                }
+                $effect['updateTrack'] = array_merge($existing, $sprintTrackUpdates);
+            } else {
+                $effect['updateTrack'] = $sprintTrackUpdates;
+            }
+
+            unset($effect[$sprintEffectKey]);
         }
 
         return $effect;
@@ -3427,7 +3504,8 @@ class Game extends \Bga\GameFramework\Table
     public const BADGERS_PER_VICTORY_POINT = 3;
 
     /**
-     * Победные очки: баджерсы на руках (каждые 3 = 1 ПО) + victoryPoints нанятых специалистов + основатель (если выбран).
+     * Победные очки: баджерсы на руках (каждые 3 = 1 ПО) + victoryPoints нанятых специалистов,
+     * основателя (если выбран) и купленных IT-проектов.
      * Специалисты: только карты из найма (player_hired_specialists), не рука и не выдача эффектом на стол без найма.
      *
      * @return array{
@@ -3436,7 +3514,9 @@ class Game extends \Bga\GameFramework\Table
      *   badgersCount: int,
      *   fromSpecialistCards: int,
      *   fromFounder: int,
-     *   specialistCardIds: array<int>
+     *   fromProjectTokens: int,
+     *   specialistCardIds: array<int>,
+     *   projectTokenIds: array<int>
      * }
      */
     public function getVictoryPointsBreakdown(int $playerId): array
@@ -3467,7 +3547,14 @@ class Game extends \Bga\GameFramework\Table
             $fromFounder = (int) ($founder['victoryPoints'] ?? 0);
         }
 
-        $total = $fromBadgers + $fromSpecialistCards + $fromFounder;
+        $fromProjectTokens = 0;
+        $projectTokenIds = [];
+        foreach ($this->getProjectTokensByPlayer($playerId) as $projectToken) {
+            $projectTokenIds[] = (int) ($projectToken['token_id'] ?? 0);
+            $fromProjectTokens += (int) ($projectToken['victory_points'] ?? 0);
+        }
+
+        $total = $fromBadgers + $fromSpecialistCards + $fromFounder + $fromProjectTokens;
 
         return [
             'total' => $total,
@@ -3475,7 +3562,9 @@ class Game extends \Bga\GameFramework\Table
             'badgersCount' => $badgersCount,
             'fromSpecialistCards' => $fromSpecialistCards,
             'fromFounder' => $fromFounder,
+            'fromProjectTokens' => $fromProjectTokens,
             'specialistCardIds' => $specialistCardIdsList,
+            'projectTokenIds' => $projectTokenIds,
         ];
     }
 
@@ -3673,6 +3762,51 @@ class Game extends \Bga\GameFramework\Table
             'orange-track' => 2,
             'cyan-track' => 3,
             'purple-track' => 4,
+            default => null,
+        };
+    }
+
+    /**
+     * Стартовые позиции жетонов техотдела (как на клиенте), если в БД NULL.
+     *
+     * @return array<int, int> column 1–4 => row index
+     */
+    public function getTechDevColumnDefaultRow(int $column): int
+    {
+        return match ($column) {
+            1 => 1,
+            2 => 0,
+            3 => 1,
+            4 => 0,
+            default => 0,
+        };
+    }
+
+    /**
+     * Эффективная позиция жетона в колонке техотдела (для сравнения «минимального» трека).
+     */
+    public function getTechDevColumnEffectiveValue(int $playerId, int $column): int
+    {
+        if ($column < 1 || $column > 4) {
+            return 0;
+        }
+        $this->initPlayerGameData($playerId);
+        $data = $this->getPlayerGameData($playerId);
+        $raw = $data['techDevCol' . $column] ?? null;
+        if ($raw === null) {
+            return $this->getTechDevColumnDefaultRow($column);
+        }
+
+        return max(0, min(5, (int) $raw));
+    }
+
+    public static function getTechnicalDepartmentTrackIdForColumn(int $column): ?string
+    {
+        return match ($column) {
+            1 => 'pink-track',
+            2 => 'orange-track',
+            3 => 'cyan-track',
+            4 => 'purple-track',
             default => null,
         };
     }
@@ -5208,6 +5342,7 @@ class Game extends \Bga\GameFramework\Table
         require_once $dir . '/MoveTaskEffectHandler.php';
         require_once $dir . '/TrackEffectHandler.php';
         require_once $dir . '/UpdateTrackEffectHandler.php';
+        require_once $dir . '/MinTechDevTrackEffectHandler.php';
     }
 
     /**

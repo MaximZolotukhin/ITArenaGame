@@ -48,10 +48,10 @@ class FoundersData
             'name' => 'Дмитрий', // Имя основателя
             'color' => '#FFFF00', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => ['badger' => '+ 4', 'card' => '+ 3', 'task' => '+ 3', "move_task" => ['move_count' => 3, 'move_color' => 'any']], // Эффект 'task' => '+ 3', 
+            'effect' => ['badger' => '+ 4', 'card' => '+ 4', 'task' => '+ 4', "move_task" => ['move_count' => 4, 'move_color' => 'any']], // Эффект 'task' => '+ 3',
             'department' => 'universal', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Четкий старт. Возьмите 4Б, 3 карты, 3 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта
+            'effectDescription' => 'Четкий старт. Возьмите 4Б, 4 карты, 4 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
             'management' => 'A', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты
@@ -67,10 +67,15 @@ class FoundersData
             'name' => 'Владимир', // Имя основателя
             'color' => '#0000FF', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => null, // Эффект
+            'effect' => [
+                'minTechDevTrack' => [
+                    'amount' => '+ 1',
+                    'requiredDepartment' => 'technical-department',
+                ],
+            ],
             'department' => 'technical-department', // Отдел
-            'activationStage' => null, // Этап активации эффекта
-            'effectDescription' => 'Технологии Бескодов. В фазу "спринт" улучшите минимальный трек в техотделе на 1 пункт', // Описание эффекта
+            'activationStage' => 'SprintPhase', // Этап активации эффекта
+            'effectDescription' => 'Технологии Бескодов. В каждую фазу "Спринт" улучшите минимальный трек в техотделе на 1 пункт', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
             'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
