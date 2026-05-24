@@ -25,6 +25,8 @@ use Bga\Games\itarenagame\Game;
  */
 final class RoundProjects extends GameState
 {
+    private const PROJECTS_PASS_AFTER_TECH_KEY_PREFIX = 'proj_pass_after_td_';
+
     public function __construct(
         protected Game $game,
     ) {
@@ -161,7 +163,7 @@ final class RoundProjects extends GameState
 
         if ($pendingTech !== null) {
             $sourceName = $pendingTech['source_name'];
-            $this->game->globals->set('projects_phase_pass_after_technical_development_' . $playerId, '1');
+            $this->game->globals->set(self::PROJECTS_PASS_AFTER_TECH_KEY_PREFIX . $playerId, '1');
             $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
                 'player_id' => $playerId,
                 'move_count' => $pendingTech['move_count'],
@@ -191,7 +193,7 @@ final class RoundProjects extends GameState
         }
         $this->game->confirmTechnicalDevelopmentMoves($playerId, $movesJson);
 
-        $passAfterTechKey = 'projects_phase_pass_after_technical_development_' . $playerId;
+        $passAfterTechKey = self::PROJECTS_PASS_AFTER_TECH_KEY_PREFIX . $playerId;
         if ($this->game->globals->get($passAfterTechKey, '') === '1') {
             $this->game->globals->delete($passAfterTechKey);
             $this->game->globals->set('projects_phase_pass', '1');
