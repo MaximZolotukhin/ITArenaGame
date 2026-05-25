@@ -83,6 +83,7 @@ final class RoundProjects extends GameState
             'activePlayerId' => $activePlayerId,
             'donePlayers' => $donePlayers,
             'canPass' => $canPass,
+            'badgers' => $this->game->getPlayerBadgersForCheck($activePlayerId),
             'completedByColor' => $completedByColor,
             'purchasableTokenIds' => $purchasableTokenIds,
         ];
@@ -128,11 +129,40 @@ final class RoundProjects extends GameState
         $result = $this->game->purchaseProjectToken($playerId, $tokenId);
 
         $token = $result['token'];
+        $appliedEffects = array_merge(
+            $result['applied_effects'] ?? [],
+            $this->game->applyFounderEffectsForStage($playerId, 'ProjectsPhase'),
+        );
         $pendingTech = $this->game->setupPendingTechnicalDevelopmentFromApplied(
             $playerId,
-            $result['applied_effects'] ?? [],
+            $appliedEffects,
             (string) $token['name'],
         );
+        foreach ($appliedEffects as $effect) {
+            if (($effect['type'] ?? '') !== 'badger') {
+                continue;
+            }
+            $amount = (int) ($effect['amount'] ?? 0);
+            if ($amount === 0) {
+                continue;
+            }
+            $sourceName = (string) ($effect['founderName'] ?? $token['name'] ?? clienttranslate('IT-проект'));
+            $this->notify->all(
+                'badgersChanged',
+                clienttranslate('${player_name} ${action_text} ${amount}Б благодаря эффекту «${source_name}»'),
+                [
+                    'player_id' => $playerId,
+                    'player_name' => $this->game->getPlayerNameById($playerId),
+                    'action_text' => $amount > 0 ? clienttranslate('получает') : clienttranslate('теряет'),
+                    'amount' => abs($amount),
+                    'source_name' => $sourceName,
+                    'oldValue' => $effect['oldValue'] ?? 0,
+                    'newValue' => $effect['newValue'] ?? 0,
+                    'badgersSupply' => $this->game->getBadgersSupply(),
+                    'i18n' => ['action_text', 'source_name'],
+                ],
+            );
+        }
         $turnPassesAfterPurchase = $pendingTech === null;
         $this->game->notify->all(
             'projectTokenPurchased',
@@ -154,7 +184,8 @@ final class RoundProjects extends GameState
                 // Новый жетон, выложенный на освободившуюся ячейку (или null,
                 // если запас исчерпан и ячейка осталась пустой).
                 'replacementToken' => $result['replacementToken'] ?? null,
-                'appliedEffects' => $result['applied_effects'] ?? [],
+                'appliedEffects' => $appliedEffects,
+                'badgersSupply' => $this->game->getBadgersSupply(),
                 'hasPendingTechnicalDevelopment' => $pendingTech !== null,
                 'purchaseEndsTurn' => true,
                 'i18n' => ['project_name', 'color_name'],

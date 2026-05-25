@@ -110,9 +110,9 @@ class FoundersData
             'name' => 'Роман', // Имя основателя
             'color' => '#008000', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => null, // Эффект
+            'effect' => ['badger' => '+ 2'], // Эффект: 2Б из банка за каждый купленный IT-проект
             'department' => 'sales-department', // Отдел
-            'activationStage' => null, // Этап активации эффекта
+            'activationStage' => 'ProjectsPhase', // Этап активации эффекта
             'effectDescription' => 'Пассионарий. Получите 2Б из банка за каждый выполненный IT проект', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
             'management' => 'E', // Управление

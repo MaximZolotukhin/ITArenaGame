@@ -2170,6 +2170,17 @@ define([
               args?.args?.activePlayerId ??
               this._getActivePlayerIdFromDatas(this.gamedatas) ??
               this.player_id
+            const projectsArgs = this._getStateArgsPayload(args)
+            const projectsBadgers = projectsArgs.badgers
+            if (
+              projectsBadgers !== undefined &&
+              projectsBadgers !== null &&
+              !Number.isNaN(Number(projectsBadgers)) &&
+              this.gamedatas.players?.[projectsActiveId]
+            ) {
+              this.gamedatas.players[projectsActiveId].badgers =
+                Number(projectsBadgers)
+            }
             this._clearDepartmentsForNewPlayer(projectsActiveId)
             this._renderPlayerMoney(this.gamedatas.players, projectsActiveId)
             this._renderFounderCard(this.gamedatas.players, projectsActiveId)
@@ -2239,6 +2250,9 @@ define([
             this._clearDepartmentsForNewPlayer(sprintActiveId)
             this._renderPlayerMoney(this.gamedatas.players, sprintActiveId)
             this._renderFounderCard(this.gamedatas.players, sprintActiveId)
+            this._toggleActivePlayerHand(sprintActiveId)
+            this._renderPlayerSpecialists()
+            this._updateHandHighlight(sprintActiveId)
             this._renderTaskInputs()
             const sprintLimit = Math.max(
               1,
@@ -3443,11 +3457,22 @@ define([
       this._renderCompletedProjectsPanel(playerId)
 
       const appliedEffects = args.appliedEffects || []
-      const badgerDelta = appliedEffects
-        .filter((eff) => (eff?.type || '') === 'badger')
+      const badgerEffects = appliedEffects.filter(
+        (eff) => (eff?.type || '') === 'badger',
+      )
+      const badgerDelta = badgerEffects
         .reduce((sum, eff) => sum + Number(eff.amount || 0), 0)
-      if (player && badgerDelta !== 0) {
+      const finalBadgerEffect = [...badgerEffects]
+        .reverse()
+        .find((eff) => Number.isFinite(Number(eff?.newValue)))
+      if (player && finalBadgerEffect) {
+        player.badgers = Math.max(0, Number(finalBadgerEffect.newValue) || 0)
+      } else if (player && badgerDelta !== 0) {
         player.badgers = Math.max(0, Number(player.badgers || 0) + badgerDelta)
+      }
+      if (Array.isArray(args.badgersSupply)) {
+        this.gamedatas.badgers = args.badgersSupply
+        this._renderBadgers(args.badgersSupply)
       }
       if (player) {
         this._renderPlayerMoney(this.gamedatas.players, playerId)
