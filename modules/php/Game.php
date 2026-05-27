@@ -3454,8 +3454,9 @@ class Game extends \Bga\GameFramework\Table
      * @param int $playerId ID игрока
      * @param int $cardId ID карты
      * @param string|null $department отдел (обязателен для universal)
+     * @param int|null $priceOverride цена найма для активируемых эффектов
      */
-    public function hireOneSpecialistFromHand(int $playerId, int $cardId, ?string $department = null): void
+    public function hireOneSpecialistFromHand(int $playerId, int $cardId, ?string $department = null, ?int $priceOverride = null): void
     {
         $cardId = (int) $cardId;
         $handJson = $this->globals->get('player_specialists_' . $playerId, '');
@@ -3469,7 +3470,9 @@ class Game extends \Bga\GameFramework\Table
         if (!$card) {
             throw new \Bga\GameFramework\UserException(clienttranslate('Invalid card'));
         }
-        $price = (int) ($card['price'] ?? 0);
+        $price = $priceOverride !== null
+            ? max(0, (int) $priceOverride)
+            : (int) ($card['price'] ?? 0);
         $dept = $card['department'] ?? 'universal';
         if ($dept === 'universal') {
             if ($department === null || !in_array($department, self::HIRED_DEPARTMENTS, true)) {

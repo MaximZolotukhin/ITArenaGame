@@ -17,7 +17,8 @@
 ;(function () {
   var bag = {}
   try {
-    if (typeof globalThis !== 'undefined') globalThis.bgagame = globalThis.bgagame || bag
+    if (typeof globalThis !== 'undefined')
+      globalThis.bgagame = globalThis.bgagame || bag
     if (typeof window !== 'undefined') window.bgagame = window.bgagame || bag
     if (typeof self !== 'undefined') self.bgagame = self.bgagame || bag
   } catch (e) {}
@@ -785,10 +786,12 @@ define([
         stateName === 'PlayerTurn'
       if (
         isRoundPhaseState &&
-        (!gamedatas.playerSpecialists || gamedatas.playerSpecialists.length === 0) &&
+        (!gamedatas.playerSpecialists ||
+          gamedatas.playerSpecialists.length === 0) &&
         gamedatas.players?.[this.player_id]?.specialists?.length > 0
       ) {
-        gamedatas.playerSpecialists = gamedatas.players[this.player_id].specialists
+        gamedatas.playerSpecialists =
+          gamedatas.players[this.player_id].specialists
       }
 
       // Сохраняем данные карт специалистов для использования в уведомлениях
@@ -1659,8 +1662,7 @@ define([
         case 'RoundSkills': {
           const skillsSa = this._getStateArgsPayload(args)
           if (skillsSa.phaseKey) this.gamedatas.phaseKey = skillsSa.phaseKey
-          if (skillsSa.phaseName)
-            this.gamedatas.phaseName = skillsSa.phaseName
+          if (skillsSa.phaseName) this.gamedatas.phaseName = skillsSa.phaseName
           this.gamedatas.phaseNumber = 2
           this._updateStageBanner()
           if (
@@ -1677,7 +1679,10 @@ define([
           if (this.gamedatas.gamestate) {
             this.gamedatas.gamestate.active_player = skillsActiveId
           }
-          if (this.gamedatas.players && this.gamedatas.players[skillsActiveId]) {
+          if (
+            this.gamedatas.players &&
+            this.gamedatas.players[skillsActiveId]
+          ) {
             const b = skillsSa.badgers
             if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
               this.gamedatas.players[skillsActiveId].badgers = Number(b)
@@ -1695,8 +1700,7 @@ define([
         case 'RoundHiring': {
           const hiringSa = this._getStateArgsPayload(args)
           if (hiringSa.phaseKey) this.gamedatas.phaseKey = hiringSa.phaseKey
-          if (hiringSa.phaseName)
-            this.gamedatas.phaseName = hiringSa.phaseName
+          if (hiringSa.phaseName) this.gamedatas.phaseName = hiringSa.phaseName
           this.gamedatas.phaseNumber = 3
           this._updateStageBanner()
           if (
@@ -1713,11 +1717,22 @@ define([
           if (this.gamedatas.gamestate) {
             this.gamedatas.gamestate.active_player = hiringActiveId
           }
-          if (this.gamedatas.players && this.gamedatas.players[hiringActiveId]) {
+          if (
+            this.gamedatas.players &&
+            this.gamedatas.players[hiringActiveId]
+          ) {
             const b = hiringSa.badgers
             if (b !== undefined && b !== null && !Number.isNaN(Number(b))) {
               this.gamedatas.players[hiringActiveId].badgers = Number(b)
             }
+          }
+          if (Number(hiringActiveId) === Number(this.player_id)) {
+            this._sergeyHiringDiscountAvailable =
+              !!hiringSa.sergeyHiringDiscountAvailable
+            this._sergeyHiringDiscountActive =
+              !!hiringSa.sergeyHiringDiscountActive
+            this._sergeyHiringDiscountPrice =
+              Number(hiringSa.sergeyHiringDiscountPrice) || 1
           }
           this._clearDepartmentsForNewPlayer(hiringActiveId)
           this._renderPlayerMoney(this.gamedatas.players, hiringActiveId)
@@ -1728,7 +1743,8 @@ define([
         }
         case 'RoundSales': {
           if (args?.args?.phaseKey) this.gamedatas.phaseKey = args.args.phaseKey
-          if (args?.args?.phaseName) this.gamedatas.phaseName = args.args.phaseName
+          if (args?.args?.phaseName)
+            this.gamedatas.phaseName = args.args.phaseName
           this.gamedatas.phaseNumber = 4
           const salesActiveId =
             args?.args?.activePlayerId ??
@@ -1749,7 +1765,12 @@ define([
           const playerPayouts = args?.args?.playerPayouts || {}
           for (const pid in playerPayouts) {
             const payout = playerPayouts[pid]
-            if (this.gamedatas.players && this.gamedatas.players[pid] && payout && typeof payout.salesTrackValue === 'number') {
+            if (
+              this.gamedatas.players &&
+              this.gamedatas.players[pid] &&
+              payout &&
+              typeof payout.salesTrackValue === 'number'
+            ) {
               this.gamedatas.players[pid].energy = payout.salesTrackValue
               this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
             }
@@ -1897,9 +1918,12 @@ define([
         const phaseNameSales =
           args?.args?.phaseName ||
           (typeof _ !== 'undefined' ? _('Продажи') : 'Продажи')
-        const salesTitle = (typeof _ !== 'undefined'
-          ? _('Фаза «${phase}» — получение баджерсов по треку продаж')
-          : 'Фаза «' + phaseNameSales + '» — получение баджерсов по треку продаж'
+        const salesTitle = (
+          typeof _ !== 'undefined'
+            ? _('Фаза «${phase}» — получение баджерсов по треку продаж')
+            : 'Фаза «' +
+              phaseNameSales +
+              '» — получение баджерсов по треку продаж'
         ).replace('${phase}', phaseNameSales)
         this.statusBar.setTitle(salesTitle)
       }
@@ -2046,6 +2070,12 @@ define([
               this._hiringBadgers = badgers
               this._hiringHandCardsWithPrices = handCardsWithPrices
               this._hiringHiredCount = hiringHiredCount
+              this._sergeyHiringDiscountAvailable =
+                !!a.sergeyHiringDiscountAvailable
+              this._sergeyHiringDiscountActive =
+                !!a.sergeyHiringDiscountActive
+              this._sergeyHiringDiscountPrice =
+                Number(a.sergeyHiringDiscountPrice) || 1
 
               this._bindHiringCardSelection()
 
@@ -2056,7 +2086,10 @@ define([
                 this.gamedatas.pendingTaskSelection = null
               }
               const pendingTaskMovesArg = a.pendingTaskMoves ?? null
-              if (pendingTaskMovesArg && Number(pendingTaskMovesArg.move_count || 0) > 0) {
+              if (
+                pendingTaskMovesArg &&
+                Number(pendingTaskMovesArg.move_count || 0) > 0
+              ) {
                 this.gamedatas.pendingTaskMoves = {
                   moveCount: Number(pendingTaskMovesArg.move_count) || 0,
                   moveColor: pendingTaskMovesArg.move_color || 'any',
@@ -2079,8 +2112,7 @@ define([
               }
               const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
-                hiringPendingTask &&
-                Number(hiringPendingTask.amount || 0) > 0
+                hiringPendingTask && Number(hiringPendingTask.amount || 0) > 0
               const mustConfirmTaskMoves =
                 pendingTaskMovesArg &&
                 Number(pendingTaskMovesArg.move_count || 0) > 0
@@ -2102,6 +2134,27 @@ define([
                   : _(
                       'Нажмите, когда закончите нанимать (или если не нанимаете)',
                     )
+              if (
+                this._sergeyHiringDiscountAvailable ||
+                this._sergeyHiringDiscountActive
+              ) {
+                this.statusBar.addActionButton(
+                  this._sergeyHiringDiscountActive
+                    ? _('Эффект Сергея активен: следующий найм за 1Б')
+                    : _('Активировать эффект Сергея: найм за 1Б'),
+                  () =>
+                    this.bgaPerformAction('actActivateSergeyHiringDiscount'),
+                  {
+                    id: 'sergey-hiring-discount-button',
+                    disabled: this._sergeyHiringDiscountActive,
+                    tooltip: this._sergeyHiringDiscountActive
+                      ? _('Выберите карту сотрудника, которую хотите нанять за 1Б.')
+                      : _(
+                          'Один раз в фазу найма активируйте эффект перед покупкой нужной карты.',
+                        ),
+                  },
+                )
+              }
               this.statusBar.addActionButton(
                 _('Завершить фазу найм'),
                 () => this.bgaPerformAction('actCompleteHiringPhase'),
@@ -2127,12 +2180,21 @@ define([
             const playerPayouts = args?.args?.playerPayouts || {}
             for (const pid in playerPayouts) {
               const payout = playerPayouts[pid]
-              if (this.gamedatas.players && this.gamedatas.players[pid] && payout && typeof payout.salesTrackValue === 'number') {
+              if (
+                this.gamedatas.players &&
+                this.gamedatas.players[pid] &&
+                payout &&
+                typeof payout.salesTrackValue === 'number'
+              ) {
                 this.gamedatas.players[pid].energy = payout.salesTrackValue
                 this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
               }
             }
-            if (salesBadgers !== undefined && this.gamedatas.players && this.gamedatas.players[salesActiveId]) {
+            if (
+              salesBadgers !== undefined &&
+              this.gamedatas.players &&
+              this.gamedatas.players[salesActiveId]
+            ) {
               this.gamedatas.players[salesActiveId].badgers = salesBadgers
             }
             this._clearDepartmentsForNewPlayer(salesActiveId)
@@ -2209,7 +2271,9 @@ define([
                 () => this.bgaPerformAction('actPassProjects'),
                 {
                   id: 'projects-pass-button',
-                  tooltip: _('Передать ход следующему игроку, не выходя из очерёдности фазы'),
+                  tooltip: _(
+                    'Передать ход следующему игроку, не выходя из очерёдности фазы',
+                  ),
                 },
               )
               // «Завершить ход» — игрок выпадает из очерёдности до следующей фазы.
@@ -2219,7 +2283,9 @@ define([
                 {
                   primary: true,
                   id: 'projects-finish-turn-button',
-                  tooltip: _('Завершить ход в фазе «Проекты» — выйти из очерёдности до следующей фазы'),
+                  tooltip: _(
+                    'Завершить ход в фазе «Проекты» — выйти из очерёдности до следующей фазы',
+                  ),
                 },
               )
             } else {
@@ -2338,8 +2404,7 @@ define([
                   pendingTechDevelopment.founder_name ||
                   'Основатель',
                 {
-                  allowedColumns:
-                    pendingTechDevelopment.allowed_columns || [],
+                  allowedColumns: pendingTechDevelopment.allowed_columns || [],
                   effectType: pendingTechDevelopment.effect_type || '',
                   message: pendingTechDevelopment.message || '',
                   sprintPhase: true,
@@ -2351,7 +2416,9 @@ define([
                 !!this.gamedatas.pendingTechnicalDevelopmentMoves
               if (hasPendingTechDevelopment) {
                 this._deactivateTaskSelection()
-              } else if (!this._coerceStateBool(this.gamedatas.sprintBankConfirmed)) {
+              } else if (
+                !this._coerceStateBool(this.gamedatas.sprintBankConfirmed)
+              ) {
                 const bankRemaining =
                   saSprintArgs.sprintBankTasksRemaining != null
                     ? Number(saSprintArgs.sprintBankTasksRemaining)
@@ -2391,7 +2458,9 @@ define([
                     )
                     return
                   }
-                  if (!this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)) {
+                  if (
+                    !this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)
+                  ) {
                     this._activateTaskSelectionForSprintPhase(
                       sprintLimit,
                       this._getSprintBankTasksRemaining(),
@@ -2414,11 +2483,12 @@ define([
                   primary: true,
                   id: 'complete-sprint-phase-button',
                   disabled: sprintCompleteDisabled,
-                  tooltip:
-                    hasPendingTechDevelopment
-                      ? _('Сначала подтвердите улучшение трека в техотделе.')
-                      : !sprintBankConfirmed
-                      ? _('Сначала возьмите задачи из банка и подтвердите выбор.')
+                  tooltip: hasPendingTechDevelopment
+                    ? _('Сначала подтвердите улучшение трека в техотделе.')
+                    : !sprintBankConfirmed
+                      ? _(
+                          'Сначала возьмите задачи из банка и подтвердите выбор.',
+                        )
                       : sprintMoveMandatory && !sprintMovesConfirmed
                         ? _(
                             'Сначала переместите задачи по треку спринта и нажмите «Закончить перемещение».',
@@ -2742,6 +2812,11 @@ define([
       dojo.subscribe('specialistsDealt', this, 'notif_specialistsDealt')
       dojo.subscribe('hiringBonusAvailable', this, 'notif_hiringBonusAvailable')
       dojo.subscribe(
+        'sergeyHiringDiscountActivated',
+        this,
+        'notif_sergeyHiringDiscountActivated',
+      )
+      dojo.subscribe(
         'founderEffectsApplied',
         this,
         'notif_founderEffectsApplied',
@@ -2809,12 +2884,19 @@ define([
         this.gamedatas.phaseKey = args.phaseKey
         console.log('🎲 Saved phaseKey to gamedatas:', args.phaseKey)
       }
-      if (args.currentRoundPlayerOrder && Array.isArray(args.currentRoundPlayerOrder) && args.currentRoundPlayerOrder.length > 0) {
+      if (
+        args.currentRoundPlayerOrder &&
+        Array.isArray(args.currentRoundPlayerOrder) &&
+        args.currentRoundPlayerOrder.length > 0
+      ) {
         this.gamedatas.currentRoundPlayerOrder = args.currentRoundPlayerOrder
       } else if (args.round !== undefined && args.round > 0) {
         const players = this.gamedatas?.players || {}
-        const fallback = Object.keys(players).map((id) => parseInt(id)).sort((a, b) => a - b)
-        if (fallback.length > 0) this.gamedatas.currentRoundPlayerOrder = fallback
+        const fallback = Object.keys(players)
+          .map((id) => parseInt(id))
+          .sort((a, b) => a - b)
+        if (fallback.length > 0)
+          this.gamedatas.currentRoundPlayerOrder = fallback
       }
 
       // ВАЖНО: Обновляем данные в gamedatas ПЕРЕД обновлением отображения
@@ -3376,7 +3458,11 @@ define([
           : (this.gamedatas.players[playerId].badgers ?? 0) + amount
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       if (amount > 0) {
-        const msg = (typeof _ !== 'undefined' ? _('${player_name}: +${amount} Б (трек продаж: ${track})') : `${args.player_name || ''}: +${amount} Б (трек продаж: ${salesTrackValue})`)
+        const msg = (
+          typeof _ !== 'undefined'
+            ? _('${player_name}: +${amount} Б (трек продаж: ${track})')
+            : `${args.player_name || ''}: +${amount} Б (трек продаж: ${salesTrackValue})`
+        )
           .replace(/\$\{player_name\}/g, args.player_name || '')
           .replace(/\$\{amount\}/g, String(amount))
           .replace(/\$\{track\}/g, String(salesTrackValue))
@@ -3460,8 +3546,10 @@ define([
       const badgerEffects = appliedEffects.filter(
         (eff) => (eff?.type || '') === 'badger',
       )
-      const badgerDelta = badgerEffects
-        .reduce((sum, eff) => sum + Number(eff.amount || 0), 0)
+      const badgerDelta = badgerEffects.reduce(
+        (sum, eff) => sum + Number(eff.amount || 0),
+        0,
+      )
       const finalBadgerEffect = [...badgerEffects]
         .reverse()
         .find((eff) => Number.isFinite(Number(eff?.newValue)))
@@ -3481,7 +3569,10 @@ define([
         try {
           this._applyUpdateTrackEffectsFromApplied(playerId, appliedEffects)
         } catch (e) {
-          console.error('❌ projectTokenPurchased _applyUpdateTrackEffectsFromApplied:', e)
+          console.error(
+            '❌ projectTokenPurchased _applyUpdateTrackEffectsFromApplied:',
+            e,
+          )
         }
       }
 
@@ -4740,8 +4831,27 @@ define([
         if (pl && pl.badgers !== undefined && pl.badgers !== null) {
           this._hiringBadgers = Math.max(0, Number(pl.badgers) || 0)
         }
+        if (args.sergeyHiringDiscountAvailable !== undefined) {
+          this._sergeyHiringDiscountAvailable =
+            !!args.sergeyHiringDiscountAvailable
+        }
+        if (args.sergeyHiringDiscountActive !== undefined) {
+          this._sergeyHiringDiscountActive = !!args.sergeyHiringDiscountActive
+        }
+        const sergeyButton = document.getElementById(
+          'sergey-hiring-discount-button',
+        )
+        if (sergeyButton && args.sergeyDiscountApplied) {
+          sergeyButton.classList.add('disabled')
+          sergeyButton.setAttribute('aria-disabled', 'true')
+          sergeyButton.style.pointerEvents = 'none'
+          sergeyButton.textContent = _('Эффект Сергея использован')
+        }
         // Эффект task с любой карты (специалист/основатель): синхронизируем pendingTaskSelection из уведомления
-        if (args.pendingTaskSelection != null && Number(args.pendingTaskSelection.amount || 0) > 0) {
+        if (
+          args.pendingTaskSelection != null &&
+          Number(args.pendingTaskSelection.amount || 0) > 0
+        ) {
           this.gamedatas.pendingTaskSelection = {
             amount: args.pendingTaskSelection.amount,
             founder_name: args.pendingTaskSelection.founder_name,
@@ -4760,23 +4870,33 @@ define([
               })
             }
           } catch (e) {
-            console.error('❌ Failed to activate task selection from specialistsHired:', e)
+            console.error(
+              '❌ Failed to activate task selection from specialistsHired:',
+              e,
+            )
           }
         } else {
           this.gamedatas.pendingTaskSelection = null
         }
         this._toggleActivePlayerHand(this.player_id)
         this._renderPlayerSpecialists()
+        if (this._hiringSelectMode) this._bindHiringCardSelection(true)
       }
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       this._renderHiredSpecialistsInDepartments(playerId)
 
       // Эффект 'card' (карты в руку от карты специалиста): добавляем выданные карты в playerSpecialists
       appliedEffects.forEach((eff) => {
-        if ((eff.type || '') === 'card' && Array.isArray(eff.cardIds) && eff.cardIds.length > 0) {
+        if (
+          (eff.type || '') === 'card' &&
+          Array.isArray(eff.cardIds) &&
+          eff.cardIds.length > 0
+        ) {
           const allSpecialists = this.gamedatas.specialists || []
           const currentSpecialists = this.gamedatas.playerSpecialists || []
-          const existingIds = new Set(currentSpecialists.map((c) => Number(c.id)))
+          const existingIds = new Set(
+            currentSpecialists.map((c) => Number(c.id)),
+          )
           const newCards = eff.cardIds
             .map((id) => {
               const numId = Number(id)
@@ -4786,11 +4906,16 @@ define([
             })
             .filter(Boolean)
           if (newCards.length > 0) {
-            this.gamedatas.playerSpecialists = [...currentSpecialists, ...newCards]
+            this.gamedatas.playerSpecialists = [
+              ...currentSpecialists,
+              ...newCards,
+            ]
             if (Number(this.player_id) === Number(playerId)) {
               // ВАЖНО: найм по клику ищет карту в _hiringHandCardsWithPrices, поэтому синхронизируем и его
               const handWithPrices = this._hiringHandCardsWithPrices || []
-              const handExisting = new Set(handWithPrices.map((c) => Number(c.id)))
+              const handExisting = new Set(
+                handWithPrices.map((c) => Number(c.id)),
+              )
               const newHandEntries = newCards
                 .map((c) => ({
                   id: Number(c.id),
@@ -4800,7 +4925,10 @@ define([
                   img: c.img || '',
                 }))
                 .filter((c) => !handExisting.has(Number(c.id)))
-              this._hiringHandCardsWithPrices = [...handWithPrices, ...newHandEntries]
+              this._hiringHandCardsWithPrices = [
+                ...handWithPrices,
+                ...newHandEntries,
+              ]
               this._renderPlayerSpecialists()
               if (this._hiringSelectMode) this._bindHiringCardSelection(true)
             }
@@ -4816,6 +4944,29 @@ define([
       } catch (e) {
         console.error('❌ _applyUpdateTrackEffectsFromApplied failed:', e)
       }
+    },
+
+    notif_sergeyHiringDiscountActivated: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(this.player_id) !== Number(playerId)) return
+      this._sergeyHiringDiscountAvailable = false
+      this._sergeyHiringDiscountActive = true
+      this._sergeyHiringDiscountPrice = Number(args.discount_price) || 1
+      const button = document.getElementById('sergey-hiring-discount-button')
+      if (button) {
+        button.classList.add('disabled')
+        button.setAttribute('aria-disabled', 'true')
+        button.style.pointerEvents = 'none'
+        button.textContent = _('Эффект Сергея активен: следующий найм за 1Б')
+      }
+      if (this._hiringSelectMode) {
+        this._bindHiringCardSelection(true)
+      }
+      this.showMessage(
+        _('Эффект Сергея активирован. Выберите карту сотрудника для найма за 1Б.'),
+        'info',
+      )
     },
 
     notif_debugUpdateTrack: async function (notif) {
@@ -5132,8 +5283,7 @@ define([
             if (!col && m && m.tokenId != null) {
               const tid = String(m.tokenId)
               const tok = tokens.find(
-                (t) =>
-                  String(t.token_id) === tid || String(t.tokenId) === tid,
+                (t) => String(t.token_id) === tid || String(t.tokenId) === tid,
               )
               if (tok) {
                 col = tok.color
@@ -5157,9 +5307,7 @@ define([
             this.gamedatas.sprintColorMoveDone[norm] = true
             let b = Math.abs(Number(m.blocks) || 0)
             if (!b && from && to) {
-              b = Math.abs(
-                this._calculateBlocksBetween(from, to) || 0,
-              )
+              b = Math.abs(this._calculateBlocksBetween(from, to) || 0)
             }
             if (b > 0) {
               this.gamedatas.sprintColorBlocksUsed[norm] =
@@ -5172,8 +5320,7 @@ define([
           movedToks.forEach((tidRaw) => {
             const tid = String(tidRaw)
             const tok = tokens.find(
-              (t) =>
-                String(t.token_id) === tid || String(t.tokenId) === tid,
+              (t) => String(t.token_id) === tid || String(t.tokenId) === tid,
             )
             if (!tok) {
               return
@@ -5190,10 +5337,7 @@ define([
         const moved = Array.isArray(args.moved_tokens)
           ? args.moved_tokens.length
           : 0
-        if (
-          this.gamedatas?.gamestate?.name === 'RoundSprint' &&
-          moved > 0
-        ) {
+        if (this.gamedatas?.gamestate?.name === 'RoundSprint' && moved > 0) {
           const spBtn = document.getElementById('complete-sprint-phase-button')
           if (spBtn) {
             spBtn.disabled = false
@@ -5242,8 +5386,7 @@ define([
       const args = notif.args || notif
       const playerId = Number(args.player_id || 0)
       const moveCount = Number(args.move_count || 0)
-      const sourceName =
-        args.source_name || args.founder_name || 'Основатель'
+      const sourceName = args.source_name || args.founder_name || 'Основатель'
       const allowedColumns = Array.isArray(args.allowed_columns)
         ? args.allowed_columns
         : []
@@ -5273,10 +5416,14 @@ define([
         }
         if (args.sprint_phase) {
           this._deactivateTaskSelection()
-          const sprintIndicator = document.getElementById('task-move-mode-indicator')
+          const sprintIndicator = document.getElementById(
+            'task-move-mode-indicator',
+          )
           if (
             sprintIndicator &&
-            sprintIndicator.classList.contains('task-move-mode-indicator--sprint')
+            sprintIndicator.classList.contains(
+              'task-move-mode-indicator--sprint',
+            )
           ) {
             this._hideTaskMoveModeIndicator()
           }
@@ -5415,10 +5562,7 @@ define([
       if (args.sprint_phase) {
         if (Number(playerId) === Number(this.player_id)) {
           const batchTaken = Array.isArray(selectedTasks)
-            ? selectedTasks.reduce(
-                (s, t) => s + (Number(t?.quantity) || 0),
-                0,
-              )
+            ? selectedTasks.reduce((s, t) => s + (Number(t?.quantity) || 0), 0)
             : 0
           if (args.sprint_bank_tasks_taken != null) {
             this.gamedatas.sprintBankTakenCount = Number(
@@ -6181,15 +6325,18 @@ define([
       if (amount <= 0) return
       const sourceName = (args.source_name || '').trim()
       const msg = sourceName
-        ? (typeof _ !== 'undefined'
-            ? _('Эффект «${name}»: вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.')
-                .replace('${name}', sourceName)
-                .replace('${n}', String(amount))
-            : `Эффект «${sourceName}»: можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`)
-        : (typeof _ !== 'undefined'
-            ? _('Вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.')
-                .replace('${n}', String(amount))
-            : `Можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`)
+        ? typeof _ !== 'undefined'
+          ? _(
+              'Эффект «${name}»: вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.',
+            )
+              .replace('${name}', sourceName)
+              .replace('${n}', String(amount))
+          : `Эффект «${sourceName}»: можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`
+        : typeof _ !== 'undefined'
+          ? _(
+              'Вы можете нанять ещё ${n} карту(ы) с руки, заплатив её стоимость. Можно пропустить.',
+            ).replace('${n}', String(amount))
+          : `Можно нанять ещё ${amount} с руки за стоимость. Можно пропустить.`
       this.showMessage(msg, 'info')
     },
 
@@ -6362,17 +6509,26 @@ define([
       ;(this._hiringHandCardsWithPrices || []).forEach((c) => {
         pricesByCardId[String(c.id)] = c.price != null ? c.price : 0
       })
+      handContainer
+        .querySelectorAll('.specialist-card__price-badge')
+        .forEach((el) => el.remove())
       handContainer.querySelectorAll('.specialist-card').forEach((cardEl) => {
         const cardId = cardEl.dataset.cardId
         if (cardId == null) return
         const price = pricesByCardId[String(cardId)]
-        if (
-          price != null &&
-          !cardEl.querySelector('.specialist-card__price-badge')
-        ) {
+        if (price != null) {
+          const effectivePrice = this._sergeyHiringDiscountActive
+            ? this._sergeyHiringDiscountPrice || 1
+            : price
           const badge = document.createElement('div')
           badge.className = 'specialist-card__price-badge'
-          badge.textContent = price + ' Б'
+          if (this._sergeyHiringDiscountActive && effectivePrice !== price) {
+            badge.classList.add('specialist-card__price-badge--discount')
+            badge.title = _(
+              'Эффект Сергея активен: эта карта будет нанята за 1Б',
+            )
+          }
+          badge.textContent = effectivePrice + ' Б'
           cardEl.appendChild(badge)
         }
       })
@@ -6397,7 +6553,9 @@ define([
         // Берём максимум: занижение из-за устаревшего _hiringBadgers блокировало найм при актуальных данных в gamedatas.
         // Итоговую оплату всё равно проверяет сервер.
         const badgers = Math.max(badgersFromArgs, badgersFromPlayer)
-        const price = cardData.price ?? 0
+        const price = self._sergeyHiringDiscountActive
+          ? self._sergeyHiringDiscountPrice || 1
+          : (cardData.price ?? 0)
         if (hiredCount >= maxHire) {
           self.showMessage(
             _('Нельзя нанять больше специалистов в этой фазе'),
@@ -6893,11 +7051,12 @@ define([
     _renderPlayerIndicators: function (container) {
       const players = this.gamedatas?.players || {}
       const turnOrder = this.gamedatas?.currentRoundPlayerOrder
-      const playerIds = Array.isArray(turnOrder) && turnOrder.length > 0
-        ? turnOrder.filter((id) => players[id]).slice(0, 4)
-        : Object.keys(players)
-            .map((id) => parseInt(id))
-            .sort((a, b) => a - b)
+      const playerIds =
+        Array.isArray(turnOrder) && turnOrder.length > 0
+          ? turnOrder.filter((id) => players[id]).slice(0, 4)
+          : Object.keys(players)
+              .map((id) => parseInt(id))
+              .sort((a, b) => a - b)
       const currentState = this.gamedatas?.gamestate?.name || ''
       const activePlayerId = this.gamedatas?.gamestate?.active_player
         ? parseInt(this.gamedatas.gamestate.active_player, 10)
@@ -7506,10 +7665,8 @@ define([
           seen.add(cid)
           const card = findSpec(cid)
           if (card) {
-            fromSpecialists += parseInt(
-              String(card.victoryPoints ?? 0),
-              10,
-            ) || 0
+            fromSpecialists +=
+              parseInt(String(card.victoryPoints ?? 0), 10) || 0
           }
         })
       })
@@ -7517,16 +7674,19 @@ define([
       let fromFounder = 0
       const founder = p.founder || this.gamedatas.founders?.[pid]
       if (founder) {
-        fromFounder =
-          parseInt(String(founder.victoryPoints ?? 0), 10) || 0
+        fromFounder = parseInt(String(founder.victoryPoints ?? 0), 10) || 0
       }
 
-      const projectTokens = Array.isArray(p.projectTokens) ? p.projectTokens : []
+      const projectTokens = Array.isArray(p.projectTokens)
+        ? p.projectTokens
+        : []
       const fromProjectTokens = projectTokens.reduce((sum, token) => {
         return (
           sum +
-          (parseInt(String(token?.victory_points ?? token?.victoryPoints ?? 0), 10) ||
-            0)
+          (parseInt(
+            String(token?.victory_points ?? token?.victoryPoints ?? 0),
+            10,
+          ) || 0)
         )
       }, 0)
 
@@ -8772,7 +8932,9 @@ define([
           token.className = 'task-token'
           token.dataset.playerId = currentPlayerId
           token.dataset.tokenId = tokenData?.token_id || ''
-          const tokenColorLower = (tokenData?.color || '').toString().toLowerCase()
+          const tokenColorLower = (tokenData?.color || '')
+            .toString()
+            .toLowerCase()
           token.dataset.color = tokenColorLower
           token.dataset.location = tokenData?.location || location
 
@@ -8995,16 +9157,14 @@ define([
                   this._renderTaskTokens(this.gamedatas.players)
                   this._updateTaskMoveModeUI()
 
-                  const isSprintCancel = this._isSprintPerColorTaskMoveMode(
-                    currentPendingMoves,
-                  )
-                  const hideTaskConfirm =
-                    isSprintCancel
-                      ? this._sprintHasAnyBudgetRemainingOnBoard(
-                          currentPendingMoves,
-                        )
-                      : currentPendingMoves.usedMoves <
-                        currentPendingMoves.moveCount
+                  const isSprintCancel =
+                    this._isSprintPerColorTaskMoveMode(currentPendingMoves)
+                  const hideTaskConfirm = isSprintCancel
+                    ? this._sprintHasAnyBudgetRemainingOnBoard(
+                        currentPendingMoves,
+                      )
+                    : currentPendingMoves.usedMoves <
+                      currentPendingMoves.moveCount
                   if (hideTaskConfirm) {
                     this._hideTaskMovesConfirmButton()
                   }
@@ -9055,8 +9215,12 @@ define([
 
             // В режиме move_task добавляем специальный класс (сравнение без учёта регистра)
             if (isMoveMode) {
-              const tokenColor = (tokenData?.color || '').toString().toLowerCase()
-              const moveColor = (pendingMoves.moveColor || 'any').toString().toLowerCase()
+              const tokenColor = (tokenData?.color || '')
+                .toString()
+                .toLowerCase()
+              const moveColor = (pendingMoves.moveColor || 'any')
+                .toString()
+                .toLowerCase()
               if (moveColor === 'any' || tokenColor === moveColor) {
                 token.classList.add('task-token--move-mode')
               }
@@ -9364,8 +9528,7 @@ define([
     _sprintPlayerHasActiveTaskOfColor: function (norm) {
       const pid = Number(this.player_id)
       const pl =
-        this.gamedatas?.players?.[pid] ??
-        this.gamedatas?.players?.[String(pid)]
+        this.gamedatas?.players?.[pid] ?? this.gamedatas?.players?.[String(pid)]
       const tokens = pl?.taskTokens || []
       for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i]
@@ -9393,8 +9556,7 @@ define([
       }
       const pid = Number(this.player_id)
       const pl =
-        this.gamedatas?.players?.[pid] ??
-        this.gamedatas?.players?.[String(pid)]
+        this.gamedatas?.players?.[pid] ?? this.gamedatas?.players?.[String(pid)]
       const tokens = pl?.taskTokens || []
       const order = {
         backlog: 0,
@@ -9447,8 +9609,7 @@ define([
       }
       const pid = Number(this.player_id)
       const pl =
-        this.gamedatas?.players?.[pid] ??
-        this.gamedatas?.players?.[String(pid)]
+        this.gamedatas?.players?.[pid] ?? this.gamedatas?.players?.[String(pid)]
       const tokens = pl?.taskTokens || []
 
       const order = {
@@ -9476,7 +9637,10 @@ define([
         if (!c) {
           continue
         }
-        const remaining = this._getSprintAvailableBlocksForColor(pendingMoves, c)
+        const remaining = this._getSprintAvailableBlocksForColor(
+          pendingMoves,
+          c,
+        )
         if (remaining <= 0) {
           continue
         }
@@ -9519,8 +9683,7 @@ define([
       }
       const pid = this.player_id
       const pl =
-        this.gamedatas?.players?.[pid] ??
-        this.gamedatas?.players?.[String(pid)]
+        this.gamedatas?.players?.[pid] ?? this.gamedatas?.players?.[String(pid)]
       const tokens = pl?.taskTokens || []
       for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i]
@@ -9675,10 +9838,7 @@ define([
               pendingMoves.moves || [],
               color,
             )
-            availableMovesRe = Math.max(
-              0,
-              budget - used + existingMove.blocks,
-            )
+            availableMovesRe = Math.max(0, budget - used + existingMove.blocks)
           } else {
             availableMovesRe =
               pendingMoves.moveCount -
@@ -9687,10 +9847,7 @@ define([
           }
           const maxBlocks = isEffectMode
             ? availableMovesRe
-            : Math.min(
-                this._getTechDepartmentPosition(color),
-                availableMovesRe,
-              )
+            : Math.min(this._getTechDepartmentPosition(color), availableMovesRe)
 
           console.log('🔄 Re-highlighting columns for moved token:', {
             tokenId: tokenId,
@@ -9716,8 +9873,13 @@ define([
         // Режим перемещения задач от эффекта карты
         // Проверяем цвет, если указан (сравнение без учёта регистра: purple/Purple)
         const normalizedColor = (color || '').toString().toLowerCase()
-        const normalizedMoveColor = (pendingMoves.moveColor || 'any').toString().toLowerCase()
-        if (normalizedMoveColor !== 'any' && normalizedColor !== normalizedMoveColor) {
+        const normalizedMoveColor = (pendingMoves.moveColor || 'any')
+          .toString()
+          .toLowerCase()
+        if (
+          normalizedMoveColor !== 'any' &&
+          normalizedColor !== normalizedMoveColor
+        ) {
           this.showMessage(
             _('Можно перемещать только задачи указанного цвета'),
             'error',
@@ -9911,7 +10073,9 @@ define([
         pl?.sprintColumnTasksProgress != null
           ? Math.max(1, Math.min(6, Number(pl.sprintColumnTasksProgress)))
           : 1
-      const bankDone = this._coerceStateBool(this.gamedatas?.sprintBankConfirmed)
+      const bankDone = this._coerceStateBool(
+        this.gamedatas?.sprintBankConfirmed,
+      )
       const takenNow = Math.max(
         0,
         Math.min(
@@ -9937,7 +10101,8 @@ define([
         }
         const usedDisplay = confirmed + live
         const budgetShown = Math.max(0, budget)
-        const usedShown = budgetShown > 0 ? Math.min(usedDisplay, budgetShown) : 0
+        const usedShown =
+          budgetShown > 0 ? Math.min(usedDisplay, budgetShown) : 0
         // Показываем именно бюджет техотдела: до взятия задач из банка новые задачи
         // ещё не лежат на доске, поэтому maxForward может быть 0.
         const frac = `${usedShown}/${budgetShown}`
@@ -10381,7 +10546,11 @@ define([
         })
 
         const target = e.target
-        if (target && target.closest && target.closest('#task-move-mode-indicator')) {
+        if (
+          target &&
+          target.closest &&
+          target.closest('#task-move-mode-indicator')
+        ) {
           return
         }
 
@@ -10771,10 +10940,9 @@ define([
             this._updateTaskMoveModeUI()
 
             // Скрываем кнопку подтверждения, пока снова есть бюджет спринта по цветам / ходы эффекта
-            const hideConfirmAfterCancel =
-              isSprintPhaseMoves
-                ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
-                : pendingMoves.usedMoves < pendingMoves.moveCount
+            const hideConfirmAfterCancel = isSprintPhaseMoves
+              ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
+              : pendingMoves.usedMoves < pendingMoves.moveCount
             if (hideConfirmAfterCancel) {
               this._hideTaskMovesConfirmButton()
               console.log('✅ Hidden confirm button after canceling move')
@@ -10871,10 +11039,9 @@ define([
             // Обновляем UI после отмены
             this._updateTaskMoveModeUI()
 
-            const hideConfirmSwap =
-              isSprintPhaseMoves
-                ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
-                : pendingMoves.usedMoves < pendingMoves.moveCount
+            const hideConfirmSwap = isSprintPhaseMoves
+              ? this._sprintHasAnyBudgetRemainingOnBoard(pendingMoves)
+              : pendingMoves.usedMoves < pendingMoves.moveCount
             if (hideConfirmSwap) {
               const confirmButton = document.getElementById(
                 'task-moves-confirm-button',
@@ -10973,10 +11140,14 @@ define([
         // Проверяем цвет, если указан (сравнение без учёта регистра).
         // Берём цвет из DOM (_getTokenColor); если пусто — из переданного параметра color (при клике по колонке он известен из контекста выбора жетона).
         if ((pendingMoves.moveColor || '').toString().toLowerCase() !== 'any') {
-          const fromDom = (this._getTokenColor(tokenId) || '').toString().toLowerCase()
+          const fromDom = (this._getTokenColor(tokenId) || '')
+            .toString()
+            .toLowerCase()
           const fromParam = (color || '').toString().toLowerCase()
           const tokenColor = fromDom || fromParam
-          const requiredColor = (pendingMoves.moveColor || '').toString().toLowerCase()
+          const requiredColor = (pendingMoves.moveColor || '')
+            .toString()
+            .toLowerCase()
           if (!tokenColor || tokenColor !== requiredColor) {
             console.warn('❌ Color mismatch:', {
               tokenColor,
@@ -11224,10 +11395,15 @@ define([
         if (column) {
           const tokens = column.querySelectorAll('.task-token')
           tokens.forEach((token) => {
-            const tokenColor = (token.dataset.color || '').toString().toLowerCase()
+            const tokenColor = (token.dataset.color || '')
+              .toString()
+              .toLowerCase()
 
             // Проверяем цвет, если указан (сравнение без учёта регистра)
-            if (normalizedMoveColor !== 'any' && tokenColor !== normalizedMoveColor) {
+            if (
+              normalizedMoveColor !== 'any' &&
+              tokenColor !== normalizedMoveColor
+            ) {
               return // Пропускаем жетоны другого цвета
             }
 
@@ -11356,7 +11532,8 @@ define([
       // Показываем подсказку
       const message =
         options.message ||
-        (this.gamedatas.pendingTechnicalDevelopmentMoves.allowedColumns.length > 0
+        (this.gamedatas.pendingTechnicalDevelopmentMoves.allowedColumns.length >
+        0
           ? _(
               'Выберите минимальный трек техотдела для улучшения (всего ${count} очков)',
             )
@@ -11454,12 +11631,14 @@ define([
     _positionSprintColumnTasksTokenFromGamedatas: function (playerId) {
       const pl = this.gamedatas?.players?.[playerId]
       if (!pl) return
-      const targetRow = pl.sprintColumnTasksProgress != null
-        ? Math.max(1, Math.min(6, Number(pl.sprintColumnTasksProgress)))
-        : 1
+      const targetRow =
+        pl.sprintColumnTasksProgress != null
+          ? Math.max(1, Math.min(6, Number(pl.sprintColumnTasksProgress)))
+          : 1
       const column = document.getElementById('sprint-column-tasks')
       if (!column) return
-      const container = column.querySelector('.player-sprint-panel__rows-container') || column
+      const container =
+        column.querySelector('.player-sprint-panel__rows-container') || column
       const rows = container.querySelectorAll('.player-sprint-panel__row')
       let token = null
       let currentRow = null
@@ -11549,7 +11728,10 @@ define([
         return
       }
       if (!this._isTechnicalDevelopmentColumnAllowed(columnNum)) {
-        this.showMessage(_('Можно улучшить только минимальный трек техотдела'), 'error')
+        this.showMessage(
+          _('Можно улучшить только минимальный трек техотдела'),
+          'error',
+        )
         return
       }
 
@@ -12066,7 +12248,8 @@ define([
 
       const availableMoves = Math.max(
         0,
-        Number(pendingMoves.moveCount || 0) - Number(pendingMoves.usedMoves || 0),
+        Number(pendingMoves.moveCount || 0) -
+          Number(pendingMoves.usedMoves || 0),
       )
 
       // Сохраняем текущий индекс для использования в замыкании
@@ -12185,7 +12368,10 @@ define([
         // Подсвечиваем жетон в текущей позиции
         if (actualCurrentRowIndex !== null) {
           const livePending = self.gamedatas?.pendingTechnicalDevelopmentMoves
-          if (!livePending || !self._isTechnicalDevelopmentColumnAllowed(columnNum)) {
+          if (
+            !livePending ||
+            !self._isTechnicalDevelopmentColumnAllowed(columnNum)
+          ) {
             self._updateClickableRowsForColumn(columnNum)
             return
           }
@@ -12196,7 +12382,9 @@ define([
               Number(livePending.usedMoves || 0),
           )
           const liveExistingMove = Array.isArray(livePending.moves)
-            ? livePending.moves.find((m) => Number(m.column) === Number(columnNum))
+            ? livePending.moves.find(
+                (m) => Number(m.column) === Number(columnNum),
+              )
             : null
           const targetMoveAmount = targetRowIndex - actualCurrentRowIndex
           const isUndo =
@@ -12204,7 +12392,10 @@ define([
             Number(liveExistingMove.amount || 0) > 0 &&
             targetRowIndex === Number(liveExistingMove.fromRowIndex)
 
-          if (!isUndo && (targetMoveAmount <= 0 || targetMoveAmount > liveAvailable)) {
+          if (
+            !isUndo &&
+            (targetMoveAmount <= 0 || targetMoveAmount > liveAvailable)
+          ) {
             self._updateClickableRowsForColumn(columnNum)
             return
           }
@@ -12493,7 +12684,9 @@ define([
         return
       }
 
-      if (taskIndicator.classList.contains('task-move-mode-indicator--sprint')) {
+      if (
+        taskIndicator.classList.contains('task-move-mode-indicator--sprint')
+      ) {
         taskIndicator.style.position = 'fixed'
         taskIndicator.style.top = '100px'
         taskIndicator.style.left = '50%'
@@ -12557,7 +12750,9 @@ define([
       const moveColor = pendingMoves?.moveColor
       const colorFilter =
         moveColor && moveColor !== 'any'
-          ? (moveColor === 'cayn' ? 'cyan' : moveColor.toLowerCase())
+          ? moveColor === 'cayn'
+            ? 'cyan'
+            : moveColor.toLowerCase()
           : null
       const blocksByLocation = {
         backlog: 3,
@@ -13293,7 +13488,10 @@ define([
             1,
         ),
       )
-      const taken = Math.max(0, Number(this.gamedatas?.sprintBankTakenCount) || 0)
+      const taken = Math.max(
+        0,
+        Number(this.gamedatas?.sprintBankTakenCount) || 0,
+      )
       return Math.max(0, limit - taken)
     },
 
@@ -13376,9 +13574,10 @@ define([
           if (total > remaining) {
             button.title = _('Слишком много задач для этой фазы')
           } else if (total < remaining) {
-            button.title = _(
-              'Выберите все доступные задачи (${n})',
-            ).replace('${n}', String(remaining))
+            button.title = _('Выберите все доступные задачи (${n})').replace(
+              '${n}',
+              String(remaining),
+            )
           } else {
             button.title = ''
           }
@@ -13872,9 +14071,7 @@ define([
 
     /** Флаги из PHP/JSON иногда приходят как 1 / "1", а не strict true */
     _coerceStateBool: function (v) {
-      return (
-        v === true || v === 1 || v === '1' || v === 'true' || v === 'TRUE'
-      )
+      return v === true || v === 1 || v === '1' || v === 'true' || v === 'TRUE'
     },
 
     _setupTaskMoveHintModal: function () {
@@ -13980,9 +14177,7 @@ define([
       const isEffect =
         !isSprint &&
         (context === 'effect' ||
-          (context === 'auto' &&
-            pm &&
-            !this._isSprintPerColorTaskMoveMode(pm)))
+          (context === 'auto' && pm && !this._isSprintPerColorTaskMoveMode(pm)))
 
       let title = _('Перемещение задач')
       let intro = ''
@@ -14053,7 +14248,10 @@ define([
               : {
                   moveSource: 'sprint_phase',
                   fromEffect: false,
-                  moves: pendingMoves && pendingMoves.moves ? [...pendingMoves.moves] : [],
+                  moves:
+                    pendingMoves && pendingMoves.moves
+                      ? [...pendingMoves.moves]
+                      : [],
                 }
             budget = this._getSprintAvailableBlocksForColor(synthPm, c)
           } else {
@@ -14062,7 +14260,9 @@ define([
               (Number(pendingMoves?.moveCount) || 0) -
                 (Number(pendingMoves?.usedMoves) || 0),
             )
-            const mc = (pendingMoves?.moveColor || 'any').toString().toLowerCase()
+            const mc = (pendingMoves?.moveColor || 'any')
+              .toString()
+              .toLowerCase()
             if (mc !== 'any' && mc !== c) {
               return
             }
@@ -14087,7 +14287,7 @@ define([
               `${_('Сейчас')}: <strong>${locLabel}</strong> · ${_('можно')} ${_('до')} <strong>${maxOne}</strong> ${this._stepsWordRu(maxOne)}` +
               `</div>` +
               `</div>` +
-              `</div>`
+              `</div>`,
           )
         })
         if (!list.length) {
@@ -14116,7 +14316,8 @@ define([
         const takeLimit =
           Number(this.gamedatas?.sprintTasksTakeLimit) ||
           Number(
-            this.gamedatas?.players?.[this.player_id]?.sprintColumnTasksProgress,
+            this.gamedatas?.players?.[this.player_id]
+              ?.sprintColumnTasksProgress,
           ) ||
           1
 
@@ -14141,20 +14342,20 @@ define([
 
         bodyHtml =
           `<div class="task-move-hint-sprint">` +
-            `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--take">` +
-              `<div class="task-move-hint-sprint__badge">1</div>` +
-              `<div class="task-move-hint-sprint__card-text">` +
-                `${_('Возьмите')} <strong>${takeLimit}</strong> ${_('задач из банка в бэклог')}` +
-              `</div>` +
-            `</div>` +
-            `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--move">` +
-              `<div class="task-move-hint-sprint__badge">2</div>` +
-              `<div class="task-move-hint-sprint__card-main">` +
-                `<div class="task-move-hint-sprint__move-title">${_('Передвиньте задачи')}</div>` +
-                `<div class="task-move-hint-sprint__colors">${colorRows.join('')}</div>` +
-              `</div>` +
-            `</div>` +
-            mandatoryHint +
+          `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--take">` +
+          `<div class="task-move-hint-sprint__badge">1</div>` +
+          `<div class="task-move-hint-sprint__card-text">` +
+          `${_('Возьмите')} <strong>${takeLimit}</strong> ${_('задач из банка в бэклог')}` +
+          `</div>` +
+          `</div>` +
+          `<div class="task-move-hint-sprint__card task-move-hint-sprint__card--move">` +
+          `<div class="task-move-hint-sprint__badge">2</div>` +
+          `<div class="task-move-hint-sprint__card-main">` +
+          `<div class="task-move-hint-sprint__move-title">${_('Передвиньте задачи')}</div>` +
+          `<div class="task-move-hint-sprint__colors">${colorRows.join('')}</div>` +
+          `</div>` +
+          `</div>` +
+          mandatoryHint +
           `</div>`
       } else if (isEffect && pm) {
         title = _('Передвиньте задачи')
@@ -14228,7 +14429,10 @@ define([
         } else {
           poolRows += `<div class="task-move-hint-modal__effect-rows">${effectRows.join('')}</div>`
         }
-        bodyHtml = poolRows + buildMovableTokensBlock(pm, 'effect') + buildPlannedMovesBlock(pm)
+        bodyHtml =
+          poolRows +
+          buildMovableTokensBlock(pm, 'effect') +
+          buildPlannedMovesBlock(pm)
       } else {
         intro = _(
           'Выберите задачу на треке: подсветятся колонки, куда можно сходить.',
@@ -14242,7 +14446,10 @@ define([
 
       const modalRoot = document.getElementById('task-move-hint-modal')
       if (modalRoot) {
-        modalRoot.classList.toggle('task-move-hint-modal--sprint-card', isSprint)
+        modalRoot.classList.toggle(
+          'task-move-hint-modal--sprint-card',
+          isSprint,
+        )
       }
     },
 
@@ -14573,7 +14780,12 @@ define([
       })
     },
   })
-  var g = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this
+  var g =
+    typeof globalThis !== 'undefined'
+      ? globalThis
+      : typeof window !== 'undefined'
+        ? window
+        : this
   if (g) {
     g.bgagame = g.bgagame || {}
     g.bgagame.itarenagame = GameClass

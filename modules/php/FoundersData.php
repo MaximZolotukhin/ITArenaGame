@@ -249,10 +249,10 @@ class FoundersData
             'name' => 'Сергей', // Имя основателя
             'color' => '#0000FF', // Цвет основателя
             'speciality' => 'Основатель', // Специальность основателя
-            'effect' => ['hireCard' => ['count' => 3, 'cost' => 1]], // Эффект
+            'effect' => ['hireAnyForOneBadgerOncePerHiringPhase' => true], // Эффект
             'department' => 'technical-department', // Отдел
             'activationStage' => 'RoundHiring', // Этап активации эффекта
-            'effectDescription' => 'Мастер рекрутинга. Когда нанимаешь 3 карты за 1 ход, то 3я карта найма стоит 1Б', // Описание эффекта
+            'effectDescription' => 'Мастер рекрутинга. Один раз в фазу найма вы можете нанять 1 любую карту за 1Б', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
             'management' => 'A', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты

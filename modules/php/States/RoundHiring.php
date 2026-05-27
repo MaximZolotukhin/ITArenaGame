@@ -17,6 +17,11 @@ use Bga\Games\itarenagame\SpecialistsData;
  */
 class RoundHiring extends GameState
 {
+    private const FOUNDER_SERGEY_ID = 11;
+    private const SERGEY_DISCOUNT_PRICE = 1;
+    private const SERGEY_DISCOUNT_ACTIVE_PREFIX = 'hiring_sergey_discount_active_';
+    private const SERGEY_DISCOUNT_USED_PREFIX = 'hiring_sergey_discount_used_';
+
     function __construct(
         protected Game $game,
     ) {
@@ -78,6 +83,8 @@ class RoundHiring extends GameState
         $confirmedKey = 'hiring_confirmed_' . $activePlayerId;
         $hiredCountKey = 'hiring_hired_count_' . $activePlayerId;
         $bonusKey = 'hiring_bonus_hire_slots_' . $activePlayerId;
+        $sergeyActiveKey = self::SERGEY_DISCOUNT_ACTIVE_PREFIX . $activePlayerId;
+        $sergeyUsedKey = self::SERGEY_DISCOUNT_USED_PREFIX . $activePlayerId;
 
         $savedRound = (int) ($this->game->globals->get($phaseRoundKey, '0') ?: 0);
         if ($savedRound !== $round) {
@@ -85,6 +92,8 @@ class RoundHiring extends GameState
             $this->game->globals->delete($confirmedKey);
             $this->game->globals->set($hiredCountKey, '0');
             $this->game->globals->set($bonusKey, '0');
+            $this->game->globals->delete($sergeyActiveKey);
+            $this->game->globals->delete($sergeyUsedKey);
             $this->game->globals->set($phaseRoundKey, (string) $round);
         }
 
@@ -155,6 +164,9 @@ class RoundHiring extends GameState
             'maxHireCount' => $this->game->getEffectiveHiringMaxCount($activePlayerId),
             'hiringConfirmed' => $hiringConfirmed,
             'hiringHiredCount' => $hiringHiredCount,
+            'sergeyHiringDiscountAvailable' => $this->canActivateSergeyHiringDiscount($activePlayerId),
+            'sergeyHiringDiscountActive' => $this->isSergeyHiringDiscountActive($activePlayerId),
+            'sergeyHiringDiscountPrice' => self::SERGEY_DISCOUNT_PRICE,
             'pendingTaskSelection' => $pendingTaskSelection,
             'pendingTaskMoves' => $pendingTaskMoves,
         ];
@@ -180,6 +192,8 @@ class RoundHiring extends GameState
         $this->game->globals->delete('hiring_confirmed_' . $activePlayerId);
         $this->game->globals->delete('hiring_recruiting_done_' . $activePlayerId);
         $this->game->globals->set('hiring_hired_count_' . $activePlayerId, '0');
+        $this->game->globals->delete(self::SERGEY_DISCOUNT_ACTIVE_PREFIX . $activePlayerId);
+        $this->game->globals->delete(self::SERGEY_DISCOUNT_USED_PREFIX . $activePlayerId);
         $this->game->resetHiringBonusHireSlots($activePlayerId);
         // Сбрасываем ожидание выбора задач только у активного (его ход в найме).
         // НЕ чистим у всех: при переходе к следующему игроку снова вызывается RoundHiring::onEnteringState,
@@ -284,6 +298,24 @@ class RoundHiring extends GameState
         return null;
     }
 
+    #[PossibleAction]
+    public function actActivateSergeyHiringDiscount(): ?string
+    {
+        $this->game->checkAction('actActivateSergeyHiringDiscount');
+        $playerId = (int) $this->game->getActivePlayerId();
+        if (!$this->canActivateSergeyHiringDiscount($playerId)) {
+            throw new UserException(clienttranslate('Эффект Сергея уже использован или недоступен'));
+        }
+
+        $this->game->globals->set(self::SERGEY_DISCOUNT_ACTIVE_PREFIX . $playerId, '1');
+        $this->notify->player($playerId, 'sergeyHiringDiscountActivated', '', [
+            'player_id' => $playerId,
+            'discount_price' => self::SERGEY_DISCOUNT_PRICE,
+        ]);
+
+        return null;
+    }
+
     /**
      * Нанять одну карту с руки: клик по карте — карта переходит в отдел, баджерсы списываются сразу.
      * Для универсальной карты отдел передаётся (игрок выбирает отдел кликом); для остальных — из карты.
@@ -315,7 +347,14 @@ class RoundHiring extends GameState
         if ($department !== null && !in_array($department, $validDepartments, true)) {
             throw new UserException(clienttranslate('Invalid department'));
         }
-        $this->game->hireOneSpecialistFromHand($playerId, (int) $cardId, $department);
+        $originalPrice = (int) ($card['price'] ?? 0);
+        $discountApplied = $this->isSergeyHiringDiscountActive($playerId);
+        $price = $discountApplied ? self::SERGEY_DISCOUNT_PRICE : $originalPrice;
+        $this->game->hireOneSpecialistFromHand($playerId, (int) $cardId, $department, $price);
+        if ($discountApplied) {
+            $this->game->globals->delete(self::SERGEY_DISCOUNT_ACTIVE_PREFIX . $playerId);
+            $this->game->globals->set(self::SERGEY_DISCOUNT_USED_PREFIX . $playerId, '1');
+        }
         $newHiredCount = $hiredCount + 1;
         $this->game->globals->set('hiring_hired_count_' . $playerId, (string) $newHiredCount);
         // Если у карты есть эффект — применяем его (те же типы, что у основателей: badger, updateTrack, move_task и т.д.)
@@ -330,7 +369,6 @@ class RoundHiring extends GameState
                 $bonusHireFromHand += (int) ($eff['amount'] ?? 0);
             }
         }
-        $price = (int) ($card['price'] ?? 0);
         $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
         $pendingTaskSelection = null;
         $pendingTaskMoves = null;
@@ -355,6 +393,10 @@ class RoundHiring extends GameState
             'cardIds' => [(int) $cardId],
             'amount' => 1,
             'badgers' => $price,
+            'originalBadgers' => $originalPrice,
+            'sergeyDiscountApplied' => $discountApplied,
+            'sergeyHiringDiscountAvailable' => $this->canActivateSergeyHiringDiscount($playerId),
+            'sergeyHiringDiscountActive' => $this->isSergeyHiringDiscountActive($playerId),
             'playerHiredSpecialists' => $this->game->getPlayerHiredSpecialists($playerId),
             'playerHiredSpecialistsDetails' => $this->game->getPlayerHiredSpecialistsDetails($playerId),
             'hiringHiredCount' => $newHiredCount,
@@ -401,6 +443,40 @@ class RoundHiring extends GameState
             }
         }
         return null;
+    }
+
+    private function playerHasSergeyFounder(int $playerId): bool
+    {
+        $founder = $this->game->getFounderForPlayer($playerId);
+        if (!is_array($founder)) {
+            return false;
+        }
+
+        return (int) ($founder['id'] ?? 0) === self::FOUNDER_SERGEY_ID;
+    }
+
+    private function canActivateSergeyHiringDiscount(int $playerId): bool
+    {
+        if (!$this->playerHasSergeyFounder($playerId)) {
+            return false;
+        }
+        if ($this->game->globals->get(self::SERGEY_DISCOUNT_USED_PREFIX . $playerId, '') === '1') {
+            return false;
+        }
+        $hiredCount = (int) $this->game->globals->get('hiring_hired_count_' . $playerId, '0');
+        if ($hiredCount >= $this->game->getEffectiveHiringMaxCount($playerId)) {
+            return false;
+        }
+        if ($this->game->getPlayerBadgersForCheck($playerId) < self::SERGEY_DISCOUNT_PRICE) {
+            return false;
+        }
+
+        return !$this->isSergeyHiringDiscountActive($playerId);
+    }
+
+    private function isSergeyHiringDiscountActive(int $playerId): bool
+    {
+        return $this->game->globals->get(self::SERGEY_DISCOUNT_ACTIVE_PREFIX . $playerId, '') === '1';
     }
 
     /**
