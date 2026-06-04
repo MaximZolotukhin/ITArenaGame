@@ -3326,6 +3326,40 @@ class Game extends \Bga\GameFramework\Table
         return $data['playerHiredSpecialists'] ?? [];
     }
 
+    public function getSalesDepartmentSpecialistCount(int $playerId): int
+    {
+        $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
+        $salesCards = $hiredByDept['sales-department'] ?? [];
+        $count = is_array($salesCards) ? count($salesCards) : 0;
+
+        $founder = $this->getFounderForPlayer($playerId);
+        if ($founder !== null) {
+            $department = strtolower(trim((string) ($founder['department'] ?? '')));
+            if ($department === 'sales-department') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    public function getSalesDepartmentIncomeBonus(int $playerId): int
+    {
+        return $this->getSalesDepartmentSpecialistCount($playerId) >= 5 ? 2 : 0;
+    }
+
+    public function getEffectiveSalesTrackValue(int $playerId, ?int $baseValue = null): int
+    {
+        if ($baseValue === null) {
+            $gameData = $this->getPlayerGameData($playerId);
+            $baseValue = $gameData !== null && isset($gameData['incomeTrack'])
+                ? (int) $gameData['incomeTrack']
+                : (int) $this->playerEnergy->get($playerId);
+        }
+
+        return max(0, $baseValue + $this->getSalesDepartmentIncomeBonus($playerId));
+    }
+
     /**
      * Сохраняет нанятых специалистов по отделам (globals + БД).
      * @param array<string, array<int>> $byDepartment Отдел => массив ID карт
@@ -4709,13 +4743,13 @@ class Game extends \Bga\GameFramework\Table
      *  - Жетон проекта находится на планшете (board_position не NULL и нет
      *    привязки к игроку в `player_project_token`).
      *  - У игрока в колонке sprint_track_completed достаточно задач того же
-     *    цвета, что и проект (цена = `project_token.price`).
+     *    цвета, что и проект (с учетом пассивных скидок основателей).
      *  - Покупать можно только жетонами цвета, совпадающего с цветом проекта
      *    (orange-orange, pink-pink, purple-purple, cyan-cyan).
      *
      * @param int $playerId
      * @param int $tokenId
-     * @return array{ok:bool, reason?:string, color?:string, price?:int, available?:int}
+     * @return array{ok:bool, reason?:string, color?:string, price?:int, originalPrice?:int, available?:int}
      */
     public function canPlayerPurchaseProjectToken(int $playerId, int $tokenId): array
     {
@@ -4737,7 +4771,8 @@ class Game extends \Bga\GameFramework\Table
         if (!in_array($color, $validColors, true)) {
             return ['ok' => false, 'reason' => 'invalid_color'];
         }
-        $price = (int) $token['price'];
+        $originalPrice = (int) $token['price'];
+        $price = $this->getEffectiveProjectTokenPriceForPlayer($playerId, $token);
         $counts = $this->getCompletedTaskTokensCountByColor($playerId);
         $available = (int) ($counts[$color] ?? 0);
         if ($available < $price) {
@@ -4746,6 +4781,7 @@ class Game extends \Bga\GameFramework\Table
                 'reason' => 'not_enough_completed_tasks',
                 'color' => $color,
                 'price' => $price,
+                'originalPrice' => $originalPrice,
                 'available' => $available,
             ];
         }
@@ -4753,8 +4789,136 @@ class Game extends \Bga\GameFramework\Table
             'ok' => true,
             'color' => $color,
             'price' => $price,
+            'originalPrice' => $originalPrice,
             'available' => $available,
         ];
+    }
+
+    public function getEffectiveProjectTokenPriceForPlayer(int $playerId, array $token): int
+    {
+        $price = max(0, (int) ($token['price'] ?? 0));
+        $founder = $this->getFounderForPlayer($playerId);
+        if (!is_array($founder)) {
+            return $price;
+        }
+
+        $discount = $founder['effect']['projectTaskCostDiscount'] ?? null;
+        if (!is_array($discount)) {
+            return $price;
+        }
+
+        $eligiblePrices = array_map('intval', (array) ($discount['prices'] ?? []));
+        $amount = max(0, (int) ($discount['amount'] ?? 0));
+        if ($amount <= 0 || !in_array($price, $eligiblePrices, true)) {
+            return $price;
+        }
+
+        return max(0, $price - $amount);
+    }
+
+    public function getProjectUniqueColorsCountForPlayer(int $playerId, string $shape): int
+    {
+        $shape = strtolower(trim($shape));
+        if ($shape === '') {
+            return 0;
+        }
+
+        $colors = [];
+        foreach ($this->getProjectTokensByPlayer($playerId) as $projectToken) {
+            $projectShape = strtolower(trim((string) ($projectToken['shape'] ?? '')));
+            if ($projectShape !== $shape) {
+                continue;
+            }
+
+            $color = strtolower(trim((string) ($projectToken['color'] ?? '')));
+            if ($color === 'cayn') {
+                $color = 'cyan';
+            }
+            if (ProjectTokensData::isValidItProjectColor($color)) {
+                $colors[$color] = true;
+            }
+        }
+
+        return count($colors);
+    }
+
+    public function getSquareProjectUniqueColorsCountForPlayer(int $playerId): int
+    {
+        return $this->getProjectUniqueColorsCountForPlayer($playerId, 'square');
+    }
+
+    /**
+     * Регистрирует одноразовый бонус за первые наборы из 2/3/4 уникальных цветов
+     * среди купленных IT-проектов одной формы.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function registerProjectShapeUniqueColorBonusIfNeeded(
+        int $playerId,
+        string $shape,
+        int $previousUniqueCount,
+        int $currentUniqueCount,
+        string $sourceName
+    ): ?array {
+        $shape = strtolower(trim($shape));
+        if (!in_array($shape, ['square', 'circle', 'hex'], true)) {
+            return null;
+        }
+
+        $eligibleCounts = [2, 3, 4];
+        if ($currentUniqueCount <= $previousUniqueCount || $currentUniqueCount < 2) {
+            return null;
+        }
+
+        $gameData = $this->getPlayerGameData($playerId);
+        $bonuses = is_array($gameData['itProjectBonuses'] ?? null) ? $gameData['itProjectBonuses'] : [];
+        $bonusKey = $shape . '_project_unique_colors';
+        $bonusState = is_array($bonuses[$bonusKey] ?? null) ? $bonuses[$bonusKey] : [];
+        $awardedCounts = array_values(array_unique(array_map('intval', (array) ($bonusState['awarded_counts'] ?? []))));
+
+        $triggeredCounts = [];
+        foreach ($eligibleCounts as $count) {
+            if (
+                $previousUniqueCount < $count
+                && $currentUniqueCount >= $count
+                && !in_array($count, $awardedCounts, true)
+            ) {
+                $triggeredCounts[] = $count;
+                $awardedCounts[] = $count;
+            }
+        }
+
+        if (empty($triggeredCounts)) {
+            return null;
+        }
+
+        sort($awardedCounts);
+        $bonusState['awarded_counts'] = $awardedCounts;
+        $bonusState['last_unique_color_count'] = $currentUniqueCount;
+        $bonuses[$bonusKey] = $bonusState;
+        $this->setItProjectBonuses($playerId, $bonuses);
+
+        return [
+            'shape' => $shape,
+            'amount' => 3 * count($triggeredCounts),
+            'triggered_counts' => $triggeredCounts,
+            'unique_color_count' => $currentUniqueCount,
+            'source_name' => $sourceName,
+        ];
+    }
+
+    public function registerSquareProjectUniqueColorBonusIfNeeded(
+        int $playerId,
+        int $previousUniqueCount,
+        int $currentUniqueCount
+    ): ?array {
+        return $this->registerProjectShapeUniqueColorBonusIfNeeded(
+            $playerId,
+            'square',
+            $previousUniqueCount,
+            $currentUniqueCount,
+            clienttranslate('бонус квадратных IT-проектов'),
+        );
     }
 
     /**
@@ -4829,7 +4993,7 @@ class Game extends \Bga\GameFramework\Table
 
     /**
      * Покупка IT-проекта игроком в фазе «Проекты».
-     * Списывает $price выполненных задач совпадающего цвета и переводит
+     * Списывает эффективную цену выполненных задач совпадающего цвета и переводит
      * жетон проекта в `player_project_token` с локацией 'completed'.
      * Эффекты IT-проектов применяются из ProjectTokensData (если effect не null).
      *
@@ -4849,6 +5013,8 @@ class Game extends \Bga\GameFramework\Table
      *     playerProjectTokens:array,
      *     boardPosition:string|null,
      *     replacementToken:array<string,mixed>|null,
+     *     original_price:int,
+     *     purchase_price:int,
      *     applied_effects:list<array<string,mixed>>
      * }
      * @throws \Bga\GameFramework\UserException
@@ -4875,8 +5041,11 @@ class Game extends \Bga\GameFramework\Table
 
         $color = (string) $check['color'];
         $price = (int) $check['price'];
+        $originalPrice = (int) ($check['originalPrice'] ?? $price);
         $token = $this->getProjectTokenById($tokenId);
         $freedPosition = (string) ($token['board_position'] ?? '');
+        $projectShape = strtolower(trim((string) ($token['shape'] ?? '')));
+        $previousProjectShapeUniqueColors = $this->getProjectUniqueColorsCountForPlayer($playerId, $projectShape);
 
         // 1. Списываем нужное количество выполненных задач совпадающего цвета.
         $tokensToDelete = $this->getCollectionFromDb("
@@ -4917,6 +5086,21 @@ class Game extends \Bga\GameFramework\Table
         $completedByColor = $this->getCompletedTaskTokensCountByColor($playerId);
         $tokensOnBoard = $this->getProjectTokensOnBoard();
         $playerProjects = $this->getProjectTokensByPlayer($playerId);
+        $projectShapeColorBonus = null;
+        if (in_array($projectShape, ['square', 'circle', 'hex'], true)) {
+            $sourceName = match ($projectShape) {
+                'circle' => clienttranslate('бонус круглых IT-проектов'),
+                'hex' => clienttranslate('бонус hex IT-проектов'),
+                default => clienttranslate('бонус квадратных IT-проектов'),
+            };
+            $projectShapeColorBonus = $this->registerProjectShapeUniqueColorBonusIfNeeded(
+                $playerId,
+                $projectShape,
+                $previousProjectShapeUniqueColors,
+                $this->getProjectUniqueColorsCountForPlayer($playerId, $projectShape),
+                $sourceName,
+            );
+        }
 
         error_log("purchaseProjectToken - player $playerId bought project $tokenId ({$token['name']}), spent " . count($spentIds) . " $color tasks, replenished position '$freedPosition' with " . ($replacementToken['token_id'] ?? 'NONE'));
 
@@ -4929,7 +5113,11 @@ class Game extends \Bga\GameFramework\Table
             'playerProjectTokens' => $playerProjects,
             'boardPosition' => $freedPosition !== '' ? $freedPosition : null,
             'replacementToken' => $replacementToken,
+            'original_price' => $originalPrice,
+            'purchase_price' => $price,
             'applied_effects' => $appliedEffects,
+            'project_shape_color_bonus' => $projectShapeColorBonus,
+            'square_project_color_bonus' => ($projectShapeColorBonus['shape'] ?? null) === 'square' ? $projectShapeColorBonus : null,
         ];
     }
 

@@ -619,6 +619,17 @@
   position: relative;
 }
 
+.player-department-sales-bottom__half--active {
+  background: rgba(0, 255, 0, 0.12);
+  border-color: rgba(0, 255, 0, 0.65);
+  box-shadow: inset 0 0 14px rgba(0, 255, 0, 0.2);
+}
+
+.player-department-sales-bottom--active .player-department-sales__token {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 0 22px rgba(0, 255, 0, 0.45);
+  border-color: rgba(180, 255, 180, 0.8);
+}
+
 .player-department-sales__token {
   width: 37px;
   height: 37px;
@@ -1993,7 +2004,7 @@
 }
 
 /*
- * Бейдж количества для сгруппированных жетонов в колонке «Выполнено».
+ * Бейдж количества для сгруппированных жетонов в колонках «Бэклог» и «Выполнено».
  * Появляется только если по цвету в колонке больше одной задачи.
  */
 .task-token__count-badge {
@@ -2200,6 +2211,18 @@
   border: 2px solid rgba(0, 150, 0, 0.8);
   z-index: 5;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 14px rgba(0, 255, 0, 0.2), 0 0 10px rgba(0, 0, 0, 0.45);
+}
+
+.income-track__center-value {
+  color: #e9ffe9;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(0, 255, 0, 0.75), 0 2px 3px rgba(0, 0, 0, 0.85);
 }
 
 .event-card-panel {

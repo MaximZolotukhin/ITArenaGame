@@ -444,7 +444,9 @@ define([
                                               },
                                             ).join('')}
                                           </div>
-                                          <div class="income-track__center"></div>
+                                          <div class="income-track__center">
+                                            <span class="income-track__center-value">1</span>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -769,6 +771,15 @@ define([
       const initialActiveId =
         this._getActivePlayerIdFromDatas(gamedatas) || this.player_id
       this._renderPlayerMoney(gamedatas.players, initialActiveId) // Отображаем деньги игрока
+      const currentPlayerData =
+        gamedatas.players?.[this.player_id] ||
+        gamedatas.players?.[String(this.player_id)] ||
+        null
+      if (currentPlayerData) {
+        const incomeValue =
+          currentPlayerData.incomeTrack ?? currentPlayerData.energy ?? 1
+        this._updateIncomeTrackPosition(this.player_id, incomeValue)
+      }
 
       // После перезагрузки в любой фазе раунда (Навыки/Найм/Продажи/Спринт/Проекты):
       // подставляем руку из players[id].specialists, если playerSpecialists пусто.
@@ -1771,8 +1782,12 @@ define([
               payout &&
               typeof payout.salesTrackValue === 'number'
             ) {
-              this.gamedatas.players[pid].energy = payout.salesTrackValue
-              this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
+              const baseSalesTrackValue =
+                payout.baseSalesTrackValue ?? payout.salesTrackValue
+              this.gamedatas.players[pid].energy = baseSalesTrackValue
+              this.gamedatas.players[pid].salesIncomeBonus =
+                Number(payout.salesIncomeBonus) || 0
+              this._updateIncomeTrackPosition(pid, baseSalesTrackValue)
             }
           }
           this._clearDepartmentsForNewPlayer(salesActiveId)
@@ -2186,8 +2201,12 @@ define([
                 payout &&
                 typeof payout.salesTrackValue === 'number'
               ) {
-                this.gamedatas.players[pid].energy = payout.salesTrackValue
-                this._updateIncomeTrackPosition(pid, payout.salesTrackValue)
+                const baseSalesTrackValue =
+                  payout.baseSalesTrackValue ?? payout.salesTrackValue
+                this.gamedatas.players[pid].energy = baseSalesTrackValue
+                this.gamedatas.players[pid].salesIncomeBonus =
+                  Number(payout.salesIncomeBonus) || 0
+                this._updateIncomeTrackPosition(pid, baseSalesTrackValue)
               }
             }
             if (
@@ -2288,6 +2307,78 @@ define([
                   ),
                 },
               )
+              const pendingProjectTaskSelection =
+                projectsArgs.pendingTaskSelection || null
+              const hasPendingProjectTaskSelection =
+                pendingProjectTaskSelection &&
+                Number(pendingProjectTaskSelection.amount || 0) > 0
+              if (
+                hasPendingProjectTaskSelection
+              ) {
+                this._renderTaskInputs()
+                this.notif_taskSelectionRequired({
+                  args: {
+                    player_id: projectsActiveId,
+                    amount: Number(pendingProjectTaskSelection.amount || 0),
+                    founder_name:
+                      pendingProjectTaskSelection.founder_name ||
+                      _('бонус квадратных IT-проектов'),
+                    source: pendingProjectTaskSelection.source || '',
+                    triggered_counts:
+                      pendingProjectTaskSelection.triggered_counts || [],
+                    unique_color_count:
+                      pendingProjectTaskSelection.unique_color_count || 0,
+                  },
+                })
+              }
+              const pendingProjectTaskMoves = projectsArgs.pendingTaskMoves || null
+              const hasPendingProjectTaskMoves =
+                pendingProjectTaskMoves &&
+                Number(pendingProjectTaskMoves.move_count || 0) > 0
+              if (
+                hasPendingProjectTaskMoves
+              ) {
+                this.notif_taskMovesRequired({
+                  args: {
+                    player_id: projectsActiveId,
+                    move_count: Number(pendingProjectTaskMoves.move_count || 0),
+                    move_color: pendingProjectTaskMoves.move_color || 'any',
+                    founder_name:
+                      pendingProjectTaskMoves.founder_name ||
+                      _('бонус hex IT-проектов'),
+                    source: pendingProjectTaskMoves.source || '',
+                    triggered_counts:
+                      pendingProjectTaskMoves.triggered_counts || [],
+                    unique_color_count:
+                      pendingProjectTaskMoves.unique_color_count || 0,
+                  },
+                })
+              }
+              const pendingProjectTechMoves =
+                projectsArgs.pendingTechnicalDevelopmentMoves || null
+              if (
+                !hasPendingProjectTaskSelection &&
+                !hasPendingProjectTaskMoves &&
+                pendingProjectTechMoves &&
+                Number(pendingProjectTechMoves.move_count || 0) > 0
+              ) {
+                this.notif_technicalDevelopmentMovesRequired({
+                  args: {
+                    player_id: projectsActiveId,
+                    move_count: Number(
+                      pendingProjectTechMoves.move_count || 0,
+                    ),
+                    founder_name:
+                      pendingProjectTechMoves.founder_name ||
+                      pendingProjectTechMoves.source_name ||
+                      _('IT-проект'),
+                    source_name:
+                      pendingProjectTechMoves.source_name ||
+                      pendingProjectTechMoves.founder_name ||
+                      _('IT-проект'),
+                  },
+                })
+              }
             } else {
               const activeId = this.gamedatas?.gamestate?.active_player
               const activeName =
@@ -3450,12 +3541,19 @@ define([
       const playerId = Number(args.player_id || 0)
       const amount = Number(args.amount || 0)
       const salesTrackValue = Number(args.salesTrackValue ?? args.track ?? 0)
+      const baseSalesTrackValue = Number(
+        args.baseSalesTrackValue ?? salesTrackValue,
+      )
       const newValue = Number(args.newValue)
       if (playerId <= 0 || !this.gamedatas.players[playerId]) return
+      this.gamedatas.players[playerId].energy = baseSalesTrackValue
+      this.gamedatas.players[playerId].salesIncomeBonus =
+        Number(args.salesIncomeBonus) || 0
       this.gamedatas.players[playerId].badgers =
         Number.isFinite(newValue) && newValue >= 0
           ? newValue
           : (this.gamedatas.players[playerId].badgers ?? 0) + amount
+      this._updateIncomeTrackPosition(playerId, baseSalesTrackValue)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       if (amount > 0) {
         const msg = (
@@ -3522,6 +3620,37 @@ define([
       if (Array.isArray(args.playerProjectTokens) && player) {
         player.projectTokens = args.playerProjectTokens
       }
+      if (
+        Number(playerId) === Number(this.player_id) &&
+        args.hasPendingProjectTaskSelection &&
+        (args.projectShapeColorBonus || args.squareProjectColorBonus)
+      ) {
+        const shapeBonus = args.projectShapeColorBonus || args.squareProjectColorBonus
+        this.gamedatas.pendingTaskSelection = {
+          amount: Number(shapeBonus.amount || 0),
+          founder_name:
+            shapeBonus.source_name ||
+            _('бонус квадратных IT-проектов'),
+          source: 'square_project_unique_colors',
+        }
+      }
+      if (
+        Number(playerId) === Number(this.player_id) &&
+        args.hasPendingProjectTaskMoves &&
+        args.projectShapeColorBonus
+      ) {
+        this.gamedatas.pendingTaskMoves = {
+          moveCount: Number(args.projectShapeColorBonus.amount || 0),
+          moveColor: 'any',
+          usedMoves: 0,
+          moves: [],
+          fromEffect: true,
+          moveSource: 'founder_effect',
+          founderName:
+            args.projectShapeColorBonus.source_name ||
+            _('бонус hex IT-проектов'),
+        }
+      }
 
       // 4. Обновить args текущего стейта (completedByColor) для корректной
       //    подсветки оставшихся проектов на планшете.
@@ -3530,6 +3659,10 @@ define([
         this.gamedatas?.gamestate?.args
       ) {
         this.gamedatas.gamestate.args.completedByColor = completedByColor
+        if (args.effectiveProjectPrices) {
+          this.gamedatas.gamestate.args.effectiveProjectPrices =
+            args.effectiveProjectPrices
+        }
       }
 
       // 5. Перерисовать UI: планшет проектов, колонку «Выполнено» у покупателя
@@ -3582,6 +3715,8 @@ define([
           this.gamedatas?.gamestate?.name === 'RoundProjects' &&
           this.isCurrentPlayerActive() &&
           !args.purchaseEndsTurn &&
+          !args.hasPendingProjectTaskSelection &&
+          !args.hasPendingProjectTaskMoves &&
           !args.hasPendingTechnicalDevelopment
         ) {
           this._updateProjectTokensPurchaseUI()
@@ -3769,9 +3904,17 @@ define([
         return
       }
 
-      // Ограничиваем значение от 1 до 20
-      const position = Math.max(1, Math.min(20, energyValue || 1))
-      console.log('📈 Target position:', position)
+      // Базовое значение хранится отдельно, а на поле показываем эффективное:
+      // базовый трек + динамические бонусы отдела продаж.
+      const basePosition = Math.max(1, Math.min(20, energyValue || 1))
+      const position = this._getEffectiveIncomeTrackValueForPlayer(
+        playerId,
+        basePosition,
+      )
+      console.log('📈 Target position:', {
+        basePosition,
+        effectivePosition: position,
+      })
 
       // Трек дохода находится в .player-personal-board, который создается в основном HTML
       // Ищем все треки дохода на странице
@@ -3796,6 +3939,8 @@ define([
       }
 
       console.log('📈 Found income track element:', playerBoard)
+      this._updateSalesDepartmentBonusVisual(playerId)
+      this._setIncomeTrackCenterValue(playerBoard, position)
 
       // Находим все секторы на треке
       const sectors = playerBoard.querySelectorAll('.income-track__sector')
@@ -3871,6 +4016,107 @@ define([
           Array.from(sectors)
             .map((s) => s.dataset.value)
             .join(', '),
+        )
+      }
+    },
+
+    _isFounderInSalesDepartmentForPlayer: function (playerId) {
+      const playerData =
+        this.gamedatas?.players?.[playerId] ||
+        this.gamedatas?.players?.[String(playerId)] ||
+        null
+      const founder =
+        playerData?.founder ||
+        this.gamedatas?.founders?.[playerId] ||
+        this.gamedatas?.founders?.[String(playerId)] ||
+        null
+      if (!founder) return false
+      const department = String(founder.department || '')
+        .trim()
+        .toLowerCase()
+      return department === 'sales-department'
+    },
+
+    _getSalesDepartmentSpecialistCountForPlayer: function (playerId) {
+      const playerData =
+        this.gamedatas?.players?.[playerId] ||
+        this.gamedatas?.players?.[String(playerId)] ||
+        null
+      if (!playerData) {
+        return this._isFounderInSalesDepartmentForPlayer(playerId) ? 1 : 0
+      }
+
+      const details = playerData.playerHiredSpecialistsDetails || {}
+      const salesDetails = details['sales-department']
+      let count = 0
+      if (Array.isArray(salesDetails)) {
+        count = salesDetails.length
+      } else {
+        const hired = playerData.playerHiredSpecialists || {}
+        const salesCards = hired['sales-department']
+        count = Array.isArray(salesCards) ? salesCards.length : 0
+      }
+
+      if (this._isFounderInSalesDepartmentForPlayer(playerId)) {
+        count += 1
+      }
+
+      return count
+    },
+
+    _getSalesDepartmentIncomeBonusForPlayer: function (playerId) {
+      return this._getSalesDepartmentSpecialistCountForPlayer(playerId) >= 5
+        ? 2
+        : 0
+    },
+
+    _getEffectiveIncomeTrackValueForPlayer: function (playerId, baseValue) {
+      const base = Math.max(1, Math.min(20, Number(baseValue) || 1))
+      const bonus = this._getSalesDepartmentIncomeBonusForPlayer(playerId)
+      return Math.max(1, Math.min(20, base + bonus))
+    },
+
+    _updateSalesDepartmentBonusVisual: function (playerId) {
+      const bottom = document.getElementById('player-department-sales-bottom')
+      const offCell = document.getElementById('player-department-sales-off')
+      const onCell = document.getElementById('player-department-sales-on')
+      if (!bottom || !offCell || !onCell) return
+
+      const isActive =
+        this._getSalesDepartmentSpecialistCountForPlayer(playerId) >= 5
+      const token =
+        bottom.querySelector('.player-department-sales__token') ||
+        document.createElement('div')
+      token.className = 'player-department-sales__token'
+
+      const targetCell = isActive ? onCell : offCell
+      if (token.parentElement !== targetCell) {
+        targetCell.appendChild(token)
+      }
+
+      bottom.classList.toggle('player-department-sales-bottom--active', isActive)
+      offCell.classList.toggle('player-department-sales-bottom__half--active', !isActive)
+      onCell.classList.toggle('player-department-sales-bottom__half--active', isActive)
+      onCell.title = isActive
+        ? _('Бонус отдела продаж активен: +2 к доходу')
+        : _('Наймите 5 специалистов в отдел продаж, чтобы получить +2 к доходу')
+    },
+
+    _setIncomeTrackCenterValue: function (incomeTrackElement, value) {
+      if (!incomeTrackElement) return
+      const position = Math.max(1, Math.min(20, Number(value) || 1))
+      const centerValue = incomeTrackElement.querySelector(
+        '.income-track__center-value',
+      )
+      if (centerValue) {
+        centerValue.textContent = String(position)
+      }
+      const center = incomeTrackElement.querySelector('.income-track__center')
+      if (center) {
+        center.dataset.value = String(position)
+        center.title = _('Текущий доход: ${value}').replace(
+          '${value}',
+          String(position),
         )
       }
     },
@@ -5109,6 +5355,7 @@ define([
         this.gamedatas.pendingTaskSelection = {
           amount: amount,
           founder_name: founderName,
+          source: args.source || '',
         }
 
         // Эффекты только из свойства effect карты: сбрасываем старые move_task от предыдущей карты
@@ -5134,6 +5381,19 @@ define([
                   ).replace('${n}', String(amount)),
             )
           }
+        } else if (stateName === 'RoundProjects') {
+          ;['projects-pass-button', 'projects-finish-turn-button'].forEach(
+            (buttonId) => {
+              const button = document.getElementById(buttonId)
+              if (!button) return
+              button.disabled = true
+              button.setAttribute(
+                'title',
+                _('Сначала выберите задачи в бэклог за бонус IT-проектов'),
+              )
+            },
+          )
+          this._updateProjectTokensPurchaseUI()
         }
 
         // Подсказка только по эффектам текущей карты: шаг 2 — только если сервер пришлёт taskMovesRequired (move_task)
@@ -5213,6 +5473,19 @@ define([
               ),
             )
           }
+        } else if (this.gamedatas?.gamestate?.name === 'RoundProjects') {
+          ;['projects-pass-button', 'projects-finish-turn-button'].forEach(
+            (buttonId) => {
+              const button = document.getElementById(buttonId)
+              if (!button) return
+              button.disabled = true
+              button.setAttribute(
+                'title',
+                _('Сначала переместите задачи по треку спринта за бонус IT-проектов'),
+              )
+            },
+          )
+          this._updateProjectTokensPurchaseUI()
         }
 
         // Проверяем, завершен ли выбор задач
@@ -5617,6 +5890,19 @@ define([
               _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
             )
           }
+        } else if (
+          this.gamedatas?.gamestate?.name === 'RoundProjects' &&
+          !args.project_bonus
+        ) {
+          ;['projects-pass-button', 'projects-finish-turn-button'].forEach(
+            (buttonId) => {
+              const button = document.getElementById(buttonId)
+              if (!button) return
+              button.disabled = false
+              button.removeAttribute('title')
+            },
+          )
+          this._updateProjectTokensPurchaseUI()
         }
 
         // Убираем подсказку о выборе задач
@@ -8119,6 +8405,17 @@ define([
           container.appendChild(div)
         })
       })
+      this._updateSalesDepartmentBonusVisual(playerId)
+      const incomeValue = playerData?.incomeTrack ?? playerData?.energy
+      if (incomeValue != null) {
+        const incomeTrack = document.querySelector('.income-track')
+        if (incomeTrack) {
+          this._setIncomeTrackCenterValue(
+            incomeTrack,
+            this._getEffectiveIncomeTrackValueForPlayer(playerId, incomeValue),
+          )
+        }
+      }
     },
 
     _renderFounderSelectionCards: function (founderOptions, playerId) {
@@ -8626,9 +8923,11 @@ define([
           tokenElement.dataset.price = String(tokenData.price)
         }
         if (tokenData.name) {
-          tokenElement.title = `${tokenData.name}${
+          const baseTitle = `${tokenData.name}${
             tokenData.price ? ` — ${tokenData.price}` : ''
           }`
+          tokenElement.dataset.baseTitle = baseTitle
+          tokenElement.title = baseTitle
         }
 
         // Создаем изображение жетона
@@ -8694,12 +8993,16 @@ define([
         isProjectsPhase &&
         activeId != null &&
         Number(activeId) === Number(this.player_id) &&
+        !this.gamedatas?.pendingTaskSelection &&
+        !this.gamedatas?.pendingTaskMoves &&
         !this.gamedatas?.pendingTechnicalDevelopmentMoves &&
         !this._projectPurchaseInFlight
 
       const completedByColor =
         this.gamedatas?.gamestate?.args?.completedByColor ||
         this._getCompletedByColorFromGamedatas()
+      const effectivePrices =
+        this.gamedatas?.gamestate?.args?.effectiveProjectPrices || {}
 
       tokens.forEach((tokenEl) => {
         tokenEl.classList.remove(
@@ -8718,9 +9021,26 @@ define([
 
         const tokenId = parseInt(tokenEl.dataset.tokenId, 10)
         const color = (tokenEl.dataset.color || '').toLowerCase()
-        const price = parseInt(tokenEl.dataset.price || '0', 10)
+        const originalPrice = parseInt(tokenEl.dataset.price || '0', 10)
+        const price =
+          parseInt(
+            effectivePrices?.[tokenId] ??
+              effectivePrices?.[String(tokenId)] ??
+              originalPrice,
+            10,
+          ) ||
+          originalPrice
         if (!color || !price || !Number.isFinite(tokenId)) {
           return
+        }
+        const baseTitle = tokenEl.dataset.baseTitle || tokenEl.title
+        if (originalPrice > price && baseTitle) {
+          tokenEl.title = baseTitle.replace(
+            / — .+$/,
+            ` — ${price} (${_('скидка Ильи')}: ${originalPrice}→${price})`,
+          )
+        } else if (baseTitle) {
+          tokenEl.title = baseTitle
         }
         const available = parseInt(completedByColor?.[color] || 0, 10) || 0
         const canBuy = available >= price
@@ -8914,14 +9234,15 @@ define([
         // Очищаем контейнер
         tokensContainer.innerHTML = ''
 
-        // Колонка «Выполнено» отображается сгруппированно по цвету:
+        // Колонки «Бэклог» и «Выполнено» отображаются сгруппированно по цвету:
         // один жетон на цвет, с бейджем-числом, если задач больше одной.
-        // Это нужно фазе «Проекты», где задачи тратятся целым цветом.
-        if (location === 'completed') {
-          this._renderCompletedColumnGrouped(
+        // В бэклоге группа остается кликабельной и выбирает один жетон этого цвета.
+        if (location === 'backlog' || location === 'completed') {
+          this._renderGroupedTaskTokensColumn(
             tokensContainer,
             locationTokens,
             currentPlayerId,
+            location,
           )
           return
         }
@@ -9241,18 +9562,20 @@ define([
     },
 
     /**
-     * Рендер колонки «Выполнено»: один токен на цвет с бейджем количества.
-     * Используется для оплаты IT-проектов в фазе «Проекты»: цвет токена должен
-     * совпадать с цветом IT-проекта, а количество — покрывать его цену.
+     * Рендер колонки задач группами: один токен на цвет с бейджем количества.
+     * Для «Выполнено» это нужно фазе «Проекты»: задачи тратятся целым цветом.
+     * Для «Бэклог» это сохраняет тот же вид, но клик выбирает один жетон группы.
      *
-     * @param {HTMLElement} tokensContainer контейнер колонки sprint-column-completed
-     * @param {Array} locationTokens жетоны в локации 'completed'
+     * @param {HTMLElement} tokensContainer контейнер колонки
+     * @param {Array} locationTokens жетоны в локации
      * @param {number|string} currentPlayerId id текущего игрока (для data-атрибута)
+     * @param {string} location локация колонки
      */
-    _renderCompletedColumnGrouped: function (
+    _renderGroupedTaskTokensColumn: function (
       tokensContainer,
       locationTokens,
       currentPlayerId,
+      location,
     ) {
       const colorOrder = ['cyan', 'pink', 'orange', 'purple']
       const groups = {}
@@ -9260,9 +9583,10 @@ define([
         const c = (t?.color || '').toString().toLowerCase()
         if (!c) return
         if (!groups[c]) {
-          groups[c] = { count: 0, tokenIds: [] }
+          groups[c] = { count: 0, tokenIds: [], tokens: [] }
         }
         groups[c].count += 1
+        groups[c].tokens.push(t)
         if (t?.token_id != null) {
           groups[c].tokenIds.push(t.token_id)
         }
@@ -9274,13 +9598,17 @@ define([
 
       presentColors.forEach((color, index) => {
         const group = groups[color]
+        const primaryTokenData = this._getGroupedTaskTokenForClick(group.tokens)
         const token = document.createElement('div')
         token.className = 'task-token task-token--stacked'
         token.dataset.playerId = currentPlayerId
         token.dataset.color = color
-        token.dataset.location = 'completed'
+        token.dataset.location = location
         token.dataset.count = String(group.count)
         token.dataset.tokenIds = group.tokenIds.join(',')
+        if (primaryTokenData?.token_id != null) {
+          token.dataset.tokenId = String(primaryTokenData.token_id)
+        }
         token.classList.add(`task-token--${color}`)
 
         const colorData = this._getTaskTokenColorData(color)
@@ -9307,12 +9635,67 @@ define([
         token.style.transform = 'translateX(-50%)'
         token.style.top = `${20 + index * 50}px`
 
+        if (location === 'backlog' && primaryTokenData) {
+          const pendingMoves = this.gamedatas?.pendingTaskMoves
+          const isMoveMode = pendingMoves !== null && pendingMoves !== undefined
+          const tokenIdNum = parseInt(primaryTokenData?.token_id, 10)
+          const hasExistingMove =
+            isMoveMode &&
+            Array.isArray(pendingMoves?.moves) &&
+            pendingMoves.moves.some((m) => {
+              const moveTokenIdNum = parseInt(m?.tokenId, 10)
+              return (
+                moveTokenIdNum === tokenIdNum ||
+                m?.tokenId == primaryTokenData?.token_id
+              )
+            })
+
+          token.style.pointerEvents = 'auto'
+          token.classList.add('task-token--clickable')
+          token.style.cursor = hasExistingMove ? 'not-allowed' : 'pointer'
+          if (hasExistingMove) {
+            token.classList.add('task-token--inactive')
+          }
+
+          if (isMoveMode) {
+            const moveColor = (pendingMoves.moveColor || 'any')
+              .toString()
+              .toLowerCase()
+            if (moveColor === 'any' || moveColor === color) {
+              token.classList.add('task-token--move-mode')
+            }
+          }
+
+          const clickHandler = (e) => {
+            e.stopPropagation()
+            this._handleTaskTokenClick(token, primaryTokenData)
+          }
+          token.addEventListener('click', clickHandler)
+          token._clickHandler = clickHandler
+        }
+
         tokensContainer.appendChild(token)
       })
 
       console.log(
-        'completed (grouped) tokens rendered:',
+        `${location} (grouped) tokens rendered:`,
         presentColors.map((c) => `${c}=${groups[c].count}`).join(', '),
+      )
+    },
+
+    _getGroupedTaskTokenForClick: function (tokens) {
+      const list = Array.isArray(tokens) ? tokens : []
+      const pendingMoves = this.gamedatas?.pendingTaskMoves
+      const movedIds = new Set(
+        Array.isArray(pendingMoves?.moves)
+          ? pendingMoves.moves.map((m) => String(m?.tokenId))
+          : [],
+      )
+
+      return (
+        list.find((t) => t?.token_id != null && !movedIds.has(String(t.token_id))) ||
+        list[0] ||
+        null
       )
     },
 

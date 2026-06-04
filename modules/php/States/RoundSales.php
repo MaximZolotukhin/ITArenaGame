@@ -47,8 +47,12 @@ class RoundSales extends GameState
             $salesTrackValue = $gameData !== null && isset($gameData['incomeTrack'])
                 ? (int) $gameData['incomeTrack']
                 : (int) $this->game->playerEnergy->get($playerId);
+            $salesIncomeBonus = $this->game->getSalesDepartmentIncomeBonus($playerId);
             $playerPayouts[$playerId] = [
-                'salesTrackValue' => $salesTrackValue,
+                'baseSalesTrackValue' => $salesTrackValue,
+                'salesIncomeBonus' => $salesIncomeBonus,
+                'salesTrackValue' => $this->game->getEffectiveSalesTrackValue($playerId, $salesTrackValue),
+                'salesDepartmentSpecialistCount' => $this->game->getSalesDepartmentSpecialistCount($playerId),
                 'player_name' => $this->game->getPlayerNameById($playerId),
             ];
         }
@@ -82,6 +86,10 @@ class RoundSales extends GameState
         $salesTrackValue = $gameData !== null && isset($gameData['incomeTrack'])
             ? (int) $gameData['incomeTrack']
             : (int) $this->game->playerEnergy->get($activePlayerId);
+        $baseSalesTrackValue = $salesTrackValue;
+        $salesIncomeBonus = $this->game->getSalesDepartmentIncomeBonus($activePlayerId);
+        $salesTrackValue = $this->game->getEffectiveSalesTrackValue($activePlayerId, $baseSalesTrackValue);
+        $salesDepartmentSpecialistCount = $this->game->getSalesDepartmentSpecialistCount($activePlayerId);
 
         if ($salesTrackValue <= 0) {
             $newBadgers = $this->game->getPlayerBadgersForCheck($activePlayerId);
@@ -89,6 +97,9 @@ class RoundSales extends GameState
                 'player_id' => $activePlayerId,
                 'player_name' => $this->game->getPlayerNameById($activePlayerId),
                 'amount' => 0,
+                'baseSalesTrackValue' => $baseSalesTrackValue,
+                'salesIncomeBonus' => $salesIncomeBonus,
+                'salesDepartmentSpecialistCount' => $salesDepartmentSpecialistCount,
                 'salesTrackValue' => 0,
                 'newValue' => $newBadgers,
             ]);
@@ -106,6 +117,9 @@ class RoundSales extends GameState
                 'player_name' => $this->game->getPlayerNameById($activePlayerId),
                 'amount' => $amount,
                 'track' => $salesTrackValue,
+                'baseSalesTrackValue' => $baseSalesTrackValue,
+                'salesIncomeBonus' => $salesIncomeBonus,
+                'salesDepartmentSpecialistCount' => $salesDepartmentSpecialistCount,
                 'salesTrackValue' => $salesTrackValue,
                 'newValue' => $newBadgers,
                 'i18n' => ['track'],
