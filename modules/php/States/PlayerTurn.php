@@ -127,6 +127,16 @@ class PlayerTurn extends GameState
             'i18n' => ['department_name'],
         ]);
 
+        $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($activePlayerId);
+        if ($pendingTechnicalDevelopment !== null) {
+            $this->notify->player($activePlayerId, 'technicalDevelopmentMovesRequired', '', [
+                'player_id' => $activePlayerId,
+                'move_count' => $pendingTechnicalDevelopment['move_count'],
+                'founder_name' => $pendingTechnicalDevelopment['source_name'],
+                'source_name' => $pendingTechnicalDevelopment['source_name'],
+            ]);
+        }
+
         // ВАЖНО: Разблокируем кнопку «Завершить ход» на клиенте. В PlayerTurn эффекты основателя
         // уже применены на этапе FounderSelection, поэтому только уведомляем.
         $this->notify->player($activePlayerId, 'founderEffectsApplied', '', [
@@ -149,6 +159,7 @@ class PlayerTurn extends GameState
         if ($this->game->hasUnplacedUniversalFounder($activePlayerId)) {
             throw new UserException(clienttranslate('Вы должны разместить карту основателя в один из отделов перед завершением хода'));
         }
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($activePlayerId);
 
         // ВАЖНО: Сохраняем все данные игрока в таблицу player_game_data перед завершением хода
         $this->game->savePlayerGameDataOnTurnEnd($activePlayerId);

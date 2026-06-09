@@ -169,6 +169,7 @@ class RoundHiring extends GameState
             'sergeyHiringDiscountPrice' => self::SERGEY_DISCOUNT_PRICE,
             'pendingTaskSelection' => $pendingTaskSelection,
             'pendingTaskMoves' => $pendingTaskMoves,
+            'pendingTechnicalDevelopmentMoves' => $this->game->getPendingTechnicalDevelopmentMovesData($activePlayerId),
         ];
     }
 
@@ -387,6 +388,7 @@ class RoundHiring extends GameState
                 ];
             }
         }
+        $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
         $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает специалиста за ${badgers} баджерсов'), [
             'player_id' => $playerId,
             'player_name' => $this->game->getPlayerNameById($playerId),
@@ -404,6 +406,7 @@ class RoundHiring extends GameState
             'specialistEffectApplied' => !empty($appliedEffects),
             'appliedEffects' => $appliedEffects,
             'pendingTaskSelection' => $pendingTaskSelection,
+            'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
             'i18n' => ['badgers'],
         ]);
         if ($bonusHireFromHand > 0) {
@@ -441,6 +444,14 @@ class RoundHiring extends GameState
                     ]);
                 }
             }
+        }
+        if ($pendingTechnicalDevelopment !== null) {
+            $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
+                'player_id' => $playerId,
+                'move_count' => $pendingTechnicalDevelopment['move_count'],
+                'founder_name' => $pendingTechnicalDevelopment['source_name'],
+                'source_name' => $pendingTechnicalDevelopment['source_name'],
+            ]);
         }
         return null;
     }
@@ -578,6 +589,7 @@ class RoundHiring extends GameState
                     'founder_name' => $founderName,
                 ];
             }
+            $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
             $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
                 'player_id' => $playerId,
@@ -592,6 +604,7 @@ class RoundHiring extends GameState
                 'specialistEffectApplied' => !empty($allAppliedEffects),
                 'appliedEffects' => $allAppliedEffects,
                 'pendingTaskSelection' => $pendingTaskSelection,
+                'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
                 'i18n' => ['badgers'],
             ]);
             if ($bonusHireFromHand > 0) {
@@ -631,6 +644,14 @@ class RoundHiring extends GameState
                     }
                 }
             }
+            if ($pendingTechnicalDevelopment !== null) {
+                $this->notify->player($playerId, 'technicalDevelopmentMovesRequired', '', [
+                    'player_id' => $playerId,
+                    'move_count' => $pendingTechnicalDevelopment['move_count'],
+                    'founder_name' => $pendingTechnicalDevelopment['source_name'],
+                    'source_name' => $pendingTechnicalDevelopment['source_name'],
+                ]);
+            }
         }
 
         $this->game->globals->set('hiring_confirmed_' . $playerId, '1');
@@ -659,9 +680,22 @@ class RoundHiring extends GameState
                 throw new UserException(clienttranslate('Сначала подтвердите перемещение задач по треку спринта (эффект карты)'));
             }
         }
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($playerId);
         $this->game->savePlayerGameDataOnTurnEnd($playerId);
         $this->game->globals->set('hiring_phase_just_finished', '1');
         return 'toNextPlayer';
+    }
+
+    #[PossibleAction]
+    public function actConfirmTechnicalDevelopmentMoves(int $activePlayerId, string $movesJson): void
+    {
+        $this->game->checkAction('actConfirmTechnicalDevelopmentMoves');
+        $playerId = (int) $activePlayerId;
+        if ($playerId !== (int) $this->game->getActivePlayerId()) {
+            throw new UserException(clienttranslate('Не ваш ход'));
+        }
+
+        $this->game->confirmTechnicalDevelopmentMoves($playerId, $movesJson);
     }
 
     /**

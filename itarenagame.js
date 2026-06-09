@@ -2125,12 +2125,33 @@ define([
                   this.gamedatas.pendingTaskMoves.founderName,
                 )
               }
+              const pendingTechDevelopmentArg =
+                a.pendingTechnicalDevelopmentMoves ?? null
+              if (
+                pendingTechDevelopmentArg &&
+                Number(pendingTechDevelopmentArg.move_count || 0) > 0
+              ) {
+                this._activateTechnicalDevelopmentMoveMode(
+                  Number(pendingTechDevelopmentArg.move_count || 0),
+                  pendingTechDevelopmentArg.source_name ||
+                    pendingTechDevelopmentArg.founder_name ||
+                    _('бонус техотдела'),
+                  {
+                    effectType:
+                      pendingTechDevelopmentArg.effect_type ||
+                      'technical_department_bonus',
+                  },
+                )
+              }
               const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask && Number(hiringPendingTask.amount || 0) > 0
               const mustConfirmTaskMoves =
                 pendingTaskMovesArg &&
                 Number(pendingTaskMovesArg.move_count || 0) > 0
+              const mustConfirmTechDevelopment =
+                pendingTechDevelopmentArg &&
+                Number(pendingTechDevelopmentArg.move_count || 0) > 0
               const amt = Number(hiringPendingTask?.amount ?? 0)
               const hiringTaskBlockMsg =
                 amt === 1
@@ -2146,9 +2167,11 @@ define([
                   ? _(
                       'Сначала подтвердите перемещение задач по треку (эффект карты или навыка)',
                     )
-                  : _(
-                      'Нажмите, когда закончите нанимать (или если не нанимаете)',
-                    )
+                  : mustConfirmTechDevelopment
+                    ? _('Сначала улучшите трек в техотделе')
+                    : _(
+                        'Нажмите, когда закончите нанимать (или если не нанимаете)',
+                      )
               if (
                 this._sergeyHiringDiscountAvailable ||
                 this._sergeyHiringDiscountActive
@@ -2176,7 +2199,10 @@ define([
                 {
                   primary: true,
                   id: 'complete-hiring-phase-button',
-                  disabled: !!mustSelectTasks || !!mustConfirmTaskMoves,
+                  disabled:
+                    !!mustSelectTasks ||
+                    !!mustConfirmTaskMoves ||
+                    !!mustConfirmTechDevelopment,
                   tooltip: completeHiringTooltip,
                 },
               )
@@ -4021,6 +4047,17 @@ define([
     },
 
     _isFounderInSalesDepartmentForPlayer: function (playerId) {
+      return this._isFounderInDepartmentForPlayer(playerId, 'sales-department')
+    },
+
+    _isFounderInTechnicalDepartmentForPlayer: function (playerId) {
+      return this._isFounderInDepartmentForPlayer(
+        playerId,
+        'technical-department',
+      )
+    },
+
+    _isFounderInDepartmentForPlayer: function (playerId, departmentName) {
       const playerData =
         this.gamedatas?.players?.[playerId] ||
         this.gamedatas?.players?.[String(playerId)] ||
@@ -4034,7 +4071,7 @@ define([
       const department = String(founder.department || '')
         .trim()
         .toLowerCase()
-      return department === 'sales-department'
+      return department === String(departmentName || '').trim().toLowerCase()
     },
 
     _getSalesDepartmentSpecialistCountForPlayer: function (playerId) {
@@ -4058,6 +4095,33 @@ define([
       }
 
       if (this._isFounderInSalesDepartmentForPlayer(playerId)) {
+        count += 1
+      }
+
+      return count
+    },
+
+    _getTechnicalDepartmentSpecialistCountForPlayer: function (playerId) {
+      const playerData =
+        this.gamedatas?.players?.[playerId] ||
+        this.gamedatas?.players?.[String(playerId)] ||
+        null
+      if (!playerData) {
+        return this._isFounderInTechnicalDepartmentForPlayer(playerId) ? 1 : 0
+      }
+
+      const details = playerData.playerHiredSpecialistsDetails || {}
+      const technicalDetails = details['technical-department']
+      let count = 0
+      if (Array.isArray(technicalDetails)) {
+        count = technicalDetails.length
+      } else {
+        const hired = playerData.playerHiredSpecialists || {}
+        const technicalCards = hired['technical-department']
+        count = Array.isArray(technicalCards) ? technicalCards.length : 0
+      }
+
+      if (this._isFounderInTechnicalDepartmentForPlayer(playerId)) {
         count += 1
       }
 
@@ -4100,6 +4164,43 @@ define([
       onCell.title = isActive
         ? _('Бонус отдела продаж активен: +2 к доходу')
         : _('Наймите 5 специалистов в отдел продаж, чтобы получить +2 к доходу')
+    },
+
+    _updateTechnicalDepartmentBonusVisual: function (playerId) {
+      const bottom = document.getElementById(
+        'player-department-technical-upgrade',
+      )
+      const offCell = document.getElementById('player-department-technical-off')
+      const onCell = document.getElementById('player-department-technical-on')
+      if (!bottom || !offCell || !onCell) return
+
+      const isActive =
+        this._getTechnicalDepartmentSpecialistCountForPlayer(playerId) >= 5
+      const token =
+        bottom.querySelector('.player-department-technical__token') ||
+        document.createElement('div')
+      token.className = 'player-department-technical__token'
+
+      const targetCell = isActive ? onCell : offCell
+      if (token.parentElement !== targetCell) {
+        targetCell.appendChild(token)
+      }
+
+      bottom.classList.toggle(
+        'player-department-technical-upgrade--active',
+        isActive,
+      )
+      offCell.classList.toggle(
+        'player-department-technical-upgrade__half--active',
+        !isActive,
+      )
+      onCell.classList.toggle(
+        'player-department-technical-upgrade__half--active',
+        isActive,
+      )
+      onCell.title = isActive
+        ? _('Бонус техотдела доступен: улучшите треки техотдела на 2')
+        : _('Соберите 5 карт в техотделе, чтобы улучшить треки техотдела на 2')
     },
 
     _setIncomeTrackCenterValue: function (incomeTrackElement, value) {
@@ -5124,6 +5225,22 @@ define([
         } else {
           this.gamedatas.pendingTaskSelection = null
         }
+        if (
+          args.pendingTechnicalDevelopmentMoves != null &&
+          Number(args.pendingTechnicalDevelopmentMoves.move_count || 0) > 0
+        ) {
+          this._activateTechnicalDevelopmentMoveMode(
+            Number(args.pendingTechnicalDevelopmentMoves.move_count || 0),
+            args.pendingTechnicalDevelopmentMoves.source_name ||
+              args.pendingTechnicalDevelopmentMoves.founder_name ||
+              _('бонус техотдела'),
+            {
+              effectType:
+                args.pendingTechnicalDevelopmentMoves.effect_type ||
+                'technical_department_bonus',
+            },
+          )
+        }
         this._toggleActivePlayerHand(this.player_id)
         this._renderPlayerSpecialists()
         if (this._hiringSelectMode) this._bindHiringCardSelection(true)
@@ -5473,6 +5590,19 @@ define([
               ),
             )
           }
+        } else if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = true
+            completeBtn.setAttribute(
+              'title',
+              _(
+                'Сначала подтвердите перемещение задач по треку (эффект карты или навыка)',
+              ),
+            )
+          }
         } else if (this.gamedatas?.gamestate?.name === 'RoundProjects') {
           ;['projects-pass-button', 'projects-finish-turn-button'].forEach(
             (buttonId) => {
@@ -5684,6 +5814,18 @@ define([
           message: args.message || '',
           sprintPhase: !!args.sprint_phase,
         })
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = true
+            completeBtn.setAttribute(
+              'title',
+              _('Сначала улучшите трек в техотделе'),
+            )
+          }
+        }
         if (this.gamedatas?.gamestate?.name === 'RoundProjects') {
           this._updateProjectTokensPurchaseUI()
         }
@@ -5781,6 +5923,24 @@ define([
         this.isCurrentPlayerActive()
       ) {
         this._updateProjectTokensPurchaseUI()
+      }
+      if (
+        this.gamedatas?.gamestate?.name === 'RoundHiring' &&
+        Number(playerId) === Number(this.player_id)
+      ) {
+        const completeBtn = document.getElementById(
+          'complete-hiring-phase-button',
+        )
+        const hasPendingTaskSelection =
+          !!this.gamedatas?.pendingTaskSelection
+        const hasPendingTaskMoves = !!this.gamedatas?.pendingTaskMoves
+        if (completeBtn && !hasPendingTaskSelection && !hasPendingTaskMoves) {
+          completeBtn.disabled = false
+          completeBtn.setAttribute(
+            'title',
+            _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+          )
+        }
       }
 
       this._updateFinishTurnButtonForTechnicalDevelopment()
@@ -8326,6 +8486,8 @@ define([
         if (handContainer) {
           handContainer.innerHTML = ''
         }
+        this._updateSalesDepartmentBonusVisual(playerId)
+        this._updateTechnicalDepartmentBonusVisual(playerId)
         return
       }
 
@@ -8406,6 +8568,7 @@ define([
         })
       })
       this._updateSalesDepartmentBonusVisual(playerId)
+      this._updateTechnicalDepartmentBonusVisual(playerId)
       const incomeValue = playerData?.incomeTrack ?? playerData?.energy
       if (incomeValue != null) {
         const incomeTrack = document.querySelector('.income-track')

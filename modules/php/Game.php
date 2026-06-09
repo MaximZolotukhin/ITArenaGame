@@ -3328,14 +3328,20 @@ class Game extends \Bga\GameFramework\Table
 
     public function getSalesDepartmentSpecialistCount(int $playerId): int
     {
+        return $this->getDepartmentCardCount($playerId, 'sales-department');
+    }
+
+    public function getDepartmentCardCount(int $playerId, string $department): int
+    {
         $hiredByDept = $this->getPlayerHiredSpecialists($playerId);
-        $salesCards = $hiredByDept['sales-department'] ?? [];
-        $count = is_array($salesCards) ? count($salesCards) : 0;
+        $department = strtolower(trim($department));
+        $cards = $hiredByDept[$department] ?? [];
+        $count = is_array($cards) ? count($cards) : 0;
 
         $founder = $this->getFounderForPlayer($playerId);
         if ($founder !== null) {
-            $department = strtolower(trim((string) ($founder['department'] ?? '')));
-            if ($department === 'sales-department') {
+            $founderDepartment = strtolower(trim((string) ($founder['department'] ?? '')));
+            if ($founderDepartment === $department) {
                 $count++;
             }
         }
@@ -3358,6 +3364,52 @@ class Game extends \Bga\GameFramework\Table
         }
 
         return max(0, $baseValue + $this->getSalesDepartmentIncomeBonus($playerId));
+    }
+
+    /**
+     * Одноразовый бонус техотдела: когда в отделе набирается 5 карт
+     * (нанятые специалисты + основатель), игрок распределяет 2 улучшения
+     * по любым трекам техотдела.
+     *
+     * @return array{move_count:int,source_name:string}|null
+     */
+    public function triggerTechnicalDepartmentBonusIfEligible(int $playerId): ?array
+    {
+        $claimedKey = 'technical_department_bonus_claimed_' . $playerId;
+        if ($this->globals->get($claimedKey, '') === '1') {
+            return null;
+        }
+
+        if ($this->getDepartmentCardCount($playerId, 'technical-department') < 5) {
+            return null;
+        }
+
+        $sourceName = clienttranslate('бонус техотдела');
+        $moveCount = 2;
+        $globalsKey = 'pending_technical_development_moves_' . $playerId;
+        $existingJson = $this->globals->get($globalsKey, null);
+        if ($existingJson !== null && $existingJson !== '') {
+            $existing = json_decode((string) $existingJson, true);
+            if (is_array($existing) && isset($existing['move_count'])) {
+                $moveCount += (int) $existing['move_count'];
+            }
+        }
+        $pending = [
+            'move_count' => $moveCount,
+            'founder_name' => $sourceName,
+            'source_name' => $sourceName,
+            'effect_type' => 'technical_department_bonus',
+        ];
+        $this->globals->set(
+            $globalsKey,
+            json_encode($pending, JSON_UNESCAPED_UNICODE),
+        );
+        $this->globals->set($claimedKey, '1');
+
+        return [
+            'move_count' => $moveCount,
+            'source_name' => $sourceName,
+        ];
     }
 
     /**

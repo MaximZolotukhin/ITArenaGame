@@ -778,6 +778,16 @@
   position: relative;
 }
 
+.player-department-technical-upgrade__half--active {
+  background: rgba(0, 255, 0, 0.12);
+  border-color: rgba(0, 255, 0, 0.65);
+}
+
+.player-department-technical-upgrade--active .player-department-technical__token {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 0 22px rgba(0, 255, 0, 0.45);
+  border-color: rgba(180, 255, 180, 0.8);
+}
+
 .player-department-technical__token {
   width: 38px;
   height: 38px;

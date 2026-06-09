@@ -223,6 +223,16 @@ class FounderSelection extends GameState
             'i18n' => ['department_name'],
         ]);
 
+        $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($activePlayerId);
+        if ($pendingTechnicalDevelopment !== null) {
+            $this->notify->player($activePlayerId, 'technicalDevelopmentMovesRequired', '', [
+                'player_id' => $activePlayerId,
+                'move_count' => $pendingTechnicalDevelopment['move_count'],
+                'founder_name' => $pendingTechnicalDevelopment['source_name'],
+                'source_name' => $pendingTechnicalDevelopment['source_name'],
+            ]);
+        }
+
         // ВАЖНО: После размещения карты применяем эффекты, если activationStage == 'GameSetup'
         $cardId = $founder['id'] ?? null;
         if ($cardId !== null) {
@@ -656,6 +666,7 @@ class FounderSelection extends GameState
                 'amount' => $amount
             ]));
         }
+        $this->game->assertNoPendingTechnicalDevelopmentMoves($activePlayerId);
 
         // ВАЖНО: Сохраняем все данные игрока в таблицу player_game_data перед завершением хода
         $this->game->savePlayerGameDataOnTurnEnd($activePlayerId);
