@@ -12,7 +12,8 @@ use Bga\Games\itarenagame\Game;
  * Фаза «Событие» (Event) раунда.
  *
  * В этой фазе выполняются два действия:
- * 1) Получаем карту(ы) событий текущего раунда — выбираются из колоды и кладутся на стол (location 'table').
+ * 1) Получаем одну карту события текущего раунда — выбирается из колоды по power_round = номер раунда
+ *    и кладётся на стол (location 'table').
  * 2) Бросаем кость и сохраняем выпавшее значение в переменные раунда:
  *    - round_cube_face — индекс грани кубика;
  *    - round_cube_paei_count — количество символов PAEI на грани (1 или 2).
@@ -141,7 +142,7 @@ class RoundEvent extends GameState
             error_log('🎲 RoundEvent::onEnteringState() - Using existing cube face for round ' . $round . ': ' . $cubeFace);
         }
         
-        // Действие 1: карта событий раунда (берётся из колоды, кладётся на стол)
+        // Действие 1: одна карта события раунда (power_round = round, берётся из колоды, кладётся на стол)
         $lastEventCardsRound = (int)$this->game->getGameStateValue('last_event_cards_round', 0);
         if ($lastEventCardsRound !== $round) {
             error_log('🎲 RoundEvent::onEnteringState() - Preparing NEW event cards for round ' . $round);
@@ -154,6 +155,8 @@ class RoundEvent extends GameState
         }
         
         error_log('🎲 RoundEvent::onEnteringState() - FINAL: cubeFace: ' . $cubeFace . ', eventCards: ' . count($eventCards));
+
+        $this->game->applyRoundEventEffectsForPhase('event');
 
         // Сохраняем ключ фазы в глобальную переменную (перевод на клиенте)
         $this->game->globals->set('current_phase_name', 'event');

@@ -87,6 +87,7 @@ class RoundSkills extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'skills');
+        $this->game->applyRoundEventEffectsForPhase('skills');
         return null; // остаёмся в состоянии до действия игрока
     }
 

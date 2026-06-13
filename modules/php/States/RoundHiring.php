@@ -75,7 +75,8 @@ class RoundHiring extends GameState
             // Доп. защита от повреждённых/неинициализированных данных.
             $gameData = [];
         }
-        $hiringTrackValue = $this->game->getHiringTrackValue($activePlayerId);
+        $baseHiringTrackValue = $this->game->getHiringTrackValue($activePlayerId);
+        $hiringTrackValue = $this->game->getSpecialistCardDrawCountForPhase($baseHiringTrackValue, 'hiring');
         // Флаги фазы «Найм» должны быть привязаны к раунду — иначе при refresh страницы/переходах
         // предыдущий раунд может "залипнуть" и игрок не сможет нанимать.
         $phaseRoundKey = 'hiring_phase_round_' . $activePlayerId;
@@ -157,6 +158,7 @@ class RoundHiring extends GameState
             'activePlayerId' => $activePlayerId,
             'currentRoundPlayerOrder' => $roundOrder,
             'hiringTrackValue' => $hiringTrackValue,
+            'baseHiringTrackValue' => $baseHiringTrackValue,
             'recruitingDone' => $recruitingDone,
             'hiringTrackHire' => $hiringTrackHire,
             'badgers' => $badgers,
@@ -176,6 +178,7 @@ class RoundHiring extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'hiring');
+        $this->game->applyRoundEventEffectsForPhase('hiring');
         $round = (int) $this->game->getGameStateValue('round_number');
         $activePlayerIdRaw = $this->game->getActivePlayerId();
         if ($activePlayerIdRaw === null) {
@@ -207,7 +210,10 @@ class RoundHiring extends GameState
         if (!is_array($gameData)) {
             $gameData = [];
         }
-        $count = (int) ($gameData['hiringTrackInterview'] ?? 0);
+        $count = $this->game->getSpecialistCardDrawCountForPhase(
+            (int) ($gameData['hiringTrackInterview'] ?? 0),
+            'hiring',
+        );
         if ($count > 0) {
             $drawn = $this->game->drawFromActiveDeck($count);
             if (!empty($drawn)) {
@@ -261,7 +267,21 @@ class RoundHiring extends GameState
         if ($this->game->globals->get('hiring_recruiting_done_' . $playerId, '') === '1') {
             throw new UserException(clienttranslate('You have already performed recruiting this turn'));
         }
-        $count = $this->game->getHiringTrackValue($playerId);
+        $baseCount = $this->game->getHiringTrackValue($playerId);
+        $count = $this->game->getSpecialistCardDrawCountForPhase($baseCount, 'hiring');
+        if ($count <= 0) {
+            $this->notify->all('specialistsDealtToHand', clienttranslate('${player_name} получает 0 карт из колоды найма (рекрутинг)'), [
+                'player_id' => $playerId,
+                'player_name' => $this->game->getPlayerNameById($playerId),
+                'cardIds' => [],
+                'amount' => 0,
+                'source' => 'hiring_recruiting',
+                'handCardsWithPrices' => [],
+                'i18n' => [],
+            ]);
+            $this->game->globals->set('hiring_recruiting_done_' . $playerId, '1');
+            return null;
+        }
         $drawn = $this->game->drawFromActiveDeck($count);
         if (empty($drawn)) {
             // Не отмечаем recruiting_done, если карты реально не были выданы

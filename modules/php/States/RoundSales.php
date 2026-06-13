@@ -79,6 +79,7 @@ class RoundSales extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'sales');
+        $this->game->applyRoundEventEffectsForPhase('sales');
 
         $activePlayerId = (int) $this->game->getActivePlayerId();
         // Трек продаж из БД (player_game_data.income_track), как и в getArgs

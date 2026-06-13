@@ -91,6 +91,7 @@ class RoundSprint extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'sprint');
+        $this->game->applyRoundEventEffectsForPhase('sprint');
         $aid = (int) $this->game->getActivePlayerId();
         // На входе состояния сбрасываем подтверждения для текущего активного игрока в рамках текущего раунда.
         $round = (int) $this->game->getGameStateValue('round_number');

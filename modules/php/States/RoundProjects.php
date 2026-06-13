@@ -102,6 +102,7 @@ final class RoundProjects extends GameState
     public function onEnteringState(): ?string
     {
         $this->game->globals->set('current_phase_name', 'projects');
+        $this->game->applyRoundEventEffectsForPhase('projects');
         return null;
     }
 

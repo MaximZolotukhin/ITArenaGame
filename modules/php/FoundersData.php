@@ -51,9 +51,9 @@ class FoundersData
             'effect' => ['badger' => '+ 4', 'card' => '+ 4', 'task' => '+ 4', "move_task" => ['move_count' => 4, 'move_color' => 'any']], // Эффект 'task' => '+ 3',
             'department' => 'universal', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Четкий старт. Возьмите 4Б, 4 карты, 4 задачи и передвиньте жетоны задач любых цветов на 3 этапа по треку спринта', // Описание эффекта
+            'effectDescription' => 'Четкий старт. Возьмите 4Б, 4 карты, 4 задачи и передвиньте жетоны задач любых цветов на 4 этапа на панели спринта', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
-            'management' => 'A', // Управление
+            'management' => 'E', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
@@ -76,7 +76,7 @@ class FoundersData
             'department' => 'technical-department', // Отдел
             'activationStage' => 'SprintPhase', // Этап активации эффекта
             'effectDescription' => 'Технологии Бескодов. В каждую фазу "Спринт" улучшите минимальный трек в техотделе на 1 пункт', // Описание эффекта
-            'starterOrFinisher' => 'S', // Стартер или финишер
+            'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
@@ -94,11 +94,11 @@ class FoundersData
             'effect' => null, // Эффект
             'department' => 'universal', // Отдел
             'activationStage' => null, // Этап активации эффекта
-            'effectDescription' => 'Везунчик. Вместо штрафа за карту события в фазу "Итоги" получите 1Б', // Описание эффекта
+            'effectDescription' => 'Везунчик. Можете заплатить 1Б и не получать штраф от события в этом раунде', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
-            'management' => 'I', // Управление
+            'management' => 'E', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
-            'additionalSkill' => null, // Дополнительный навык
+            'additionalSkill' => 'I', // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Nellie.jpg', // Изображение
         ],
@@ -113,11 +113,11 @@ class FoundersData
             'effect' => ['badger' => '+ 2'], // Эффект: 2Б из банка за каждый купленный IT-проект
             'department' => 'sales-department', // Отдел
             'activationStage' => 'ProjectsPhase', // Этап активации эффекта
-            'effectDescription' => 'Пассионарий. Получите 2Б из банка за каждый выполненный IT проект', // Описание эффекта
+            'effectDescription' => 'Пассионарий. Получите 2Б из банка когда выполняете IT проект', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
-            'management' => 'E', // Управление
+            'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
-            'additionalSkill' => null, // Дополнительный навык
+            'additionalSkill' => 'E', // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Roman.jpg', // Изображение
         ],
@@ -132,9 +132,9 @@ class FoundersData
             'effect' => null, // Эффект
             'department' => 'back-office', // Отдел
             'activationStage' => null, // Этап активации эффекта
-            'effectDescription' => 'Личный бренд. В фазу «итоги» активируйте повторно перк 1 карты.(1 карту только 1 раз). Эту карту нельзя уволить.', // Описание эффекта
+            'effectDescription' => 'Личный бренд. В каждой фазе «Найм» активируйте повторно перк 1 карты стоимостью 1,2, 3 или 4Б. (Возьмите 6 прозрачных жетонов маркеров (Можно иконкой) для отметки активированных карт для их маркировки)', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
-            'management' => 'I', // Управление
+            'management' => 'A', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
@@ -151,7 +151,7 @@ class FoundersData
             'effect' => null, // Эффект
             'department' => 'universal', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Оптимизатор. Улучшение отделов для вас, бонус трека x2', // Описание эффекта
+            'effectDescription' => 'Оптимизатор. Когда вы нанимаете 5 карт в отдел, то получите двойной бонус активации отдела. А тот отдел, в котором основатель, можно активировать с 4 карт.', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
@@ -172,7 +172,7 @@ class FoundersData
             'activationStage' => 'GameSetup', // Этап активации эффекта
             'effectDescription' => 'Семья - это всё! Возьмите 8Б из банка и возьмите 8 карт из колоды найма', // Описание эффекта
             'starterOrFinisher' => 'S', // Стартер или финишер
-            'management' => 'A', // Управление
+            'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
@@ -189,9 +189,9 @@ class FoundersData
             'effect' => null, // Эффект
             'department' => 'back-office', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Комбинатор. Бонус IT проектов для вас приносит 7 ресурса', // Описание эффекта
+            'effectDescription' => 'Комбинатор. Когда вы получаете бонус IT проекта за новый цвет, то получите двойной бонус и вы можете выбрать 1 из 3 типов ресурсов(задачи, монеты или смены этапа)', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
-            'management' => 'A', // Управление
+            'management' => 'I', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
@@ -211,14 +211,15 @@ class FoundersData
                     ['track' => 'player-department-back-office-evolution-column-1', 'amount' => '+ 1'], // Трек найма в бэк-офисе
                 ],
                 'updateTrackSprints' => [['amount' => '+ 1']], // Трек спринта (sprint-column-tasks) +1
+                'badger' => '+ 2' // получить 2 битка
             ], // Эффект
             'department' => 'back-office', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Отличник. Улучшите на 1 трек дохода в отделе продаж, на 1 трек найма в бэк–офисе и на 1 трек спринта', // Описание эффекта
+            'effectDescription' => 'Отличник. Улучшите на 1 пункт трек дохода в отделе продаж и на 1 трек найма и 1 трек задач на панели спринта. В начале игры получите 2Б', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
-            'management' => 'E', // Управление
+            'management' => 'A', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты
-            'additionalSkill' => 'A', // Дополнительный навык
+            'additionalSkill' => 'I', // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Lydia.jpg', // Изображение
         ],
@@ -233,11 +234,11 @@ class FoundersData
             'effect' => ['projectTaskCostDiscount' => ['prices' => [3, 4], 'amount' => 1]], // Эффект
             'department' => 'technical-department', // Отдел
             'activationStage' => null, // Этап активации эффекта
-            'effectDescription' => 'Айтишник. IT проекты стоимостью 3 и 4 задачи стоят для вас на 1 задачу меньше', // Описание эффекта
+            'effectDescription' => 'Айтишник. IT проекты стоимостью 3[\/] и 4[\/] стоят на 1[\/] меньше.', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
-            'management' => 'I', // Управление
+            'management' => 'P', // Управление
             'firstGame' => false, // Если первая игра то будет доступны только 4 карты
-            'additionalSkill' => 'E', // Дополнительный навык
+            'additionalSkill' => 'A', // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Ilya.jpg', // Изображение
         ],
@@ -252,8 +253,8 @@ class FoundersData
             'effect' => ['hireAnyForOneBadgerOncePerHiringPhase' => true], // Эффект
             'department' => 'technical-department', // Отдел
             'activationStage' => 'RoundHiring', // Этап активации эффекта
-            'effectDescription' => 'Мастер рекрутинга. Один раз в фазу найма вы можете нанять 1 любую карту за 1Б', // Описание эффекта
-            'starterOrFinisher' => 'S', // Стартер или финишер
+            'effectDescription' => 'Мастер рекрутинга. Один раз в фазу найм вы можете нанять 1 карту стоимостью 2-4 за 1Б или 1 карту стоимостью 5-8 за 2Б', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'A', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => null, // Дополнительный навык
@@ -271,16 +272,188 @@ class FoundersData
             'effect' => [
                 'updateTrack' => [
                     ['track' => 'income-track', 'amount' => '+ 3'], // Трек дохода в отделе продаж, // Эффект
+                    'badger' => '+ 2' // получить 2 битка
                 ]],
             'department' => 'sales-department', // Отдел
             'activationStage' => 'GameSetup', // Этап активации эффекта
-            'effectDescription' => 'Финансист. Улучшите на 3 трек дохода в отделе продаж', // Описание эффекта
+            'effectDescription' => 'Финансист. Улучшите на 3 трек дохода в отделе продаж. В начале игры получите 2Б', // Описание эффекта
             'starterOrFinisher' => 'F', // Стартер или финишер
             'management' => 'E', // Управление
             'firstGame' => true, // Если первая игра то будет доступны только 4 карты
             'additionalSkill' => 'I', // Дополнительный навык
             'victoryPoints' => 0, // Очки победы
             'img' => 'img/founder/Elena.jpg', // Изображение
+        ],
+        13 => [
+            'id' => 13,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Вера', // Имя основателя
+            'color' => '#0000FF', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'back-office', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Оратор. Количество получаемых карт за раунд +1 карту от трека найма (Иконка получения карт) и количество нанимаемых карт за раунд +1 карту от трека найма (Иконка найма)', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
+            'management' => 'I', // Управление
+            'firstGame' => true, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Vera.jpg', // Изображение
+        ],
+        14 => [
+            'id' => 14,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Вячеслав', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'sales-department', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Настольщик. При выполнении общей цели получите Б из банка. 2 игрока 6Б 3Б, 3 игрока 7Б 4Б, 4 игрока 10Б 5Б', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'P', // Управление
+            'firstGame' => true, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => 'I', // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Vyacheslav.jpg', // Изображение
+        ],
+        15 => [
+            'id' => 15,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Иван', // Имя основателя
+            'color' => '#FFFF00', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null, // Эффект
+            'department' => 'universal', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Кредитор. Чтобы получить монеты Б уменьшите свой доход  1 ур. -1 доход = 3Б | 2 ур. -3 доход = 10Б.', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'A', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Ivan.jpg', // Изображение
+        ],
+        16 => [
+            'id' => 16,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Джессика', // Имя основателя
+            'color' => '#FFFF00', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null, // Эффект
+            'department' => 'universal', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Достигатор. Когда выполняете общую цель, можете сразу ее отметить на игровом поле. При подсчете очков за личную цель получите в 2 раза больше ПО ', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'P', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => 'E', // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Jesika.jpg', // Изображение
+        ],
+        17 => [
+            'id' => 17,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Джастин', // Имя основателя
+            'color' => '#008000', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'sales-department', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Нарцисс. Каждый раунд 1 раз в фазу "Продажи" можете за 1Б улучшить любой трек в офисе на 1 пункт, а за 3Б - можете улучшить любой(ые) трек(и) в офисе на 2 пункта', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'I', // Управление
+            'firstGame' => true, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Jastin.jpg', // Изображение
+        ],
+        18 => [
+            'id' => 18,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Екатерина', // Имя основателя
+            'color' => '#0000FF', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'technical-department', // Отдел
+            'activationStage' => 'SprintPhase', // Этап активации эффекта
+            'effectDescription' => 'Гений. В начале игры вместо розового и голубого жетонов возьмите 1 прозрачный жетон маркер и положите в работу на панели спринта. Этот жетон считается задачей любого цвета. После выполнения IT проекта этот жетон возвращается на этап в работе', // Описание эффекта
+            'starterOrFinisher' => 'F', // Стартер или финишер
+            'management' => 'E', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Ekaterina.jpg', // Изображение
+        ],
+        19 => [
+            'id' => 19,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Денис', // Имя основателя
+            'color' => '#0000FF', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'technical-department', // Отдел
+            'activationStage' => 'SprintPhase', // Этап активации эффекта
+            'effectDescription' => 'Доминатор. Возьмите 4 прозрачных жетона маркера (иконка). В свой ход в фазу проекты можете блокировать ими IT-проекты. Когда делаете это то получите 1 смену этапа задачи того цвета, какой цвет IT-проекта.', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'A', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Denis.jpg', // Изображение
+        ],
+        20 => [
+            'id' => 20,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Татьяна', // Имя основателя
+            'color' => '#0000FF', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null,
+            'department' => 'back-office', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Находчивый. 1 раз за раунд в фазу спринт вы можете сбросить 1 карту, чтобы дублировать любую задачу на этапе выполнено на панели спринта.', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'E', // Управление
+            'firstGame' => true, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Tatyana.jpg', // Изображение
+        ],
+        21 => [
+            'id' => 21,
+            'type' => 'founder', // Тип карты
+            'typeName' => 'Основатель', // Тип карты название на русском
+            'price' => null, // Цена карты
+            'name' => 'Ярослава', // Имя основателя
+            'color' => '#FFFF00', // Цвет основателя
+            'speciality' => 'Основатель', // Специальность основателя
+            'effect' => null, // Эффект
+            'department' => 'universal', // Отдел
+            'activationStage' => 'GameSetup', // Этап активации эффекта
+            'effectDescription' => 'Решала. Возьмите планшет обмена и положите поверх базового обмена на планшете игрока', // Описание эффекта
+            'starterOrFinisher' => 'S', // Стартер или финишер
+            'management' => 'I', // Управление
+            'firstGame' => false, // Если первая игра то будет доступны только 4 карты
+            'additionalSkill' => null, // Дополнительный навык
+            'victoryPoints' => 0, // Очки победы
+            'img' => 'img/founder/Yaroslava.jpg', // Изображение
         ],
     ];
 

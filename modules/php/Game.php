@@ -1112,6 +1112,122 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Возвращает структурированные эффекты текущих карт событий,
+     * которые должны сработать в указанной фазе раунда.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getRoundEventEffectsForPhase(string $phaseKey): array
+    {
+        $phaseKey = strtolower(trim($phaseKey));
+        if ($phaseKey === '') {
+            return [];
+        }
+
+        $effects = [];
+        foreach ($this->getRoundEventCards() as $eventCard) {
+            $cardPhase = strtolower(trim((string) ($eventCard['phase'] ?? '')));
+            if ($cardPhase !== $phaseKey) {
+                continue;
+            }
+
+            $effect = $eventCard['effect'] ?? null;
+            if (!is_array($effect)) {
+                continue;
+            }
+
+            if (isset($effect['type'])) {
+                $effect['event_card_id'] = (int) ($eventCard['card_type_arg'] ?? $eventCard['type_arg'] ?? 0);
+                $effect['event_card_name'] = (string) ($eventCard['name'] ?? '');
+                $effects[] = $effect;
+                continue;
+            }
+
+            foreach ($effect as $item) {
+                if (!is_array($item) || !isset($item['type'])) {
+                    continue;
+                }
+                $item['event_card_id'] = (int) ($eventCard['card_type_arg'] ?? $eventCard['type_arg'] ?? 0);
+                $item['event_card_name'] = (string) ($eventCard['name'] ?? '');
+                $effects[] = $item;
+            }
+        }
+
+        return $effects;
+    }
+
+    public function getSpecialistCardDrawCountForPhase(int $baseCount, string $phaseKey): int
+    {
+        $result = $baseCount;
+        foreach ($this->getRoundEventEffectsForPhase($phaseKey) as $effect) {
+            if (($effect['type'] ?? '') === 'specialist_card_draw_delta') {
+                $result += (int) ($effect['amount'] ?? 0);
+            }
+        }
+
+        return max(0, $result);
+    }
+
+    /**
+     * Применяет мгновенные эффекты текущих карт событий для указанной фазы.
+     * Повторный вызов в том же раунде не применит уже обработанный эффект повторно.
+     */
+    public function applyRoundEventEffectsForPhase(string $phaseKey): void
+    {
+        $phaseKey = strtolower(trim($phaseKey));
+        if ($phaseKey === '') {
+            return;
+        }
+
+        $round = (int) $this->getGameStateValue('round_number');
+        foreach ($this->getRoundEventEffectsForPhase($phaseKey) as $effect) {
+            $type = (string) ($effect['type'] ?? '');
+            if ($type === '') {
+                continue;
+            }
+            $eventCardId = (int) ($effect['event_card_id'] ?? 0);
+            $guardKey = 'round_event_effect_applied_' . $round . '_' . $phaseKey . '_' . $eventCardId . '_' . $type;
+            if ($this->globals->get($guardKey, '') === '1') {
+                continue;
+            }
+
+            if ($type === 'all_players_badgers_by_paei') {
+                $amount = $this->getRoundCubePaeiCount();
+                if ($amount <= 0) {
+                    $this->globals->set($guardKey, '1');
+                    continue;
+                }
+                $sourceName = (string) ($effect['event_card_name'] ?? clienttranslate('карта события'));
+                foreach (array_keys($this->loadPlayersBasicInfos()) as $playerIdRaw) {
+                    $playerId = (int) $playerIdRaw;
+                    $oldValue = $this->getPlayerBadgersForCheck($playerId);
+                    if (!$this->withdrawBadgersFromBank($amount)) {
+                        continue;
+                    }
+                    $this->addPlayerBadgers($playerId, $amount);
+                    $newValue = $this->getPlayerBadgersForCheck($playerId);
+                    $this->notify->all(
+                        'badgersChanged',
+                        clienttranslate('${player_name} получает ${amount}Б благодаря событию «${source_name}»'),
+                        [
+                            'player_id' => $playerId,
+                            'player_name' => $this->getPlayerNameById($playerId),
+                            'action_text' => clienttranslate('получает'),
+                            'amount' => $amount,
+                            'source_name' => $sourceName,
+                            'oldValue' => $oldValue,
+                            'newValue' => $newValue,
+                            'badgersSupply' => $this->getBadgersSupply(),
+                            'i18n' => ['action_text', 'source_name'],
+                        ],
+                    );
+                }
+                $this->globals->set($guardKey, '1');
+            }
+        }
+    }
+
+    /**
      * Возвращает данные по доступной валюте "Баджерс".
      *
      * @return array<int, array<string, mixed>>
@@ -2497,6 +2613,12 @@ class Game extends \Bga\GameFramework\Table
         return $this->getRoundEventCards();
     }
 
+    /**
+     * Выбирает одну карту события для текущего раунда.
+     * Карта должна иметь power_round, равный номеру раунда.
+     *
+     * @return list<int>
+     */
     private function selectEventCardIdsForRound(int $round): array
     {
         $deckCards = array_values($this->eventDeck->getCardsInLocation('deck'));
@@ -2504,158 +2626,22 @@ class Game extends \Bga\GameFramework\Table
             return [];
         }
 
-        $eligibleCardsSets = [];
-
-        if ($round === 1 || $round === 2) {
-            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 1;
-            }));
-
-            if (empty($eligibleCards)) {
-                $eligibleCards = $deckCards;
+        $eligibleCards = array_values(array_filter($deckCards, static function (array $card) use ($round): bool {
+            $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
+            if ($data === null) {
+                return false;
             }
 
-            $index = bga_rand(0, count($eligibleCards) - 1);
-            return [(int)$eligibleCards[$index]['id']];
+            return (int)($data['power_round'] ?? 0) === $round;
+        }));
+
+        if (empty($eligibleCards)) {
+            $eligibleCards = $deckCards;
         }
 
-        if ($round === 4) {
-            $eligibleCards = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 3; // Может быть только 3
-            }));
+        $index = bga_rand(0, count($eligibleCards) - 1);
 
-            if (empty($eligibleCards)) {
-                $eligibleCards = $deckCards;
-            }
-
-            $index = bga_rand(0, count($eligibleCards) - 1);
-            return [(int)$eligibleCards[$index]['id']];
-        }
-
-        if ($round === 3) {
-            $firstPool = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 1;
-            }));
-
-            $secondPool = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 2;
-            }));
-
-            $selectedIds = [];
-
-            if (!empty($firstPool)) {
-                $index = bga_rand(0, count($firstPool) - 1);
-                $selectedIds[] = (int)$firstPool[$index]['id'];
-                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => (int)$card['id'] !== $selectedIds[0]));
-            }
-
-            if (!empty($secondPool)) {
-                $secondPool = array_values(array_filter($deckCards, static function (array $card) use ($selectedIds): bool {
-                    if (in_array((int)$card['id'], $selectedIds, true)) {
-                        return false;
-                    }
-                    $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                    if ($data === null) {
-                        return false;
-                    }
-                    return (int)($data['power_round'] ?? 0) === 2;
-                }));
-
-                if (!empty($secondPool)) {
-                    $index = bga_rand(0, count($secondPool) - 1);
-                    $selectedIds[] = (int)$secondPool[$index]['id'];
-                }
-            }
-
-            if (empty($selectedIds) && !empty($deckCards)) {
-                $index = bga_rand(0, count($deckCards) - 1);
-                $selectedIds[] = (int)$deckCards[$index]['id'];
-                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => !in_array((int)$card['id'], $selectedIds, true)));
-            }
-
-            if (count($selectedIds) < 2 && !empty($deckCards)) {
-                $index = bga_rand(0, count($deckCards) - 1);
-                $selectedIds[] = (int)$deckCards[$index]['id'];
-            }
-
-            return $selectedIds;
-        }
-
-        if ($round === 5 || $round === 6) {
-            $powerTwoPool = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 2;
-            }));
-
-            $powerThreePool = array_values(array_filter($deckCards, static function (array $card): bool {
-                $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                if ($data === null) {
-                    return false;
-                }
-                return (int)($data['power_round'] ?? 0) === 3;
-            }));
-
-            $selectedIds = [];
-
-            if (!empty($powerTwoPool)) {
-                $index = bga_rand(0, count($powerTwoPool) - 1);
-                $selectedIds[] = (int)$powerTwoPool[$index]['id'];
-                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => (int)$card['id'] !== $selectedIds[0]));
-            }
-
-            if (!empty($powerThreePool)) {
-                $powerThreePool = array_values(array_filter($deckCards, static function (array $card) use ($selectedIds): bool {
-                    if (in_array((int)$card['id'], $selectedIds, true)) {
-                        return false;
-                    }
-                    $data = EventCardsData::getCard((int)($card['type_arg'] ?? 0));
-                    if ($data === null) {
-                        return false;
-                    }
-                    return (int)($data['power_round'] ?? 0) === 3;
-                }));
-
-                if (!empty($powerThreePool)) {
-                    $index = bga_rand(0, count($powerThreePool) - 1);
-                    $selectedIds[] = (int)$powerThreePool[$index]['id'];
-                }
-            }
-
-            if (empty($selectedIds) && !empty($deckCards)) {
-                $index = bga_rand(0, count($deckCards) - 1);
-                $selectedIds[] = (int)$deckCards[$index]['id'];
-                $deckCards = array_values(array_filter($deckCards, static fn(array $card): bool => !in_array((int)$card['id'], $selectedIds, true)));
-            }
-
-            if (count($selectedIds) < 2 && !empty($deckCards)) {
-                $index = bga_rand(0, count($deckCards) - 1);
-                $selectedIds[] = (int)$deckCards[$index]['id'];
-            }
-
-            return $selectedIds;
-        }
-
-        $index = bga_rand(0, count($deckCards) - 1);
-        return [(int)$deckCards[$index]['id']];
+        return [(int)$eligibleCards[$index]['id']];
     }
 
     /**

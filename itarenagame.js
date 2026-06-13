@@ -4996,6 +4996,34 @@ define([
 
       // Если это текущий игрок - обновляем данные и рендерим карты
       if (Number(playerId) === Number(this.player_id)) {
+        const amount = Number(args.amount ?? cardIds.length ?? 0)
+        const source = args.source || ''
+        const getDealtMessage = () => {
+          if (source === 'hiring_recruiting') {
+            return typeof _ !== 'undefined'
+              ? _('Рекрутинг: вы получили ${n} карт сотрудников').replace(
+                  '${n}',
+                  String(amount),
+                )
+              : `Рекрутинг: +${amount} карт сотрудников`
+          }
+
+          const founderName =
+            args.founder_name || args.specialist_name || 'Карта'
+          return `${founderName}: +${amount} карт специалистов`
+        }
+
+        if (cardIds.length === 0) {
+          if (
+            args.handCardsWithPrices &&
+            Array.isArray(args.handCardsWithPrices)
+          ) {
+            this._hiringHandCardsWithPrices = args.handCardsWithPrices
+          }
+          this.showMessage(getDealtMessage(), 'info')
+          return
+        }
+
         // Получаем данные карт из SpecialistsData
         let allSpecialists = this.gamedatas.specialists || []
 
@@ -5104,27 +5132,7 @@ define([
         }, 150)
 
         // Показываем сообщение
-        const amount = args.amount || cardIds.length || 0
-        const source = args.source || ''
-
-        let message = ''
-        if (source === 'hiring_recruiting') {
-          // Сообщение именно для рекрутинга по треку найма
-          message =
-            typeof _ !== 'undefined'
-              ? _('Рекрутинг: вы получили ${n} карт сотрудников').replace(
-                  '${n}',
-                  String(amount),
-                )
-              : `Рекрутинг: +${amount} карт сотрудников`
-        } else {
-          // Сообщение по умолчанию (эффекты основателей/навыков)
-          const founderName =
-            args.founder_name || args.specialist_name || 'Карта'
-          message = `${founderName}: +${amount} карт специалистов`
-        }
-
-        this.showMessage(message, 'info')
+        this.showMessage(getDealtMessage(), 'info')
       } else {
         console.log(
           '🎴 Notification is for another player:',
@@ -6475,17 +6483,23 @@ define([
           ? card.img
           : `${g_gamethemeurl}${card.img}`
         : ''
+      const safeName = this._escapeHtmlForHint(card.name || '')
+      const effectDescription = String(
+        card.effectDescription || card.effect_description || '',
+      ).trim()
+      const effectDescriptionBlock = effectDescription
+        ? `<div class="specialist-card__effect-description">${this._escapeHtmlForHint(effectDescription)}</div>`
+        : ''
 
       // Убраны подписи (overlay), только изображение и галочка
       cardDiv.innerHTML = `
         <div class="specialist-card__inner">
           ${
             imageUrl
-              ? `<img src="${imageUrl}" alt="${
-                  card.name || ''
-                }" class="specialist-card__image" />`
+              ? `<img src="${imageUrl}" alt="${safeName}" class="specialist-card__image" />`
               : ''
           }
+          ${effectDescriptionBlock}
           <div class="specialist-card__check">✓</div>
         </div>
       `
@@ -6800,16 +6814,22 @@ define([
           ? card.img
           : `${g_gamethemeurl}${card.img}`
         : ''
+      const safeName = this._escapeHtmlForHint(card.name || '')
+      const effectDescription = String(
+        card.effectDescription || card.effect_description || '',
+      ).trim()
+      const effectDescriptionBlock = effectDescription
+        ? `<div class="specialist-card__effect-description">${this._escapeHtmlForHint(effectDescription)}</div>`
+        : ''
 
       cardDiv.innerHTML = `
         <div class="specialist-card__inner">
           ${
             imageUrl
-              ? `<img src="${imageUrl}" alt="${
-                  card.name || ''
-                }" class="specialist-card__image" />`
+              ? `<img src="${imageUrl}" alt="${safeName}" class="specialist-card__image" />`
               : ''
           }
+          ${effectDescriptionBlock}
         </div>
       `
 
@@ -7941,7 +7961,7 @@ define([
             cardData && typeof cardData.power_round !== 'undefined'
               ? cardData.power_round
               : '—'
-          const phase = cardData?.phase || '—'
+          const phase = this._getRoundPhaseDisplayName(cardData?.phase)
           const effectText =
             cardData?.effect_description || cardData?.effect || '—'
 
@@ -8010,6 +8030,26 @@ define([
         return this.gamedatas.eventCards[cardTypeArg]
       }
       return null
+    },
+    _getRoundPhaseDisplayName: function (phaseKey) {
+      const key = String(phaseKey || '').trim()
+      if (!key) return '—'
+
+      const phase = (this.gamedatas?.roundPhases || []).find(
+        (item) => item && item.key === key,
+      )
+      if (phase?.name) return phase.name
+
+      const fallbackNames = {
+        event: _('Событие'),
+        skills: _('Навыки'),
+        hiring: _('Найм'),
+        sales: _('Продажи'),
+        sprint: _('Спринт'),
+        projects: _('Проекты'),
+      }
+
+      return fallbackNames[key] || key
     },
     _renderBadgers: function (badgers) {
       const panelBody = document.querySelector('.badgers-panel__body')
