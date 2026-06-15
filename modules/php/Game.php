@@ -1215,6 +1215,53 @@ class Game extends \Bga\GameFramework\Table
                             'action_text' => clienttranslate('получает'),
                             'amount' => $amount,
                             'source_name' => $sourceName,
+                            'founder_name' => $sourceName,
+                            'oldValue' => $oldValue,
+                            'newValue' => $newValue,
+                            'badgersSupply' => $this->getBadgersSupply(),
+                            'i18n' => ['action_text', 'source_name'],
+                        ],
+                    );
+                }
+                $this->globals->set($guardKey, '1');
+            } elseif ($type === 'all_players_badgers_delta') {
+                $amount = (int) ($effect['amount'] ?? 0);
+                if ($amount === 0) {
+                    $this->globals->set($guardKey, '1');
+                    continue;
+                }
+                $sourceName = (string) ($effect['event_card_name'] ?? clienttranslate('карта события'));
+                foreach (array_keys($this->loadPlayersBasicInfos()) as $playerIdRaw) {
+                    $playerId = (int) $playerIdRaw;
+                    $oldValue = $this->getPlayerBadgersForCheck($playerId);
+                    if ($amount > 0) {
+                        if (!$this->withdrawBadgersFromBank($amount)) {
+                            continue;
+                        }
+                        $this->addPlayerBadgers($playerId, $amount);
+                        $actualAmount = $amount;
+                        $actionText = clienttranslate('получает');
+                        $message = clienttranslate('${player_name} получает ${amount}Б благодаря событию «${source_name}»');
+                    } else {
+                        $actualAmount = min(abs($amount), $oldValue);
+                        if ($actualAmount <= 0) {
+                            continue;
+                        }
+                        $this->deductPlayerBadgers($playerId, $actualAmount);
+                        $actionText = clienttranslate('платит');
+                        $message = clienttranslate('${player_name} платит ${amount}Б в банк благодаря событию «${source_name}»');
+                    }
+                    $newValue = $this->getPlayerBadgersForCheck($playerId);
+                    $this->notify->all(
+                        'badgersChanged',
+                        $message,
+                        [
+                            'player_id' => $playerId,
+                            'player_name' => $this->getPlayerNameById($playerId),
+                            'action_text' => $actionText,
+                            'amount' => $actualAmount,
+                            'source_name' => $sourceName,
+                            'founder_name' => $sourceName,
                             'oldValue' => $oldValue,
                             'newValue' => $newValue,
                             'badgersSupply' => $this->getBadgersSupply(),

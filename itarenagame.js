@@ -3488,12 +3488,17 @@ define([
         (args.skill_key === 'frugality' ? _('Получите 3 баджерса') : '')
       const newValue = Number(args.newValue || 0)
       const oldValue = Number(args.oldValue || 0)
+      const effectiveAmount =
+        Number.isFinite(newValue) && Number.isFinite(oldValue)
+          ? newValue - oldValue
+          : amount
 
       console.log('💰 Badgers changed:', {
         playerId,
         oldValue,
         newValue,
         amount,
+        effectiveAmount,
         founderName,
         skillName,
         skillDescription,
@@ -3550,15 +3555,21 @@ define([
       // Всегда перерисовываем панель (в т.ч. после ранних return — иначе «залипает» чужая сумма)
       this._renderPlayerMoney(this.gamedatas.players, playerId)
 
-      const actionText = amount > 0 ? '+' : ''
+      const actionText = effectiveAmount > 0 ? '+' : ''
       if (isFromSkill && (skillDescription || skillName)) {
         if (skillDescription) {
           this.showMessage(skillDescription, 'info')
         } else {
-          this.showMessage(`${skillName}: ${actionText}${amount}Б`, 'info')
+          this.showMessage(
+            `${skillName}: ${actionText}${effectiveAmount}Б`,
+            'info',
+          )
         }
-      } else if (amount !== 0) {
-        this.showMessage(`${founderName}: ${actionText}${amount}Б`, 'info')
+      } else if (effectiveAmount !== 0) {
+        this.showMessage(
+          `${founderName}: ${actionText}${effectiveAmount}Б`,
+          'info',
+        )
       }
     },
 
@@ -7964,9 +7975,18 @@ define([
           const phase = this._getRoundPhaseDisplayName(cardData?.phase)
           const effectText =
             cardData?.effect_description || cardData?.effect || '—'
+          const hasEffect =
+            typeof cardData?.effect !== 'undefined' && cardData.effect !== null
 
           return `
             <div class="event-card">
+              ${
+                hasEffect
+                  ? `<div class="event-card__effect-check" title="${_(
+                      'Эффект активен',
+                    )}">&#10003;</div>`
+                  : ''
+              }
               <div class="event-card__badge">${_('Карта')} ${index + 1}</div>
               ${
                 imageUrl

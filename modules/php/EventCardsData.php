@@ -31,11 +31,11 @@ class EventCardsData
                 'phase' => 'hiring',
                 'effect' => ['type' => 'specialist_card_draw_delta', 'amount' => -2],
                 'effect_description' => 'Все игроки берут на 2 карты меньше в этом раунде',
-                'penalty_first' => 'штрафа нет',
-                'penalty_second' => 'штрафа нет',
-                'penalty_third' => 'штрафа нет',
+                'penalty_first' => 'not',
+                'penalty_second' => 'not',
+                'penalty_third' => 'not',
                 'type' => 'найм',
-            ],
+            ], // +
             2 => [
                 'card_type' => 'event',
                 'card_type_arg' => 2,
@@ -45,13 +45,13 @@ class EventCardsData
                 'power_round' => 4,
                 'description' => 'Специалисты массово переходят в новые сферы, оставляя компании без кандидатов',
                 'phase' => 'hiring',
-                'effect' => ['type' => 'specialist_card_draw_delta', 'amount' => -2],
-                'effect_description' => 'Все игроки берут на 2 карты меньше в этом раунде',
-                'penalty_first' => '-1',
-                'penalty_second' => '-1',
-                'penalty_third' => '-1',
-                'type' => 'итоги',
-            ],
+                'effect' => null,
+                'effect_description' => 'Все игроки могут сделать только 1 найм в этом раунде. Найм карты в этом раунде стоит 2 раза дороже ',
+                'penalty_first' => 'not',
+                'penalty_second' => 'not',
+                'penalty_third' => 'not',
+                'type' => 'найм',
+            ], // +
             3 => [
                 'card_type' => 'event',
                 'card_type_arg' => 3,
@@ -67,7 +67,7 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'найм',
-            ],
+            ], // +
             4 => [
                 'card_type' => 'event',
                 'card_type_arg' => 4,
@@ -83,7 +83,7 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'найм',
-            ],
+            ], // +
             5 => [
                 'card_type' => 'event',
                 'card_type_arg' => 5,
@@ -94,12 +94,12 @@ class EventCardsData
                 'description' => 'Благодаря обучению и труду вас ждет награда и успех',
                 'phase' => 'event',
                 'effect' => ['type' => 'all_players_badgers_by_paei'],
-                'effect_description' => 'Все игроки получают столько Баджесров, сколько символов выпало на кости PAEI',
+                'effect_description' => 'Все игроки получают столько Б, сколько символов выпало на кости PAEI',
                 'penalty_first' => 'not',
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'события',
-            ], 
+            ], // +
             6 => [
                 'card_type' => 'event',
                 'card_type_arg' => 6,
@@ -109,13 +109,13 @@ class EventCardsData
                 'power_round' => 1,
                 'description' => 'Сразу несколько крупных компаний пострадали от кибератаки, расходы на защиту неизбежны',
                 'phase' => 'event',
-                'effect' => null,
+                'effect' => ['type' => 'all_players_badgers_delta', 'amount' => -1],
                 'effect_description' => 'Все игроки платят в банк - 1Б',
-                'penalty_first' => 'not',
-                'penalty_second' => 'not',
-                'penalty_third' => 'not',
+                'penalty_first' => '-1',
+                'penalty_second' => '-1',
+                'penalty_third' => '-2',
                 'type' => 'конец раунда',
-            ],
+            ], // +(-) подумать что штрафы
             7 => [
                 'card_type' => 'event',
                 'card_type_arg' => 7,
@@ -124,14 +124,14 @@ class EventCardsData
                 'image_url' => 'img/event_card/1/4.png',
                 'power_round' => 1,
                 'description' => 'Хорошая погода  позитивно повлияла на настроение сотрудников и продуктивность выросла',
-                'phase' => 'sprint',
+                'phase' => 'event',
                 'effect' => null,
                 'effect_description' => 'Все игроки получают столько задач в «бэклог» на треке спринта, сколько символов выпало на кости PAEI',
                 'penalty_first' => 'not',
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'события',
-            ],
+            ], // +
             8 => [
                 'card_type' => 'event',
                 'card_type_arg' => 8,
@@ -147,7 +147,7 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'найм',
-            ],
+            ], // +
             9 => [
                 'card_type' => 'event',
                 'card_type_arg' => 9,
@@ -163,7 +163,7 @@ class EventCardsData
                 'penalty_second' => 'not',
                 'penalty_third' => 'not',
                 'type' => 'найм',
-            ],
+            ], // +
             10 => [
                 'card_type' => 'event',
                 'card_type_arg' => 10,
@@ -176,10 +176,10 @@ class EventCardsData
                 'effect' => null,
                 'effect_description' => 'Все игроки могут договориться и сбросить по 2 карты с руки, иначе разыграйте карту события силой 4',
                 'penalty_first' => 'not',
-                'penalty_second' => 'not',
-                'penalty_third' => 'not',
+                'penalty_second' => '-1',
+                'penalty_third' => '-1',
                 'type' => 'события',
-            ],
+            ], // +(-) подумать что штрафы
             11 => [
                 'card_type' => 'event',
                 'card_type_arg' => 11,
