@@ -36,6 +36,7 @@ use Bga\Games\itarenagame\Effects\MoveTaskEffectHandler;
 use Bga\Games\itarenagame\Effects\TrackEffectHandler;
 use Bga\Games\itarenagame\Effects\UpdateTrackEffectHandler;
 use Bga\Games\itarenagame\Effects\MinTechDevTrackEffectHandler;
+use Bga\Games\itarenagame\Effects\TaskGiftPlayerEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -1960,6 +1961,7 @@ class Game extends \Bga\GameFramework\Table
             'badger' => new BadgerEffectHandler($this),
             'card' => new CardEffectHandler($this),
             'task' => new TaskEffectHandler($this),
+            'task_gift_player' => new TaskGiftPlayerEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
@@ -2358,10 +2360,32 @@ class Game extends \Bga\GameFramework\Table
 
         $appliedEffects = $this->applyCardEffects($playerId, $effect, $card);
 
-        if (!empty($appliedEffects)) {
+        if ($this->hasMeaningfulAppliedEffects($appliedEffects)) {
             $this->globals->set($appliedKey, '1');
         }
         return $appliedEffects;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $appliedEffects
+     */
+    private function hasMeaningfulAppliedEffects(array $appliedEffects): bool
+    {
+        foreach ($appliedEffects as $eff) {
+            if (!is_array($eff)) {
+                continue;
+            }
+            $type = (string) ($eff['type'] ?? '');
+            if ($type === 'task' || $type === 'task_gift_player') {
+                if ((int) ($eff['amount'] ?? 0) > 0) {
+                    return true;
+                }
+                continue;
+            }
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -3084,6 +3108,126 @@ class Game extends \Bga\GameFramework\Table
         error_log("addTaskTokens - Player $playerId: Added " . count($addedTokens) . " task tokens");
         
         return $addedTokens;
+    }
+
+    /**
+     * Возвращает ожидающий выбор задач для игрока (эффект task / task_gift_player).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getPendingTaskSelectionForPlayer(int $playerId): ?array
+    {
+        $pendingJson = $this->globals->get('pending_task_selection_' . $playerId, '');
+        if ($pendingJson === null || $pendingJson === '') {
+            return null;
+        }
+        $decoded = json_decode((string) $pendingJson, true);
+        if (!is_array($decoded) || !isset($decoded['amount']) || (int) $decoded['amount'] <= 0) {
+            return null;
+        }
+
+        return [
+            'amount' => (int) $decoded['amount'],
+            'gift_amount' => (int) ($decoded['gift_amount'] ?? 0),
+            'requires_target_player' => !empty($decoded['requires_target_player']),
+            'founder_name' => (string) ($decoded['founder_name'] ?? ''),
+            'founder_id' => (int) ($decoded['founder_id'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return array<int>
+     */
+    public function getOtherPlayerIds(int $playerId): array
+    {
+        $playerId = (int) $playerId;
+        $ids = [];
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $otherIdRaw) {
+            $otherId = (int) $otherIdRaw;
+            if ($otherId > 0 && $otherId !== $playerId) {
+                $ids[] = $otherId;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Подтверждает выбор задач с подарком другому игроку (эффект task_gift_player).
+     *
+     * @return array{self_tokens: array, gift_tokens: array, target_player_id: int}
+     */
+    public function confirmTaskGiftPlayerSelection(
+        int $playerId,
+        array $selectedTasks,
+        int $targetPlayerId,
+        array $giftTasks,
+    ): array {
+        $pending = $this->getPendingTaskSelectionForPlayer($playerId);
+        if ($pending === null || empty($pending['requires_target_player'])) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающего выбора задач с подарком игроку'));
+        }
+
+        $requiredAmount = (int) $pending['amount'];
+        $giftAmount = (int) ($pending['gift_amount'] ?? 1);
+        if ($giftAmount <= 0) {
+            $giftAmount = 1;
+        }
+
+        $totalSelected = 0;
+        foreach ($selectedTasks as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+            $quantity = (int) ($task['quantity'] ?? 0);
+            if ($quantity < 0) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Количество задач не может быть отрицательным'));
+            }
+            $totalSelected += $quantity;
+        }
+        if ($totalSelected !== $requiredAmount) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Вы должны выбрать ровно ${amount} задач', [
+                'amount' => $requiredAmount,
+            ]));
+        }
+
+        $giftTotal = 0;
+        foreach ($giftTasks as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+            $quantity = (int) ($task['quantity'] ?? 0);
+            if ($quantity < 0) {
+                throw new \Bga\GameFramework\UserException(clienttranslate('Количество задач не может быть отрицательным'));
+            }
+            $giftTotal += $quantity;
+        }
+        if ($giftTotal !== $giftAmount) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Вы должны выбрать ровно ${amount} задач для другого игрока', [
+                'amount' => $giftAmount,
+            ]));
+        }
+
+        $targetPlayerId = (int) $targetPlayerId;
+        if ($targetPlayerId <= 0 || $targetPlayerId === $playerId) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Выберите другого игрока'));
+        }
+        if (!in_array($targetPlayerId, $this->getOtherPlayerIds($playerId), true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверный игрок'));
+        }
+
+        $selfTokens = $this->addTaskTokens($playerId, $selectedTasks, 'backlog');
+        $giftTokens = $this->addTaskTokens($targetPlayerId, $giftTasks, 'backlog');
+        $this->globals->set('pending_task_selection_' . $playerId, null);
+
+        return [
+            'self_tokens' => $selfTokens,
+            'gift_tokens' => $giftTokens,
+            'target_player_id' => $targetPlayerId,
+            'founder_name' => (string) ($pending['founder_name'] ?? ''),
+            'amount' => $requiredAmount,
+            'gift_amount' => $giftAmount,
+        ];
     }
     
     /**
@@ -5615,6 +5759,7 @@ class Game extends \Bga\GameFramework\Table
         require_once $dir . '/BadgerEffectHandler.php';
         require_once $dir . '/CardEffectHandler.php';
         require_once $dir . '/TaskEffectHandler.php';
+        require_once $dir . '/TaskGiftPlayerEffectHandler.php';
         require_once $dir . '/MoveTaskEffectHandler.php';
         require_once $dir . '/TrackEffectHandler.php';
         require_once $dir . '/UpdateTrackEffectHandler.php';

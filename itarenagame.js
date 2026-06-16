@@ -642,6 +642,29 @@ define([
                     </div>
                   </div>
                 </div>
+                <div id="task-gift-player-modal" class="task-gift-player-modal" aria-hidden="true">
+                  <div class="task-gift-player-modal__content">
+                    <div class="task-gift-player-modal__header">
+                      <div class="task-gift-player-modal__title" id="task-gift-player-modal-title"></div>
+                      <div class="task-gift-player-modal__subtitle" id="task-gift-player-modal-subtitle"></div>
+                    </div>
+                    <div class="task-gift-player-modal__section">
+                      <div class="task-gift-player-modal__section-title">${_('Ваши задачи в бэклог')}</div>
+                      <div class="task-gift-player-modal__tasks" id="task-gift-player-modal-self-tasks"></div>
+                    </div>
+                    <div class="task-gift-player-modal__section">
+                      <div class="task-gift-player-modal__section-title">${_('Выберите игрока')}</div>
+                      <div class="task-gift-player-modal__players" id="task-gift-player-modal-players"></div>
+                    </div>
+                    <div class="task-gift-player-modal__section" id="task-gift-player-modal-gift-section">
+                      <div class="task-gift-player-modal__section-title" id="task-gift-player-modal-gift-title"></div>
+                      <div class="task-gift-player-modal__tasks" id="task-gift-player-modal-gift-tasks"></div>
+                    </div>
+                    <div class="task-gift-player-modal__footer">
+                      <button type="button" id="task-gift-player-modal-confirm-btn" class="task-gift-player-modal__confirm-btn" disabled>${_('Отправить в бэклог')}</button>
+                    </div>
+                  </div>
+                </div>
                 <div id="task-move-hint-modal" class="task-move-hint-modal" aria-hidden="true">
                   <div class="task-move-hint-modal__content">
                     <div class="task-move-hint-modal__header">
@@ -2146,6 +2169,22 @@ define([
               const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask && Number(hiringPendingTask.amount || 0) > 0
+              if (
+                mustSelectTasks &&
+                Number(a.activePlayerId) === Number(this.player_id)
+              ) {
+                const otherPlayers = this._buildOtherPlayersList()
+                this.notif_taskSelectionRequired({
+                  args: {
+                    player_id: this.player_id,
+                    amount: Number(hiringPendingTask.amount || 0),
+                    gift_amount: Number(hiringPendingTask.gift_amount || 0),
+                    founder_name: hiringPendingTask.founder_name || '',
+                    requires_target_player: !!hiringPendingTask.requires_target_player,
+                    other_players: otherPlayers,
+                  },
+                })
+              }
               const mustConfirmTaskMoves =
                 pendingTaskMovesArg &&
                 Number(pendingTaskMovesArg.move_count || 0) > 0
@@ -2153,8 +2192,11 @@ define([
                 pendingTechDevelopmentArg &&
                 Number(pendingTechDevelopmentArg.move_count || 0) > 0
               const amt = Number(hiringPendingTask?.amount ?? 0)
-              const hiringTaskBlockMsg =
-                amt === 1
+              const hiringTaskBlockMsg = hiringPendingTask?.requires_target_player
+                ? _(
+                    'Сначала выберите задачи и игрока для подарка (эффект карты)',
+                  )
+                : amt === 1
                   ? _(
                       'Сначала выберите 1 задачу в бэклог (эффект карты или навыка)',
                     )
@@ -5221,6 +5263,9 @@ define([
           this.gamedatas.pendingTaskSelection = {
             amount: args.pendingTaskSelection.amount,
             founder_name: args.pendingTaskSelection.founder_name,
+            gift_amount: Number(args.pendingTaskSelection.gift_amount || 0),
+            requires_target_player: !!args.pendingTaskSelection
+              .requires_target_player,
           }
 
           // Бэкап: иногда нотификация taskSelectionRequired может не отрисовать UI вовремя.
@@ -5232,6 +5277,12 @@ define([
                   player_id: playerId,
                   amount: args.pendingTaskSelection.amount,
                   founder_name: args.pendingTaskSelection.founder_name,
+                  gift_amount: Number(
+                    args.pendingTaskSelection.gift_amount || 0,
+                  ),
+                  requires_target_player: !!args.pendingTaskSelection
+                    .requires_target_player,
+                  other_players: this._buildOtherPlayersList(),
                 },
               })
             }
@@ -5477,12 +5528,19 @@ define([
       const playerId = Number(args.player_id || 0)
       const amount = Number(args.amount || 0)
       const founderName = args.founder_name || ''
+      const giftAmount = Number(args.gift_amount || 0)
+      const requiresTargetPlayer = !!args.requires_target_player
+      const otherPlayers = Array.isArray(args.other_players)
+        ? args.other_players
+        : this._buildOtherPlayersList()
 
       console.log(
         '🎯 notif_taskSelectionRequired received for player:',
         playerId,
         'amount:',
         amount,
+        'requiresTargetPlayer:',
+        requiresTargetPlayer,
       )
 
       // Если это текущий игрок, активируем выбор задач
@@ -5492,6 +5550,8 @@ define([
           amount: amount,
           founder_name: founderName,
           source: args.source || '',
+          gift_amount: giftAmount,
+          requires_target_player: requiresTargetPlayer,
         }
 
         // Эффекты только из свойства effect карты: сбрасываем старые move_task от предыдущей карты
@@ -5506,16 +5566,18 @@ define([
           )
           if (completeBtn) {
             completeBtn.disabled = true
-            completeBtn.setAttribute(
-              'title',
-              Number(amount) === 1
+            const blockTitle = requiresTargetPlayer
+              ? _(
+                  'Сначала выберите задачи и игрока для подарка (эффект карты)',
+                )
+              : Number(amount) === 1
                 ? _(
                     'Сначала выберите 1 задачу в бэклог (эффект карты или навыка)',
                   )
                 : _(
                     'Сначала выберите ${n} задач в бэклог (эффект карты или навыка)',
-                  ).replace('${n}', String(amount)),
-            )
+                  ).replace('${n}', String(amount))
+            completeBtn.setAttribute('title', blockTitle)
           }
         } else if (stateName === 'RoundProjects') {
           ;['projects-pass-button', 'projects-finish-turn-button'].forEach(
@@ -5542,6 +5604,16 @@ define([
           )
         } else {
           this._showFounderEffectSequenceHint(founderName, amount, null)
+        }
+
+        if (requiresTargetPlayer) {
+          this._openTaskGiftPlayerModal({
+            amount,
+            giftAmount: giftAmount > 0 ? giftAmount : 1,
+            founderName,
+            otherPlayers,
+          })
+          return
         }
 
         // Активируем input'ы для выбора задач
@@ -5992,22 +6064,28 @@ define([
       )
 
       // Обновляем данные игрока - добавляем задачи в backlog
-      if (this.gamedatas?.players?.[playerId]) {
-        if (!this.gamedatas.players[playerId].taskTokens) {
-          this.gamedatas.players[playerId].taskTokens = []
+      const applyTokensToPlayer = (targetId, tokens) => {
+        if (!targetId || !Array.isArray(tokens) || tokens.length === 0) return
+        if (!this.gamedatas?.players?.[targetId]) return
+        if (!this.gamedatas.players[targetId].taskTokens) {
+          this.gamedatas.players[targetId].taskTokens = []
         }
-
-        // Добавляем новые задачи в backlog
-        addedTokens.forEach((token) => {
-          this.gamedatas.players[playerId].taskTokens.push({
+        tokens.forEach((token) => {
+          this.gamedatas.players[targetId].taskTokens.push({
             token_id: token.token_id,
             color: token.color,
             location: 'backlog',
             row_index: null,
           })
         })
+      }
 
-        // Перерисовываем жетоны задач
+      applyTokensToPlayer(playerId, addedTokens)
+      const giftTokens = args.gift_tokens || []
+      const targetPlayerId = Number(args.target_player_id || 0)
+      applyTokensToPlayer(targetPlayerId, giftTokens)
+
+      if (addedTokens.length > 0 || giftTokens.length > 0) {
         this._renderTaskTokens(this.gamedatas.players)
       }
 
@@ -6055,6 +6133,7 @@ define([
       // Если это текущий игрок, деактивируем выбор задач
       if (Number(playerId) === Number(this.player_id)) {
         this.gamedatas.pendingTaskSelection = null
+        this._closeTaskGiftPlayerModal()
         this._deactivateTaskSelection()
 
         // В фазе найма разблокируем кнопку «Завершить фазу найм» после выбора задач
@@ -6479,6 +6558,88 @@ define([
       this._updateConfirmSpecialistsButton(selectedCards.length, cardsToKeep)
     },
 
+    _getSpecialistCardDataById: function (cardId) {
+      const numericId = Number(cardId)
+      if (!numericId) return null
+
+      let specialists = this.gamedatas?.specialists || []
+      if (
+        specialists &&
+        !Array.isArray(specialists) &&
+        typeof specialists === 'object'
+      ) {
+        specialists = Object.values(specialists)
+      }
+      if (!Array.isArray(specialists)) return null
+
+      return (
+        specialists.find((item) => Number(item?.id || 0) === numericId) || null
+      )
+    },
+
+    _getThemeImageUrl: function (path) {
+      const imagePath = String(path || '').trim()
+      if (!imagePath) return ''
+
+      return imagePath.startsWith('http')
+        ? imagePath
+        : `${g_gamethemeurl}${imagePath}`
+    },
+
+    _createSpecialistInfoColumn: function (card) {
+      const fullCard = this._getSpecialistCardDataById(card?.id)
+      const cardData = fullCard ? { ...card, ...fullCard } : card
+      const hasEffect =
+        typeof cardData?.effect !== 'undefined' && cardData.effect !== null
+      const price = cardData?.price != null ? String(cardData.price).trim() : ''
+      const management = String(cardData?.management || '').trim()
+      const additionalSkill = String(cardData?.additionalSkill || '').trim()
+      const skillValue =
+        management && additionalSkill
+          ? `${management}${additionalSkill}`
+          : management || additionalSkill || '—'
+      const victoryPoints =
+        cardData?.victoryPoints != null
+          ? String(cardData.victoryPoints).trim()
+          : '0'
+      const starterOrFinisher = String(
+        cardData?.starterOrFinisher || '',
+      ).trim()
+      const safe = (value) => this._escapeHtmlForHint(String(value))
+
+      return `
+        <div class="specialist-card__info-column">
+          ${
+            hasEffect
+              ? `<div class="specialist-card__info-item specialist-card__info-item--effect" title="${_(
+                  'Эффект активен',
+                )}">&#10003;</div>`
+              : ''
+          }
+          ${
+            price
+              ? `<div class="specialist-card__info-item specialist-card__info-item--price" title="${_(
+                  'Цена',
+                )}">${safe(price)}Б</div>`
+              : ''
+          }
+          <div class="specialist-card__info-item" title="${_(
+            'Управление / дополнительный навык',
+          )}">${safe(skillValue)}</div>
+          <div class="specialist-card__info-item" title="${_(
+            'Победные очки',
+          )}">${safe(victoryPoints)}ПО</div>
+          ${
+            starterOrFinisher
+              ? `<div class="specialist-card__info-item" title="${_(
+                  'Стартер / финишер',
+                )}">${safe(starterOrFinisher)}</div>`
+              : ''
+          }
+        </div>
+      `
+    },
+
     _createSpecialistCard: function (card, isSelected) {
       const cardDiv = document.createElement('div')
       cardDiv.className = `specialist-card ${
@@ -6489,18 +6650,17 @@ define([
       cardDiv.dataset.cardId = card.id
       cardDiv.dataset.department = card.department || 'unknown'
 
-      const imageUrl = card.img
-        ? card.img.startsWith('http')
-          ? card.img
-          : `${g_gamethemeurl}${card.img}`
-        : ''
-      const safeName = this._escapeHtmlForHint(card.name || '')
+      const fullCard = this._getSpecialistCardDataById(card?.id)
+      const cardData = fullCard ? { ...card, ...fullCard } : card
+      const imageUrl = this._getThemeImageUrl(cardData?.img)
+      const safeName = this._escapeHtmlForHint(cardData?.name || '')
       const effectDescription = String(
-        card.effectDescription || card.effect_description || '',
+        cardData?.effectDescription || cardData?.effect_description || '',
       ).trim()
       const effectDescriptionBlock = effectDescription
         ? `<div class="specialist-card__effect-description">${this._escapeHtmlForHint(effectDescription)}</div>`
         : ''
+      const infoColumn = this._createSpecialistInfoColumn(cardData)
 
       // Убраны подписи (overlay), только изображение и галочка
       cardDiv.innerHTML = `
@@ -6510,6 +6670,7 @@ define([
               ? `<img src="${imageUrl}" alt="${safeName}" class="specialist-card__image" />`
               : ''
           }
+          ${infoColumn}
           ${effectDescriptionBlock}
           <div class="specialist-card__check">✓</div>
         </div>
@@ -6820,18 +6981,17 @@ define([
       cardDiv.dataset.cardId = card.id
       cardDiv.dataset.department = card.department || 'unknown'
 
-      const imageUrl = card.img
-        ? card.img.startsWith('http')
-          ? card.img
-          : `${g_gamethemeurl}${card.img}`
-        : ''
-      const safeName = this._escapeHtmlForHint(card.name || '')
+      const fullCard = this._getSpecialistCardDataById(card?.id)
+      const cardData = fullCard ? { ...card, ...fullCard } : card
+      const imageUrl = this._getThemeImageUrl(cardData?.img)
+      const safeName = this._escapeHtmlForHint(cardData?.name || '')
       const effectDescription = String(
-        card.effectDescription || card.effect_description || '',
+        cardData?.effectDescription || cardData?.effect_description || '',
       ).trim()
       const effectDescriptionBlock = effectDescription
         ? `<div class="specialist-card__effect-description">${this._escapeHtmlForHint(effectDescription)}</div>`
         : ''
+      const infoColumn = this._createSpecialistInfoColumn(cardData)
 
       cardDiv.innerHTML = `
         <div class="specialist-card__inner">
@@ -6840,6 +7000,7 @@ define([
               ? `<img src="${imageUrl}" alt="${safeName}" class="specialist-card__image" />`
               : ''
           }
+          ${infoColumn}
           ${effectDescriptionBlock}
         </div>
       `
@@ -6870,17 +7031,15 @@ define([
       universalCards.forEach((card) => {
         const row = document.createElement('div')
         row.className = 'hiring-universal-department-modal__row'
-        const imgUrl = card.img
-          ? card.img.startsWith('http')
-            ? card.img
-            : `${g_gamethemeurl}${card.img}`
-          : ''
+        const fullCard = this._getSpecialistCardDataById(card?.id)
+        const cardData = fullCard ? { ...card, ...fullCard } : card
+        const imgUrl = this._getThemeImageUrl(cardData?.img)
         row.innerHTML = `
           <div class="hiring-universal-department-modal__card">
-            ${imgUrl ? `<img src="${imgUrl}" alt="${(card.name || '').replace(/"/g, '&quot;')}" class="hiring-universal-department-modal__card-img" />` : ''}
-            <span class="hiring-universal-department-modal__card-name">${(card.name || '').replace(/</g, '&lt;')}</span>
+            ${imgUrl ? `<img src="${imgUrl}" alt="${this._escapeHtmlForHint(cardData?.name || '')}" class="hiring-universal-department-modal__card-img" />` : ''}
+            <span class="hiring-universal-department-modal__card-name">${this._escapeHtmlForHint(cardData?.name || '')}</span>
           </div>
-          <div class="hiring-universal-department-modal__buttons" data-card-id="${card.id}"></div>
+          <div class="hiring-universal-department-modal__buttons" data-card-id="${cardData?.id || card.id}"></div>
         `
         const btnContainer = row.querySelector(
           '.hiring-universal-department-modal__buttons',
@@ -6928,6 +7087,305 @@ define([
           modal.onclick = null
         }
       }
+    },
+
+    _buildOtherPlayersList: function () {
+      const players = this.gamedatas?.players || {}
+      return Object.keys(players)
+        .map((id) => ({
+          player_id: Number(id),
+          player_name:
+            players[id]?.name || players[id]?.player_name || String(id),
+        }))
+        .filter((p) => p.player_id > 0 && p.player_id !== Number(this.player_id))
+    },
+
+    _openTaskGiftPlayerModal: function (config) {
+      const amount = Math.max(1, Number(config?.amount) || 1)
+      const giftAmount = Math.max(1, Number(config?.giftAmount) || 1)
+      const founderName = config?.founderName || ''
+      const otherPlayers = Array.isArray(config?.otherPlayers)
+        ? config.otherPlayers
+        : this._buildOtherPlayersList()
+
+      const modal = document.getElementById('task-gift-player-modal')
+      const titleEl = document.getElementById('task-gift-player-modal-title')
+      const subtitleEl = document.getElementById(
+        'task-gift-player-modal-subtitle',
+      )
+      const selfTasksEl = document.getElementById(
+        'task-gift-player-modal-self-tasks',
+      )
+      const playersEl = document.getElementById('task-gift-player-modal-players')
+      const giftTitleEl = document.getElementById(
+        'task-gift-player-modal-gift-title',
+      )
+      const giftTasksEl = document.getElementById(
+        'task-gift-player-modal-gift-tasks',
+      )
+      const confirmBtn = document.getElementById(
+        'task-gift-player-modal-confirm-btn',
+      )
+      if (
+        !modal ||
+        !titleEl ||
+        !subtitleEl ||
+        !selfTasksEl ||
+        !playersEl ||
+        !giftTitleEl ||
+        !giftTasksEl ||
+        !confirmBtn
+      ) {
+        return
+      }
+
+      this._taskGiftPlayerModalState = {
+        amount,
+        giftAmount,
+        targetPlayerId: null,
+      }
+
+      titleEl.textContent = founderName
+        ? _('Эффект «${name}»').replace('${name}', founderName)
+        : _('Выбор задач')
+      subtitleEl.textContent = _(
+        'Выберите ${n} задачи в бэклог и подарите ${gift} задачу другому игроку',
+      )
+        .replace('${n}', String(amount))
+        .replace('${gift}', String(giftAmount))
+
+      selfTasksEl.innerHTML = ''
+      giftTasksEl.innerHTML = ''
+      playersEl.innerHTML = ''
+
+      this._renderTaskGiftModalTaskInputs(selfTasksEl, 'self', amount)
+      this._renderTaskGiftModalTaskInputs(giftTasksEl, 'gift', giftAmount)
+
+      giftTitleEl.textContent =
+        giftAmount === 1
+          ? _('Задача для выбранного игрока')
+          : _('Задачи для выбранного игрока (${n})').replace(
+              '${n}',
+              String(giftAmount),
+            )
+
+      otherPlayers.forEach((player) => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'task-gift-player-modal__player-btn'
+        btn.textContent = player.player_name || String(player.player_id)
+        btn.dataset.playerId = String(player.player_id)
+        btn.addEventListener('click', () => {
+          this._taskGiftPlayerModalState.targetPlayerId = Number(
+            player.player_id,
+          )
+          playersEl
+            .querySelectorAll('.task-gift-player-modal__player-btn')
+            .forEach((b) => b.classList.remove('selected'))
+          btn.classList.add('selected')
+          this._validateTaskGiftPlayerModal()
+        })
+        playersEl.appendChild(btn)
+      })
+
+      confirmBtn.disabled = true
+      confirmBtn.onclick = () => this._confirmTaskGiftPlayerSelection()
+      this._validateTaskGiftPlayerModal()
+
+      modal.classList.add('active')
+      modal.setAttribute('aria-hidden', 'false')
+    },
+
+    _closeTaskGiftPlayerModal: function () {
+      const modal = document.getElementById('task-gift-player-modal')
+      const confirmBtn = document.getElementById(
+        'task-gift-player-modal-confirm-btn',
+      )
+      if (modal) {
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+        confirmBtn.onclick = null
+      }
+      this._taskGiftPlayerModalState = null
+    },
+
+    _renderTaskGiftModalTaskInputs: function (container, section, maxTasks) {
+      const taskColors = ['cyan', 'orange', 'pink', 'purple']
+      taskColors.forEach((color) => {
+        const colorData = this._getTaskTokenColorData(color)
+        if (!colorData) return
+
+        const row = document.createElement('div')
+        row.className = `task-gift-player-modal__task-row task-gift-player-modal__task-row--${color}`
+
+        const image = document.createElement('img')
+        image.src = `${g_gamethemeurl}${colorData.image_url}`
+        image.alt = colorData.name || _('Жетон задачи')
+        image.className = 'task-gift-player-modal__task-image'
+
+        const inputGroup = document.createElement('div')
+        inputGroup.className = 'task-gift-player-modal__task-input-group'
+
+        const decreaseBtn = document.createElement('button')
+        decreaseBtn.type = 'button'
+        decreaseBtn.className = 'task-gift-player-modal__task-btn'
+        decreaseBtn.textContent = '−'
+
+        const input = document.createElement('input')
+        input.type = 'number'
+        input.min = 0
+        input.max = maxTasks
+        input.step = 1
+        input.value = 0
+        input.className = 'task-gift-player-modal__task-field'
+        input.dataset.section = section
+        input.dataset.color = color
+
+        const increaseBtn = document.createElement('button')
+        increaseBtn.type = 'button'
+        increaseBtn.className = 'task-gift-player-modal__task-btn'
+        increaseBtn.textContent = '+'
+
+        const updateValue = (delta) => {
+          const current = parseInt(input.value, 10) || 0
+          const next = Math.max(0, Math.min(maxTasks, current + delta))
+          input.value = String(next)
+          this._validateTaskGiftPlayerModal()
+        }
+
+        decreaseBtn.addEventListener('click', () => updateValue(-1))
+        increaseBtn.addEventListener('click', () => updateValue(1))
+        input.addEventListener('input', () => this._validateTaskGiftPlayerModal())
+        input.addEventListener('change', () => this._validateTaskGiftPlayerModal())
+
+        inputGroup.appendChild(decreaseBtn)
+        inputGroup.appendChild(input)
+        inputGroup.appendChild(increaseBtn)
+        row.appendChild(image)
+        row.appendChild(inputGroup)
+        container.appendChild(row)
+      })
+    },
+
+    _getTaskGiftModalSelectedTasks: function (section) {
+      const fields = document.querySelectorAll(
+        `.task-gift-player-modal__task-field[data-section="${section}"]`,
+      )
+      const selectedTasks = []
+      fields.forEach((input) => {
+        const quantity = parseInt(input.value, 10) || 0
+        if (quantity > 0) {
+          selectedTasks.push({
+            color: input.dataset.color,
+            quantity,
+          })
+        }
+      })
+      return selectedTasks
+    },
+
+    _validateTaskGiftPlayerModal: function () {
+      const state = this._taskGiftPlayerModalState
+      const confirmBtn = document.getElementById(
+        'task-gift-player-modal-confirm-btn',
+      )
+      if (!state || !confirmBtn) return
+
+      const selfTotal = this._getTaskGiftModalSelectedTasks('self').reduce(
+        (sum, task) => sum + task.quantity,
+        0,
+      )
+      const giftTotal = this._getTaskGiftModalSelectedTasks('gift').reduce(
+        (sum, task) => sum + task.quantity,
+        0,
+      )
+
+      const selfFields = document.querySelectorAll(
+        '.task-gift-player-modal__task-field[data-section="self"]',
+      )
+      selfFields.forEach((input) => {
+        const current = parseInt(input.value, 10) || 0
+        const other = selfTotal - current
+        const cap = Math.max(0, state.amount - other)
+        input.max = cap
+        if (current > cap) input.value = String(cap)
+      })
+
+      const giftFields = document.querySelectorAll(
+        '.task-gift-player-modal__task-field[data-section="gift"]',
+      )
+      giftFields.forEach((input) => {
+        const current = parseInt(input.value, 10) || 0
+        const other = giftTotal - current
+        const cap = Math.max(0, state.giftAmount - other)
+        input.max = cap
+        if (current > cap) input.value = String(cap)
+      })
+
+      const valid =
+        selfTotal === state.amount &&
+        giftTotal === state.giftAmount &&
+        Number(state.targetPlayerId) > 0
+      confirmBtn.disabled = !valid
+    },
+
+    _confirmTaskGiftPlayerSelection: function () {
+      const state = this._taskGiftPlayerModalState
+      if (!state) return
+
+      const selectedTasks = this._getTaskGiftModalSelectedTasks('self')
+      const giftTasks = this._getTaskGiftModalSelectedTasks('gift')
+      const selfTotal = selectedTasks.reduce((sum, t) => sum + t.quantity, 0)
+      const giftTotal = giftTasks.reduce((sum, t) => sum + t.quantity, 0)
+
+      if (selfTotal !== state.amount) {
+        this.showMessage(
+          _('Вы должны выбрать ровно ${amount} задач', {
+            amount: state.amount,
+          }),
+          'error',
+        )
+        return
+      }
+      if (giftTotal !== state.giftAmount) {
+        this.showMessage(
+          _('Вы должны выбрать ровно ${amount} задач для другого игрока', {
+            amount: state.giftAmount,
+          }),
+          'error',
+        )
+        return
+      }
+      if (!state.targetPlayerId) {
+        this.showMessage(_('Выберите другого игрока'), 'error')
+        return
+      }
+
+      const confirmBtn = document.getElementById(
+        'task-gift-player-modal-confirm-btn',
+      )
+      if (confirmBtn) confirmBtn.disabled = true
+
+      this.bgaPerformAction(
+        'actConfirmTaskGiftPlayerSelection',
+        {
+          selectedTasksJson: JSON.stringify(selectedTasks),
+          targetPlayerId: state.targetPlayerId,
+          giftTasksJson: JSON.stringify(giftTasks),
+        },
+        (result) => {
+          if (result && result.success === false) {
+            if (confirmBtn) confirmBtn.disabled = false
+            this.showMessage(
+              _('Ошибка при подтверждении выбора задач'),
+              'error',
+            )
+          }
+        },
+      )
     },
 
     _getHiringSelectedCardIds: function () {
@@ -8610,18 +9068,19 @@ define([
           .forEach((el) => el.remove())
         const cards = details[dept] || []
         cards.forEach((card) => {
-          const imgUrl = card.img
-            ? card.img.startsWith('http')
-              ? card.img
-              : `${g_gamethemeurl}${card.img}`
-            : ''
+          const fullCard = this._getSpecialistCardDataById(card.id)
+          const cardData = fullCard ? { ...card, ...fullCard } : card
+          const imgUrl = this._getThemeImageUrl(cardData?.img)
+          const safeName = this._escapeHtmlForHint(cardData.name || '')
+          const infoColumn = this._createSpecialistInfoColumn(cardData)
           const div = document.createElement('div')
           div.className = 'specialist-card hired-specialist-card'
-          div.dataset.cardId = String(card.id)
+          div.dataset.cardId = String(cardData.id)
           div.dataset.department = dept
           div.innerHTML = `
             <div class="specialist-card__inner">
-              ${imgUrl ? `<img src="${imgUrl}" alt="${(card.name || '').replace(/"/g, '&quot;')}" class="specialist-card__image" />` : ''}
+              ${imgUrl ? `<img src="${imgUrl}" alt="${safeName}" class="specialist-card__image" />` : ''}
+              ${infoColumn}
             </div>
           `
           container.appendChild(div)

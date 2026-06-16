@@ -122,17 +122,7 @@ class RoundHiring extends GameState
         $hiringHiredCount = (int) $this->game->globals->get($hiredCountKey, '0');
         $roundOrder = $this->game->getCurrentRoundPlayerOrder();
 
-        $pendingTaskJson = $this->game->globals->get('pending_task_selection_' . $activePlayerId, '');
-        $pendingTaskSelection = null;
-        if ($pendingTaskJson !== null && $pendingTaskJson !== '') {
-            $decoded = json_decode($pendingTaskJson, true);
-            if (is_array($decoded) && isset($decoded['amount']) && (int) $decoded['amount'] > 0) {
-                $pendingTaskSelection = [
-                    'amount' => (int) $decoded['amount'],
-                    'founder_name' => $decoded['founder_name'] ?? '',
-                ];
-            }
-        }
+        $pendingTaskSelection = $this->game->getPendingTaskSelectionForPlayer($activePlayerId);
 
         $pendingTaskMoves = null;
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
@@ -394,7 +384,13 @@ class RoundHiring extends GameState
         $pendingTaskSelection = null;
         $pendingTaskMoves = null;
         foreach ($appliedEffects as $eff) {
-            if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount']) && (int) $eff['amount'] > 0) {
+            if (
+                isset($eff['type'])
+                && $eff['type'] === 'task_gift_player'
+                && (int) ($eff['amount'] ?? 0) > 0
+            ) {
+                $pendingTaskSelection = $this->game->getPendingTaskSelectionForPlayer($playerId);
+            } elseif (isset($eff['type']) && $eff['type'] === 'task' && (int) ($eff['amount'] ?? 0) > 0) {
                 $pendingTaskSelection = [
                     'amount' => (int) $eff['amount'],
                     'founder_name' => $card['name'] ?? '',
@@ -438,11 +434,7 @@ class RoundHiring extends GameState
             ]);
         }
         if ($pendingTaskSelection !== null) {
-            $this->notify->player($playerId, 'taskSelectionRequired', '', [
-                'player_id' => $playerId,
-                'amount' => $pendingTaskSelection['amount'],
-                'founder_name' => $pendingTaskSelection['founder_name'],
-            ]);
+            $this->notifyTaskSelectionRequired($playerId, $pendingTaskSelection);
         }
         if ($pendingTaskMoves !== null) {
             $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -581,12 +573,8 @@ class RoundHiring extends GameState
                     $bonusHireFromHand += (int) ($eff['amount'] ?? 0);
                 }
             }
-            $taskAmountSum = 0;
             $pendingTaskMoves = null;
             foreach ($allAppliedEffects as $eff) {
-                if (isset($eff['type']) && $eff['type'] === 'task' && isset($eff['amount'])) {
-                    $taskAmountSum += (int) $eff['amount'];
-                }
                 if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
                     $pendingTaskMoves = [
                         'move_count' => (int) $eff['move_count'],
@@ -595,20 +583,7 @@ class RoundHiring extends GameState
                     ];
                 }
             }
-            $pendingTaskSelection = null;
-            if ($taskAmountSum > 0) {
-                $pendingJson = $this->game->globals->get('pending_task_selection_' . $playerId, '');
-                $pending = is_string($pendingJson) ? json_decode($pendingJson, true) : [];
-                if (is_array($pending)) {
-                    $pending['amount'] = $taskAmountSum;
-                    $this->game->globals->set('pending_task_selection_' . $playerId, json_encode($pending));
-                }
-                $founderName = is_array($pending) ? ($pending['founder_name'] ?? '') : '';
-                $pendingTaskSelection = [
-                    'amount' => $taskAmountSum,
-                    'founder_name' => $founderName,
-                ];
-            }
+            $pendingTaskSelection = $this->resolvePendingTaskSelectionAfterEffects($playerId, $allAppliedEffects);
             $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
             $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
@@ -637,11 +612,7 @@ class RoundHiring extends GameState
                 ]);
             }
             if ($pendingTaskSelection !== null) {
-                $this->notify->player($playerId, 'taskSelectionRequired', '', [
-                    'player_id' => $playerId,
-                    'amount' => $pendingTaskSelection['amount'],
-                    'founder_name' => $pendingTaskSelection['founder_name'],
-                ]);
+                $this->notifyTaskSelectionRequired($playerId, $pendingTaskSelection);
             }
             if ($pendingTaskMoves !== null) {
                 $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -733,6 +704,9 @@ class RoundHiring extends GameState
         $pendingSelection = json_decode($pendingSelectionJson, true);
         if (!is_array($pendingSelection) || !isset($pendingSelection['amount'])) {
             throw new UserException(clienttranslate('Неверные данные ожидающего выбора задач'));
+        }
+        if (!empty($pendingSelection['requires_target_player'])) {
+            throw new UserException(clienttranslate('Используйте окно выбора игрока и задач для этого эффекта'));
         }
         $requiredAmount = (int) $pendingSelection['amount'];
         $selectedTasks = json_decode($selectedTasksJson, true);
@@ -845,6 +819,118 @@ class RoundHiring extends GameState
             'moved_tokens' => $movedTokens,
             'i18n' => ['founder_name'],
         ]);
+    }
+
+    /**
+     * Подтверждение выбора задач с подарком другому игроку (эффект task_gift_player).
+     */
+    #[PossibleAction]
+    public function actConfirmTaskGiftPlayerSelection(
+        string $selectedTasksJson,
+        int $targetPlayerId,
+        string $giftTasksJson,
+    ): void {
+        $this->game->checkAction('actConfirmTaskGiftPlayerSelection');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+        $selectedTasks = json_decode($selectedTasksJson, true);
+        $giftTasks = json_decode($giftTasksJson, true);
+        if (!is_array($selectedTasks) || !is_array($giftTasks)) {
+            throw new UserException(clienttranslate('Неверный формат данных выбранных задач'));
+        }
+
+        $result = $this->game->confirmTaskGiftPlayerSelection(
+            $activePlayerId,
+            $selectedTasks,
+            $targetPlayerId,
+            $giftTasks,
+        );
+
+        $targetId = (int) $result['target_player_id'];
+        $founderName = (string) ($result['founder_name'] ?? '');
+        $amount = (int) ($result['amount'] ?? 0);
+        $giftAmount = (int) ($result['gift_amount'] ?? 1);
+
+        $this->notify->all(
+            'tasksSelected',
+            clienttranslate('${player_name} выбрал ${amount} задач и подарил ${gift_amount} задачу игроку ${target_name} (эффект «${founder_name}»)'),
+            [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'target_player_id' => $targetId,
+                'target_name' => $this->game->getPlayerNameById($targetId),
+                'amount' => $amount,
+                'gift_amount' => $giftAmount,
+                'founder_name' => $founderName,
+                'selected_tasks' => $selectedTasks,
+                'gift_tasks' => $giftTasks,
+                'added_tokens' => $result['self_tokens'] ?? [],
+                'gift_tokens' => $result['gift_tokens'] ?? [],
+                'i18n' => ['founder_name', 'target_name'],
+            ],
+        );
+    }
+
+    private function resolvePendingTaskSelectionAfterEffects(int $playerId, array $appliedEffects): ?array
+    {
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'task_gift_player' && (int) ($eff['amount'] ?? 0) > 0) {
+                return $this->game->getPendingTaskSelectionForPlayer($playerId);
+            }
+        }
+
+        $taskAmountSum = 0;
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'task' && isset($eff['amount'])) {
+                $taskAmountSum += (int) $eff['amount'];
+            }
+        }
+        if ($taskAmountSum <= 0) {
+            return null;
+        }
+
+        $pendingJson = $this->game->globals->get('pending_task_selection_' . $playerId, '');
+        $pending = is_string($pendingJson) ? json_decode($pendingJson, true) : [];
+        if (is_array($pending)) {
+            $pending['amount'] = $taskAmountSum;
+            $this->game->globals->set('pending_task_selection_' . $playerId, json_encode($pending));
+        }
+        $founderName = is_array($pending) ? ($pending['founder_name'] ?? '') : '';
+
+        return [
+            'amount' => $taskAmountSum,
+            'founder_name' => $founderName,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $pendingTaskSelection
+     */
+    private function notifyTaskSelectionRequired(int $playerId, array $pendingTaskSelection): void
+    {
+        $this->notify->player($playerId, 'taskSelectionRequired', '', [
+            'player_id' => $playerId,
+            'amount' => (int) ($pendingTaskSelection['amount'] ?? 0),
+            'founder_name' => (string) ($pendingTaskSelection['founder_name'] ?? ''),
+            'gift_amount' => (int) ($pendingTaskSelection['gift_amount'] ?? 0),
+            'requires_target_player' => !empty($pendingTaskSelection['requires_target_player']),
+            'other_players' => $this->buildOtherPlayersPayload($playerId),
+        ]);
+    }
+
+    /**
+     * @return array<int, array{player_id: int, player_name: string}>
+     */
+    private function buildOtherPlayersPayload(int $playerId): array
+    {
+        $result = [];
+        foreach ($this->game->getOtherPlayerIds($playerId) as $otherId) {
+            $result[] = [
+                'player_id' => $otherId,
+                'player_name' => $this->game->getPlayerNameById($otherId),
+            ];
+        }
+
+        return $result;
     }
 
     public function zombie(int $playerId): string

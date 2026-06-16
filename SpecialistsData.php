@@ -941,7 +941,7 @@ class SpecialistsData
             'name' => 'Алина', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'CRM–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task_gift_player' => ['amount' => 3, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите любые 3 задачи и отправьте в "Бэклог" на панели спринта. Выберите другого игрока он тоже получет 1 задачу', // Описание эффекта
             'department' => 'technical-department', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -959,7 +959,7 @@ class SpecialistsData
             'name' => 'Лея', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'IT–продюсер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task_gift_player' => ['amount' => 3, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите любые 3 задачи и отправьте в "Бэклог" на панели спринта. Выберите другого игрока он тоже получет 1 задачу', // Описание эффекта
             'department' => 'technical-department', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1031,7 +1031,7 @@ class SpecialistsData
             'name' => 'Аделина', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Антикризисный управляющий', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task_gift_player' => ['amount' => 3, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите любые 3 задачи и отправьте в "Бэклог" на панели спринта. Выберите другого игрока он тоже получет 1 задачу', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1049,7 +1049,7 @@ class SpecialistsData
             'name' => 'Николь', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Аккаунт–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task_gift_player' => ['amount' => 3, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите любые 3 задачи и отправьте в "Бэклог" на панели спринта. Выберите другого игрока он тоже получет 1 задачу', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1067,7 +1067,7 @@ class SpecialistsData
             'name' => 'Арина', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Менеджер по развитию', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['task_gift_player' => ['amount' => 3, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите любые 3 задачи и отправьте в "Бэклог" на панели спринта. Выберите другого игрока он тоже получет 1 задачу', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
