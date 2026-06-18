@@ -2367,7 +2367,7 @@ class SpecialistsData
             'name' => 'Николай', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Руководитель отдела продаж', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['counter_advertising' => ['amount' => 1]], // Эффект
             'effectDescription' => 'Контрреклама. Уменьшите трек дохода у другого игрока на 1Б и увеличьте свой на 1Б', // Описание эффекта
             'department' => 'sales-department', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -2385,7 +2385,7 @@ class SpecialistsData
             'name' => 'Алиса', // Имя специалиста
             'color' => '#008000', // Цвет специалиста
             'speciality' => 'Руководитель отдела продаж', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['counter_advertising' => ['amount' => 1]], // Эффект
             'effectDescription' => 'Контрреклама. Уменьшите трек дохода у другого игрока на 1Б и увеличьте свой на 1Б', // Описание эффекта
             'department' => 'sales-department', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -2529,7 +2529,7 @@ class SpecialistsData
             'name' => 'Евгений', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'IT–директор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['counter_advertising' => ['amount' => 2]], // Эффект
             'effectDescription' => 'Контрреклама. Уменьшите трек дохода у другого игрока на 2Б и увеличьте свой на 2Б', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -2547,7 +2547,7 @@ class SpecialistsData
             'name' => 'Алексей', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Коммерческий директор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['counter_advertising' => ['amount' => 2]], // Эффект
             'effectDescription' => 'Контрреклама. Уменьшите трек дохода у другого игрока на 2Б и увеличьте свой на 2Б', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -2565,7 +2565,7 @@ class SpecialistsData
             'name' => 'Варвара', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Коммерческий директор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['counter_advertising' => ['amount' => 2]], // Эффект
             'effectDescription' => 'Контрреклама. Уменьшите трек дохода у другого игрока на 2Б и увеличьте свой на 2Б', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер

@@ -3899,6 +3899,96 @@
   filter: brightness(1.08);
 }
 
+/* Модальное окно: выбор соперника для контррекламы (эффект counter_advertising) */
+.counter-advertising-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 2100;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.counter-advertising-modal.active {
+  display: flex;
+}
+.counter-advertising-modal__content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.counter-advertising-modal__header {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.counter-advertising-modal__title {
+  font-size: 1.3em;
+  color: #fff;
+  margin-bottom: 6px;
+}
+.counter-advertising-modal__subtitle {
+  font-size: 0.95em;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.4;
+}
+.counter-advertising-modal__section {
+  margin-bottom: 18px;
+}
+.counter-advertising-modal__section-title {
+  font-size: 1em;
+  color: #a8d4ff;
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+.counter-advertising-modal__players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.counter-advertising-modal__player-btn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 2px solid rgba(168, 212, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.counter-advertising-modal__player-btn:hover {
+  background: rgba(168, 212, 255, 0.15);
+}
+.counter-advertising-modal__player-btn.selected {
+  border-color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.2);
+}
+.counter-advertising-modal__footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+.counter-advertising-modal__confirm-btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #4fc3f7 0%, #2196f3 100%);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.counter-advertising-modal__confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.counter-advertising-modal__confirm-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
 /* Модальное окно: выбор трека в офисе (эффект choose_office_track) */
 .office-track-choice-modal {
   display: none;

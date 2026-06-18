@@ -39,6 +39,7 @@ use Bga\Games\itarenagame\Effects\MinTechDevTrackEffectHandler;
 use Bga\Games\itarenagame\Effects\TaskGiftPlayerEffectHandler;
 use Bga\Games\itarenagame\Effects\CardGiftPlayerEffectHandler;
 use Bga\Games\itarenagame\Effects\ChooseOfficeTrackEffectHandler;
+use Bga\Games\itarenagame\Effects\CounterAdvertisingEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -1966,6 +1967,7 @@ class Game extends \Bga\GameFramework\Table
             'task_gift_player' => new TaskGiftPlayerEffectHandler($this),
             'card_gift_player' => new CardGiftPlayerEffectHandler($this),
             'choose_office_track' => new ChooseOfficeTrackEffectHandler($this),
+            'counter_advertising' => new CounterAdvertisingEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
@@ -2380,7 +2382,7 @@ class Game extends \Bga\GameFramework\Table
                 continue;
             }
             $type = (string) ($eff['type'] ?? '');
-            if ($type === 'task' || $type === 'task_gift_player' || $type === 'card_gift_player' || $type === 'choose_office_track') {
+            if ($type === 'task' || $type === 'task_gift_player' || $type === 'card_gift_player' || $type === 'choose_office_track' || $type === 'counter_advertising') {
                 if ((int) ($eff['amount'] ?? 0) > 0 || !empty($eff['requires_selection'])) {
                     return true;
                 }
@@ -3299,6 +3301,95 @@ class Game extends \Bga\GameFramework\Table
             'gift_card_name' => (string) ($card['name'] ?? ('Карта #' . $giftCardId)),
             'founder_name' => (string) ($pending['founder_name'] ?? ''),
             'gift_amount' => (int) ($pending['gift_amount'] ?? 1),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getPendingCounterAdvertisingForPlayer(int $playerId): ?array
+    {
+        $pendingJson = $this->globals->get('pending_counter_advertising_' . $playerId, '');
+        if ($pendingJson === null || $pendingJson === '') {
+            return null;
+        }
+        $decoded = json_decode((string) $pendingJson, true);
+        if (!is_array($decoded) || empty($decoded['requires_target_player'])) {
+            return null;
+        }
+        $amount = (int) ($decoded['amount'] ?? 0);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return [
+            'amount' => $amount,
+            'founder_name' => (string) ($decoded['founder_name'] ?? ''),
+            'founder_id' => (int) ($decoded['founder_id'] ?? 0),
+            'requires_target_player' => true,
+        ];
+    }
+
+    /**
+     * Применяет изменение трека дохода (счётчик energy + income_track в БД).
+     *
+     * @return array{oldValue: int, newValue: int, amount: int}
+     */
+    public function applyIncomeTrackDelta(int $playerId, int $delta): array
+    {
+        $this->initPlayerGameData($playerId);
+        $oldValue = (int) $this->playerEnergy->get($playerId);
+        if ($delta > 0) {
+            $this->playerEnergy->inc($playerId, $delta);
+        } elseif ($delta < 0) {
+            $this->playerEnergy->inc($playerId, -min(abs($delta), $oldValue));
+        }
+        $newValue = (int) $this->playerEnergy->get($playerId);
+        $this->DbQuery("
+            UPDATE `player_game_data`
+            SET `income_track` = $newValue
+            WHERE `player_id` = $playerId
+        ");
+
+        return [
+            'oldValue' => $oldValue,
+            'newValue' => $newValue,
+            'amount' => $newValue - $oldValue,
+        ];
+    }
+
+    /**
+     * Подтверждает контррекламу: −amount у соперника, +amount у активного игрока.
+     *
+     * @return array<string, mixed>
+     */
+    public function confirmCounterAdvertisingSelection(int $playerId, int $targetPlayerId): array
+    {
+        $pending = $this->getPendingCounterAdvertisingForPlayer($playerId);
+        if ($pending === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающего выбора соперника для контррекламы'));
+        }
+
+        $targetPlayerId = (int) $targetPlayerId;
+        if ($targetPlayerId <= 0 || $targetPlayerId === $playerId) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Выберите другого игрока'));
+        }
+        if (!in_array($targetPlayerId, $this->getOtherPlayerIds($playerId), true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверный игрок'));
+        }
+
+        $amount = (int) ($pending['amount'] ?? 1);
+        $targetTrack = $this->applyIncomeTrackDelta($targetPlayerId, -$amount);
+        $sourceTrack = $this->applyIncomeTrackDelta($playerId, $amount);
+
+        $this->globals->set('pending_counter_advertising_' . $playerId, null);
+
+        return [
+            'amount' => $amount,
+            'founder_name' => (string) ($pending['founder_name'] ?? ''),
+            'target_player_id' => $targetPlayerId,
+            'source_track' => $sourceTrack,
+            'target_track' => $targetTrack,
         ];
     }
 

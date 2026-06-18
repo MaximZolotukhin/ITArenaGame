@@ -125,6 +125,7 @@ class RoundHiring extends GameState
         $pendingTaskSelection = $this->game->getPendingTaskSelectionForPlayer($activePlayerId);
         $pendingCardGift = $this->game->getPendingCardGiftForPlayer($activePlayerId);
         $pendingOfficeTrackChoice = $this->game->getPendingOfficeTrackChoiceForPlayer($activePlayerId);
+        $pendingCounterAdvertising = $this->game->getPendingCounterAdvertisingForPlayer($activePlayerId);
 
         $pendingTaskMoves = null;
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
@@ -164,6 +165,7 @@ class RoundHiring extends GameState
             'pendingTaskSelection' => $pendingTaskSelection,
             'pendingCardGift' => $pendingCardGift,
             'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
+            'pendingCounterAdvertising' => $pendingCounterAdvertising,
             'pendingTaskMoves' => $pendingTaskMoves,
             'pendingTechnicalDevelopmentMoves' => $this->game->getPendingTechnicalDevelopmentMovesData($activePlayerId),
         ];
@@ -389,6 +391,7 @@ class RoundHiring extends GameState
         $pendingTaskMoves = null;
         $pendingCardGift = null;
         $pendingOfficeTrackChoice = null;
+        $pendingCounterAdvertising = null;
         foreach ($appliedEffects as $eff) {
             if (
                 isset($eff['type'])
@@ -413,6 +416,12 @@ class RoundHiring extends GameState
                 && !empty($eff['requires_selection'])
             ) {
                 $pendingOfficeTrackChoice = $this->game->getPendingOfficeTrackChoiceForPlayer($playerId);
+            } elseif (
+                isset($eff['type'])
+                && $eff['type'] === 'counter_advertising'
+                && !empty($eff['requires_target_player'])
+            ) {
+                $pendingCounterAdvertising = $this->game->getPendingCounterAdvertisingForPlayer($playerId);
             }
             if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
                 $pendingTaskMoves = [
@@ -442,6 +451,7 @@ class RoundHiring extends GameState
             'pendingTaskSelection' => $pendingTaskSelection,
             'pendingCardGift' => $pendingCardGift,
             'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
+            'pendingCounterAdvertising' => $pendingCounterAdvertising,
             'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
             'i18n' => ['badgers'],
         ]);
@@ -482,6 +492,9 @@ class RoundHiring extends GameState
         }
         if ($pendingOfficeTrackChoice !== null) {
             $this->notifyOfficeTrackChoiceRequired($playerId, $pendingOfficeTrackChoice);
+        }
+        if ($pendingCounterAdvertising !== null) {
+            $this->notifyCounterAdvertisingRequired($playerId, $pendingCounterAdvertising);
         }
         if ($pendingTaskMoves !== null) {
             $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -633,6 +646,7 @@ class RoundHiring extends GameState
             $pendingTaskSelection = $this->resolvePendingTaskSelectionAfterEffects($playerId, $allAppliedEffects);
             $pendingCardGift = $this->resolvePendingCardGiftAfterEffects($playerId, $allAppliedEffects);
             $pendingOfficeTrackChoice = $this->resolvePendingOfficeTrackChoiceAfterEffects($playerId, $allAppliedEffects);
+            $pendingCounterAdvertising = $this->resolvePendingCounterAdvertisingAfterEffects($playerId, $allAppliedEffects);
             $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
             $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
@@ -650,6 +664,7 @@ class RoundHiring extends GameState
                 'pendingTaskSelection' => $pendingTaskSelection,
                 'pendingCardGift' => $pendingCardGift,
                 'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
+                'pendingCounterAdvertising' => $pendingCounterAdvertising,
                 'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
                 'i18n' => ['badgers'],
             ]);
@@ -691,6 +706,9 @@ class RoundHiring extends GameState
             }
             if ($pendingOfficeTrackChoice !== null) {
                 $this->notifyOfficeTrackChoiceRequired($playerId, $pendingOfficeTrackChoice);
+            }
+            if ($pendingCounterAdvertising !== null) {
+                $this->notifyCounterAdvertisingRequired($playerId, $pendingCounterAdvertising);
             }
             if ($pendingTaskMoves !== null) {
                 $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -747,6 +765,9 @@ class RoundHiring extends GameState
         }
         if ($this->game->getPendingOfficeTrackChoiceForPlayer($playerId) !== null) {
             throw new UserException(clienttranslate('Сначала выберите трек в офисе для улучшения'));
+        }
+        if ($this->game->getPendingCounterAdvertisingForPlayer($playerId) !== null) {
+            throw new UserException(clienttranslate('Сначала выберите соперника для контррекламы'));
         }
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, null);
         if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
@@ -993,6 +1014,80 @@ class RoundHiring extends GameState
     }
 
     /**
+     * Подтверждение выбора соперника для контррекламы (эффект counter_advertising).
+     */
+    #[PossibleAction]
+    public function actConfirmCounterAdvertisingSelection(int $targetPlayerId): void
+    {
+        $this->game->checkAction('actConfirmCounterAdvertisingSelection');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+
+        $result = $this->game->confirmCounterAdvertisingSelection($activePlayerId, $targetPlayerId);
+
+        $targetId = (int) $result['target_player_id'];
+        $amount = (int) ($result['amount'] ?? 0);
+        $founderName = (string) ($result['founder_name'] ?? '');
+        $sourceTrack = is_array($result['source_track'] ?? null) ? $result['source_track'] : [];
+        $targetTrack = is_array($result['target_track'] ?? null) ? $result['target_track'] : [];
+
+        $sourceOld = (int) ($sourceTrack['oldValue'] ?? 0);
+        $sourceNew = (int) ($sourceTrack['newValue'] ?? 0);
+        $sourceDelta = (int) ($sourceTrack['amount'] ?? 0);
+        if ($sourceDelta !== 0) {
+            $this->notify->all(
+                'incomeTrackChanged',
+                clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'),
+                [
+                    'player_id' => $activePlayerId,
+                    'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                    'oldValue' => $sourceOld,
+                    'newValue' => $sourceNew,
+                    'amount' => $sourceDelta,
+                    'founder_name' => $founderName,
+                    'action_text' => $sourceDelta > 0 ? clienttranslate('увеличил') : clienttranslate('уменьшил'),
+                    'i18n' => ['founder_name', 'action_text'],
+                ],
+            );
+        }
+
+        $targetOld = (int) ($targetTrack['oldValue'] ?? 0);
+        $targetNew = (int) ($targetTrack['newValue'] ?? 0);
+        $targetDelta = (int) ($targetTrack['amount'] ?? 0);
+        if ($targetDelta !== 0) {
+            $this->notify->all(
+                'incomeTrackChanged',
+                clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря контррекламе «${founder_name}»'),
+                [
+                    'player_id' => $targetId,
+                    'player_name' => $this->game->getPlayerNameById($targetId),
+                    'oldValue' => $targetOld,
+                    'newValue' => $targetNew,
+                    'amount' => $targetDelta,
+                    'founder_name' => $founderName,
+                    'action_text' => $targetDelta > 0 ? clienttranslate('увеличил') : clienttranslate('уменьшил'),
+                    'i18n' => ['founder_name', 'action_text'],
+                ],
+            );
+        }
+
+        $this->notify->all(
+            'counterAdvertisingCompleted',
+            clienttranslate('${player_name} применил контррекламу к ${target_name}: −${amount}Б / +${amount}Б (эффект «${founder_name}»)'),
+            [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'target_player_id' => $targetId,
+                'target_name' => $this->game->getPlayerNameById($targetId),
+                'amount' => $amount,
+                'founder_name' => $founderName,
+                'source_track' => $sourceTrack,
+                'target_track' => $targetTrack,
+                'i18n' => ['founder_name', 'target_name'],
+            ],
+        );
+    }
+
+    /**
      * Подтверждение выбора соперника для подарка карты (эффект card_gift_player).
      */
     #[PossibleAction]
@@ -1056,6 +1151,30 @@ class RoundHiring extends GameState
             'amount' => $taskAmountSum,
             'founder_name' => $founderName,
         ];
+    }
+
+    private function resolvePendingCounterAdvertisingAfterEffects(int $playerId, array $appliedEffects): ?array
+    {
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'counter_advertising' && !empty($eff['requires_target_player'])) {
+                return $this->game->getPendingCounterAdvertisingForPlayer($playerId);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $pendingCounterAdvertising
+     */
+    private function notifyCounterAdvertisingRequired(int $playerId, array $pendingCounterAdvertising): void
+    {
+        $this->notify->player($playerId, 'counterAdvertisingRequired', '', [
+            'player_id' => $playerId,
+            'amount' => (int) ($pendingCounterAdvertising['amount'] ?? 1),
+            'founder_name' => (string) ($pendingCounterAdvertising['founder_name'] ?? ''),
+            'other_players' => $this->buildOtherPlayersPayload($playerId),
+        ]);
     }
 
     private function resolvePendingCardGiftAfterEffects(int $playerId, array $appliedEffects): ?array

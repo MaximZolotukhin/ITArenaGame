@@ -672,6 +672,21 @@ define([
                     </div>
                   </div>
                 </div>
+                <div id="counter-advertising-modal" class="counter-advertising-modal" aria-hidden="true">
+                  <div class="counter-advertising-modal__content">
+                    <div class="counter-advertising-modal__header">
+                      <div class="counter-advertising-modal__title" id="counter-advertising-modal-title"></div>
+                      <div class="counter-advertising-modal__subtitle" id="counter-advertising-modal-subtitle"></div>
+                    </div>
+                    <div class="counter-advertising-modal__section">
+                      <div class="counter-advertising-modal__section-title">${_('Выберите соперника')}</div>
+                      <div class="counter-advertising-modal__players" id="counter-advertising-modal-players"></div>
+                    </div>
+                    <div class="counter-advertising-modal__footer">
+                      <button type="button" id="counter-advertising-modal-confirm-btn" class="counter-advertising-modal__confirm-btn" disabled>${_('Применить контррекламу')}</button>
+                    </div>
+                  </div>
+                </div>
                 <div id="task-gift-player-modal" class="task-gift-player-modal" aria-hidden="true">
                   <div class="task-gift-player-modal__content">
                     <div class="task-gift-player-modal__header">
@@ -2163,6 +2178,11 @@ define([
               } else {
                 this.gamedatas.pendingOfficeTrackChoice = null
               }
+              if (a.pendingCounterAdvertising != null) {
+                this.gamedatas.pendingCounterAdvertising = a.pendingCounterAdvertising
+              } else {
+                this.gamedatas.pendingCounterAdvertising = null
+              }
               const pendingTaskMovesArg = a.pendingTaskMoves ?? null
               if (
                 pendingTaskMovesArg &&
@@ -2241,6 +2261,26 @@ define([
                   },
                 })
               }
+              const hiringPendingCounterAdvertising =
+                a.pendingCounterAdvertising ?? null
+              const mustSelectCounterAdvertising =
+                hiringPendingCounterAdvertising &&
+                !!hiringPendingCounterAdvertising.requires_target_player
+              if (
+                mustSelectCounterAdvertising &&
+                Number(a.activePlayerId) === Number(this.player_id)
+              ) {
+                this.notif_counterAdvertisingRequired({
+                  args: {
+                    player_id: this.player_id,
+                    amount: Number(hiringPendingCounterAdvertising.amount || 1),
+                    founder_name:
+                      hiringPendingCounterAdvertising.founder_name || '',
+                    requires_target_player: true,
+                    other_players: this._buildOtherPlayersList(),
+                  },
+                })
+              }
               const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask && Number(hiringPendingTask.amount || 0) > 0
@@ -2284,6 +2324,8 @@ define([
                 ? _(
                     'Сначала выберите соперника для подарка карты из колоды найма',
                   )
+                : mustSelectCounterAdvertising
+                  ? _('Сначала выберите соперника для контррекламы')
                 : mustSelectTasks
                 ? hiringTaskBlockMsg
                 : mustConfirmTaskMoves
@@ -2325,6 +2367,7 @@ define([
                   disabled:
                     !!mustSelectOfficeTrack ||
                     !!mustSelectCardGift ||
+                    !!mustSelectCounterAdvertising ||
                     !!mustSelectTasks ||
                     !!mustConfirmTaskMoves ||
                     !!mustConfirmTechDevelopment,
@@ -3087,6 +3130,16 @@ define([
         'officeTrackChoiceCompleted',
         this,
         'notif_officeTrackChoiceCompleted',
+      )
+      dojo.subscribe(
+        'counterAdvertisingRequired',
+        this,
+        'notif_counterAdvertisingRequired',
+      )
+      dojo.subscribe(
+        'counterAdvertisingCompleted',
+        this,
+        'notif_counterAdvertisingCompleted',
       )
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
@@ -5452,6 +5505,36 @@ define([
           this.gamedatas.pendingOfficeTrackChoice = null
         }
         if (
+          args.pendingCounterAdvertising != null &&
+          args.pendingCounterAdvertising.requires_target_player
+        ) {
+          this.gamedatas.pendingCounterAdvertising = {
+            amount: Number(args.pendingCounterAdvertising.amount || 1),
+            founder_name: args.pendingCounterAdvertising.founder_name || '',
+            requires_target_player: true,
+          }
+          try {
+            if (typeof this.notif_counterAdvertisingRequired === 'function') {
+              await this.notif_counterAdvertisingRequired({
+                args: {
+                  player_id: playerId,
+                  amount: Number(args.pendingCounterAdvertising.amount || 1),
+                  founder_name: args.pendingCounterAdvertising.founder_name || '',
+                  requires_target_player: true,
+                  other_players: this._buildOtherPlayersList(),
+                },
+              })
+            }
+          } catch (e) {
+            console.error(
+              '❌ Failed to activate counter advertising selection from specialistsHired:',
+              e,
+            )
+          }
+        } else {
+          this.gamedatas.pendingCounterAdvertising = null
+        }
+        if (
           args.pendingTechnicalDevelopmentMoves != null &&
           Number(args.pendingTechnicalDevelopmentMoves.move_count || 0) > 0
         ) {
@@ -7716,6 +7799,163 @@ define([
           if (result && result.success === false) {
             if (confirmBtn) confirmBtn.disabled = false
             this.showMessage(_('Ошибка при подарке карты'), 'error')
+          }
+        },
+      )
+    },
+
+    notif_counterAdvertisingRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(playerId) !== Number(this.player_id)) return
+
+      this.gamedatas.pendingCounterAdvertising = {
+        amount: Number(args.amount || 1),
+        founder_name: args.founder_name || '',
+        requires_target_player: true,
+      }
+
+      const stateName = this.gamedatas?.gamestate?.name
+      if (stateName === 'RoundHiring') {
+        const completeBtn = document.getElementById(
+          'complete-hiring-phase-button',
+        )
+        if (completeBtn) {
+          completeBtn.disabled = true
+          completeBtn.setAttribute(
+            'title',
+            _('Сначала выберите соперника для контррекламы'),
+          )
+        }
+      }
+
+      this._openCounterAdvertisingModal({
+        founderName: args.founder_name || '',
+        amount: Number(args.amount || 1),
+        otherPlayers: Array.isArray(args.other_players)
+          ? args.other_players
+          : this._buildOtherPlayersList(),
+      })
+    },
+
+    notif_counterAdvertisingCompleted: async function (notif) {
+      const args = notif.args || notif
+      const sourcePlayerId = Number(args.player_id || 0)
+
+      if (Number(sourcePlayerId) === Number(this.player_id)) {
+        this.gamedatas.pendingCounterAdvertising = null
+        this._closeCounterAdvertisingModal()
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = false
+            completeBtn.setAttribute(
+              'title',
+              _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+            )
+          }
+        }
+      }
+    },
+
+    _openCounterAdvertisingModal: function (config) {
+      const founderName = config?.founderName || ''
+      const amount = Math.max(1, Number(config?.amount) || 1)
+      const otherPlayers = Array.isArray(config?.otherPlayers)
+        ? config.otherPlayers
+        : this._buildOtherPlayersList()
+
+      const modal = document.getElementById('counter-advertising-modal')
+      const titleEl = document.getElementById('counter-advertising-modal-title')
+      const subtitleEl = document.getElementById(
+        'counter-advertising-modal-subtitle',
+      )
+      const playersEl = document.getElementById(
+        'counter-advertising-modal-players',
+      )
+      const confirmBtn = document.getElementById(
+        'counter-advertising-modal-confirm-btn',
+      )
+      if (!modal || !titleEl || !subtitleEl || !playersEl || !confirmBtn) return
+
+      this._counterAdvertisingModalState = { targetPlayerId: null }
+
+      titleEl.textContent = founderName
+        ? _('Эффект «${name}»').replace('${name}', founderName)
+        : _('Контрреклама')
+      subtitleEl.textContent =
+        amount === 1
+          ? _(
+              'Выберите соперника: у него −1Б к треку дохода, у вас +1Б.',
+            )
+          : _(
+              'Выберите соперника: у него −${n}Б к треку дохода, у вас +${n}Б.',
+            ).replace(/\$\{n\}/g, String(amount))
+
+      playersEl.innerHTML = ''
+      otherPlayers.forEach((player) => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'counter-advertising-modal__player-btn'
+        btn.textContent = player.player_name || String(player.player_id)
+        btn.dataset.playerId = String(player.player_id)
+        btn.addEventListener('click', () => {
+          this._counterAdvertisingModalState.targetPlayerId = Number(
+            player.player_id,
+          )
+          playersEl
+            .querySelectorAll('.counter-advertising-modal__player-btn')
+            .forEach((b) => b.classList.remove('selected'))
+          btn.classList.add('selected')
+          confirmBtn.disabled = false
+        })
+        playersEl.appendChild(btn)
+      })
+
+      confirmBtn.disabled = true
+      confirmBtn.onclick = () => this._confirmCounterAdvertisingSelection()
+
+      modal.classList.add('active')
+      modal.setAttribute('aria-hidden', 'false')
+    },
+
+    _closeCounterAdvertisingModal: function () {
+      const modal = document.getElementById('counter-advertising-modal')
+      const confirmBtn = document.getElementById(
+        'counter-advertising-modal-confirm-btn',
+      )
+      if (modal) {
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+        confirmBtn.onclick = null
+      }
+      this._counterAdvertisingModalState = null
+    },
+
+    _confirmCounterAdvertisingSelection: function () {
+      const state = this._counterAdvertisingModalState
+      if (!state?.targetPlayerId) {
+        this.showMessage(_('Выберите соперника'), 'error')
+        return
+      }
+
+      const confirmBtn = document.getElementById(
+        'counter-advertising-modal-confirm-btn',
+      )
+      if (confirmBtn) confirmBtn.disabled = true
+
+      this.bgaPerformAction(
+        'actConfirmCounterAdvertisingSelection',
+        { targetPlayerId: state.targetPlayerId },
+        (result) => {
+          if (result && result.success === false) {
+            if (confirmBtn) confirmBtn.disabled = false
+            this.showMessage(_('Ошибка при применении контррекламы'), 'error')
           }
         },
       )
