@@ -1103,7 +1103,7 @@ class SpecialistsData
             'name' => 'Майя', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'HR–менеджер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card_gift_player' => ['amount' => 4, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите 4 карты из колоды найма. Выберите соперника он тоже получает 1 карту', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1121,7 +1121,7 @@ class SpecialistsData
             'name' => 'Малика', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Хед–хантер', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card_gift_player' => ['amount' => 4, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите 4 карты из колоды найма. Выберите соперника он тоже получает 1 карту', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1283,7 +1283,7 @@ class SpecialistsData
             'name' => 'Анна', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Персональный ассистент', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card_gift_player' => ['amount' => 4, 'gift_amount' => 1]], // Эффект
             'effectDescription' => 'Возьмите 4 карты из колоды найма. Выберите другого игрока, он тоже получает 1 карту', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -1301,7 +1301,7 @@ class SpecialistsData
             'name' => 'Арина', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Оператор техподдержки', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['choose_office_track' => ['amount' => 1]], // Эффект
             'effectDescription' => 'Улучшите на 1 пункт любой трек в офисе', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1453,7 +1453,7 @@ class SpecialistsData
             'name' => 'Руслан', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Экспедитор', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['choose_office_track' => ['amount' => 1]], // Эффект
             'effectDescription' => 'Улучшите на 1 пункт любой трек в офисе', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1877,7 +1877,7 @@ class SpecialistsData
             'name' => 'Елена', // Имя специалиста
             'color' => '#FFFF00', // Цвет специалиста
             'speciality' => 'Логист', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['choose_office_track' => ['amount' => 1]], // Эффект
             'effectDescription' => 'Улучшите на 1 пункт любой трек в офисе', // Описание эффекта
             'department' => 'universal', // Отдел
             'starterOrFinisher' => 'F', // Стартер или финишер
@@ -1967,7 +1967,7 @@ class SpecialistsData
             'name' => 'Григорий', // Имя специалиста
             'color' => '#0000FF', // Цвет специалиста
             'speciality' => 'Fullstack–разработчик', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['move_task' => ['move_count' => 6, 'move_color' => 'any']], // Эффект — любые жетоны, 6 этапов на панели спринта
             'effectDescription' => 'Передвиньте жетоны задач любого(ых) цвета(ов) на 6 этапов на панели спринта', // Описание эффекта
             'department' => 'technical-department', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер
@@ -2601,7 +2601,7 @@ class SpecialistsData
             'name' => 'Жанна', // Имя специалиста
             'color' => '#800000', // Цвет специалиста
             'speciality' => 'Менеджер IT–проектов', // Специальность специалиста
-            'effect' => null, // Эффект
+            'effect' => ['card' => '+ 1'], // Эффект
             'effectDescription' => 'Возьмите 1 карту из колоды найма', // Описание эффекта
             'department' => 'back-office', // Отдел
             'starterOrFinisher' => 'S', // Стартер или финишер

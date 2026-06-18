@@ -37,6 +37,8 @@ use Bga\Games\itarenagame\Effects\TrackEffectHandler;
 use Bga\Games\itarenagame\Effects\UpdateTrackEffectHandler;
 use Bga\Games\itarenagame\Effects\MinTechDevTrackEffectHandler;
 use Bga\Games\itarenagame\Effects\TaskGiftPlayerEffectHandler;
+use Bga\Games\itarenagame\Effects\CardGiftPlayerEffectHandler;
+use Bga\Games\itarenagame\Effects\ChooseOfficeTrackEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -1962,6 +1964,8 @@ class Game extends \Bga\GameFramework\Table
             'card' => new CardEffectHandler($this),
             'task' => new TaskEffectHandler($this),
             'task_gift_player' => new TaskGiftPlayerEffectHandler($this),
+            'card_gift_player' => new CardGiftPlayerEffectHandler($this),
+            'choose_office_track' => new ChooseOfficeTrackEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
@@ -2376,8 +2380,8 @@ class Game extends \Bga\GameFramework\Table
                 continue;
             }
             $type = (string) ($eff['type'] ?? '');
-            if ($type === 'task' || $type === 'task_gift_player') {
-                if ((int) ($eff['amount'] ?? 0) > 0) {
+            if ($type === 'task' || $type === 'task_gift_player' || $type === 'card_gift_player' || $type === 'choose_office_track') {
+                if ((int) ($eff['amount'] ?? 0) > 0 || !empty($eff['requires_selection'])) {
                     return true;
                 }
                 continue;
@@ -3229,6 +3233,252 @@ class Game extends \Bga\GameFramework\Table
             'gift_amount' => $giftAmount,
         ];
     }
+
+    /**
+     * Возвращает ожидающий выбор соперника для подарка карты (эффект card_gift_player).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getPendingCardGiftForPlayer(int $playerId): ?array
+    {
+        $pendingJson = $this->globals->get('pending_card_gift_' . $playerId, '');
+        if ($pendingJson === null || $pendingJson === '') {
+            return null;
+        }
+        $decoded = json_decode((string) $pendingJson, true);
+        if (!is_array($decoded) || empty($decoded['requires_target_player'])) {
+            return null;
+        }
+        $giftCardId = (int) ($decoded['gift_card_id'] ?? 0);
+        if ($giftCardId <= 0) {
+            return null;
+        }
+
+        return [
+            'gift_card_id' => $giftCardId,
+            'gift_amount' => (int) ($decoded['gift_amount'] ?? 1),
+            'requires_target_player' => true,
+            'founder_name' => (string) ($decoded['founder_name'] ?? ''),
+            'founder_id' => (int) ($decoded['founder_id'] ?? 0),
+        ];
+    }
+
+    /**
+     * Подтверждает выбор соперника для подарка карты из колоды найма.
+     *
+     * @return array<string, mixed>
+     */
+    public function confirmCardGiftPlayerSelection(int $playerId, int $targetPlayerId): array
+    {
+        $pending = $this->getPendingCardGiftForPlayer($playerId);
+        if ($pending === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающего выбора соперника для подарка карты'));
+        }
+
+        $giftCardId = (int) ($pending['gift_card_id'] ?? 0);
+        if ($giftCardId <= 0) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет карты для подарка'));
+        }
+
+        $targetPlayerId = (int) $targetPlayerId;
+        if ($targetPlayerId <= 0 || $targetPlayerId === $playerId) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Выберите другого игрока'));
+        }
+        if (!in_array($targetPlayerId, $this->getOtherPlayerIds($playerId), true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверный игрок'));
+        }
+
+        $this->addSpecialistCardsToPlayerSpecialists($targetPlayerId, [$giftCardId]);
+        $this->globals->set('pending_card_gift_' . $playerId, null);
+
+        $card = SpecialistsData::getCard($giftCardId);
+
+        return [
+            'target_player_id' => $targetPlayerId,
+            'gift_card_id' => $giftCardId,
+            'gift_card_name' => (string) ($card['name'] ?? ('Карта #' . $giftCardId)),
+            'founder_name' => (string) ($pending['founder_name'] ?? ''),
+            'gift_amount' => (int) ($pending['gift_amount'] ?? 1),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getOfficeTrackChoiceIds(): array
+    {
+        return [
+            'income-track',
+            'player-department-back-office-evolution-column-1',
+            'sprint-column-tasks',
+            'pink-track',
+            'orange-track',
+            'cyan-track',
+            'purple-track',
+        ];
+    }
+
+    /**
+     * @return list<array{track_id: string, label: string}>
+     */
+    public function getOfficeTrackChoiceOptions(): array
+    {
+        return [
+            ['track_id' => 'income-track', 'label' => clienttranslate('Трек дохода (отдел продаж)')],
+            ['track_id' => 'player-department-back-office-evolution-column-1', 'label' => clienttranslate('Трек эволюции бэк-офиса')],
+            ['track_id' => 'sprint-column-tasks', 'label' => clienttranslate('Трек задач на панели спринта')],
+            ['track_id' => 'pink-track', 'label' => clienttranslate('Розовый трек в техотделе')],
+            ['track_id' => 'orange-track', 'label' => clienttranslate('Оранжевый трек в техотделе')],
+            ['track_id' => 'cyan-track', 'label' => clienttranslate('Голубой трек в техотделе')],
+            ['track_id' => 'purple-track', 'label' => clienttranslate('Фиолетовый трек в техотделе')],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getPendingOfficeTrackChoiceForPlayer(int $playerId): ?array
+    {
+        $pendingJson = $this->globals->get('pending_office_track_choice_' . $playerId, '');
+        if ($pendingJson === null || $pendingJson === '') {
+            return null;
+        }
+        $decoded = json_decode((string) $pendingJson, true);
+        if (!is_array($decoded) || empty($decoded['requires_selection'])) {
+            return null;
+        }
+        $amount = (int) ($decoded['amount'] ?? 0);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return [
+            'amount' => $amount,
+            'founder_name' => (string) ($decoded['founder_name'] ?? ''),
+            'founder_id' => (int) ($decoded['founder_id'] ?? 0),
+            'requires_selection' => true,
+            'track_options' => $this->getOfficeTrackChoiceOptions(),
+        ];
+    }
+
+    /**
+     * @return array{trackId: string, trackName: string, amount: int, oldValue: int, newValue: int, founder_name: string}
+     */
+    public function confirmOfficeTrackChoice(int $playerId, string $trackId): array
+    {
+        $pending = $this->getPendingOfficeTrackChoiceForPlayer($playerId);
+        if ($pending === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающего выбора трека в офисе'));
+        }
+
+        $trackId = trim($trackId);
+        if (!in_array($trackId, $this->getOfficeTrackChoiceIds(), true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Неверный трек'));
+        }
+
+        $amount = (int) ($pending['amount'] ?? 1);
+        $trackUpdate = $this->applyOfficeTrackImprovement($playerId, $trackId, $amount);
+        if ($trackUpdate === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Не удалось улучшить выбранный трек'));
+        }
+
+        $this->globals->set('pending_office_track_choice_' . $playerId, null);
+
+        return [
+            'trackId' => (string) ($trackUpdate['trackId'] ?? $trackId),
+            'trackName' => (string) ($trackUpdate['trackName'] ?? $trackId),
+            'amount' => (int) ($trackUpdate['amount'] ?? $amount),
+            'oldValue' => (int) ($trackUpdate['oldValue'] ?? 0),
+            'newValue' => (int) ($trackUpdate['newValue'] ?? 0),
+            'founder_name' => (string) ($pending['founder_name'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array{trackId: string, trackName: string, amount: int, oldValue: int, newValue: int}|null
+     */
+    public function applyOfficeTrackImprovement(int $playerId, string $trackId, int $amount): ?array
+    {
+        if ($amount === 0 || !in_array($trackId, $this->getOfficeTrackChoiceIds(), true)) {
+            return null;
+        }
+
+        if ($trackId === 'income-track') {
+            $oldValue = (int) $this->playerEnergy->get($playerId);
+            if ($amount > 0) {
+                $this->playerEnergy->inc($playerId, $amount);
+            } else {
+                $this->playerEnergy->inc($playerId, -min(abs($amount), $oldValue));
+            }
+            $newValue = (int) $this->playerEnergy->get($playerId);
+
+            return [
+                'trackId' => $trackId,
+                'trackName' => clienttranslate('трек дохода'),
+                'amount' => $amount,
+                'oldValue' => $oldValue,
+                'newValue' => $newValue,
+            ];
+        }
+
+        if (preg_match('/player-department-back-office-evolution-column-(\d+)/', $trackId, $matches)) {
+            $column = (int) ($matches[1] ?? 0);
+            if ($column !== 1) {
+                return null;
+            }
+            $result = $this->applyBackOfficeColumnUpdate($playerId, $column, $amount);
+            if ($result === null) {
+                return null;
+            }
+
+            return [
+                'trackId' => (string) ($result['trackId'] ?? $trackId),
+                'trackName' => $this->getOfficeTrackLabel($trackId),
+                'amount' => (int) ($result['amount'] ?? $amount),
+                'oldValue' => (int) ($result['oldValue'] ?? 0),
+                'newValue' => (int) ($result['newValue'] ?? 0),
+            ];
+        }
+
+        if ($trackId === 'sprint-column-tasks') {
+            $sprintResult = $this->applySprintColumnTasksProgressUpdate($playerId, $amount);
+            if ($sprintResult === null) {
+                return null;
+            }
+
+            return [
+                'trackId' => 'sprint-column-tasks',
+                'trackName' => clienttranslate('трек задач на панели спринта'),
+                'amount' => (int) ($sprintResult['amount'] ?? $amount),
+                'oldValue' => (int) ($sprintResult['oldValue'] ?? 0),
+                'newValue' => (int) ($sprintResult['newValue'] ?? 0),
+            ];
+        }
+
+        $techResult = $this->applyTechnicalDepartmentTrackUpdate($playerId, $trackId, $amount);
+        if ($techResult === null) {
+            return null;
+        }
+
+        return [
+            'trackId' => (string) ($techResult['trackId'] ?? $trackId),
+            'trackName' => $this->getOfficeTrackLabel($trackId),
+            'amount' => (int) ($techResult['amount'] ?? $amount),
+            'oldValue' => (int) ($techResult['oldValue'] ?? 0),
+            'newValue' => (int) ($techResult['newValue'] ?? 0),
+        ];
+    }
+
+    private function getOfficeTrackLabel(string $trackId): string
+    {
+        foreach ($this->getOfficeTrackChoiceOptions() as $option) {
+            if (($option['track_id'] ?? '') === $trackId) {
+                return (string) ($option['label'] ?? $trackId);
+            }
+        }
+
+        return $trackId;
+    }
     
     /**
      * Удаляет задачи у игрока
@@ -4008,6 +4258,14 @@ class Game extends \Bga\GameFramework\Table
         $oldValue = $gameData ? (int)($gameData['backOfficeCol' . $column] ?? 1) : 1;
         $newValue = max(1, min(6, $oldValue + $amount));
         $this->setBackOfficeColumn($playerId, $column, $newValue);
+
+        // Колонки 2 и 3 — производные от колонки 1 (собеседование / найм по таблице трека).
+        if ($column === 1) {
+            $hiringTrack = $this->mapHiringTrackFromPosition($newValue);
+            $this->setBackOfficeColumn($playerId, 2, (int) $hiringTrack['interview']);
+            $this->setBackOfficeColumn($playerId, 3, (int) $hiringTrack['hire']);
+        }
+
         return [
             'trackId' => 'player-department-back-office-evolution-column-' . $column,
             'amount' => $amount,
@@ -5760,6 +6018,8 @@ class Game extends \Bga\GameFramework\Table
         require_once $dir . '/CardEffectHandler.php';
         require_once $dir . '/TaskEffectHandler.php';
         require_once $dir . '/TaskGiftPlayerEffectHandler.php';
+        require_once $dir . '/CardGiftPlayerEffectHandler.php';
+        require_once $dir . '/ChooseOfficeTrackEffectHandler.php';
         require_once $dir . '/MoveTaskEffectHandler.php';
         require_once $dir . '/TrackEffectHandler.php';
         require_once $dir . '/UpdateTrackEffectHandler.php';

@@ -642,6 +642,36 @@ define([
                     </div>
                   </div>
                 </div>
+                <div id="office-track-choice-modal" class="office-track-choice-modal" aria-hidden="true">
+                  <div class="office-track-choice-modal__content">
+                    <div class="office-track-choice-modal__header">
+                      <div class="office-track-choice-modal__title" id="office-track-choice-modal-title"></div>
+                      <div class="office-track-choice-modal__subtitle" id="office-track-choice-modal-subtitle"></div>
+                    </div>
+                    <div class="office-track-choice-modal__section">
+                      <div class="office-track-choice-modal__section-title">${_('Выберите трек')}</div>
+                      <div class="office-track-choice-modal__tracks" id="office-track-choice-modal-tracks"></div>
+                    </div>
+                    <div class="office-track-choice-modal__footer">
+                      <button type="button" id="office-track-choice-modal-confirm-btn" class="office-track-choice-modal__confirm-btn" disabled>${_('Улучшить трек')}</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="card-gift-player-modal" class="card-gift-player-modal" aria-hidden="true">
+                  <div class="card-gift-player-modal__content">
+                    <div class="card-gift-player-modal__header">
+                      <div class="card-gift-player-modal__title" id="card-gift-player-modal-title"></div>
+                      <div class="card-gift-player-modal__subtitle" id="card-gift-player-modal-subtitle"></div>
+                    </div>
+                    <div class="card-gift-player-modal__section">
+                      <div class="card-gift-player-modal__section-title">${_('Выберите соперника')}</div>
+                      <div class="card-gift-player-modal__players" id="card-gift-player-modal-players"></div>
+                    </div>
+                    <div class="card-gift-player-modal__footer">
+                      <button type="button" id="card-gift-player-modal-confirm-btn" class="card-gift-player-modal__confirm-btn" disabled>${_('Подарить карту')}</button>
+                    </div>
+                  </div>
+                </div>
                 <div id="task-gift-player-modal" class="task-gift-player-modal" aria-hidden="true">
                   <div class="task-gift-player-modal__content">
                     <div class="task-gift-player-modal__header">
@@ -2123,6 +2153,16 @@ define([
               } else {
                 this.gamedatas.pendingTaskSelection = null
               }
+              if (a.pendingCardGift != null) {
+                this.gamedatas.pendingCardGift = a.pendingCardGift
+              } else {
+                this.gamedatas.pendingCardGift = null
+              }
+              if (a.pendingOfficeTrackChoice != null) {
+                this.gamedatas.pendingOfficeTrackChoice = a.pendingOfficeTrackChoice
+              } else {
+                this.gamedatas.pendingOfficeTrackChoice = null
+              }
               const pendingTaskMovesArg = a.pendingTaskMoves ?? null
               if (
                 pendingTaskMovesArg &&
@@ -2166,6 +2206,41 @@ define([
                   },
                 )
               }
+              const hiringPendingOfficeTrack = a.pendingOfficeTrackChoice ?? null
+              const mustSelectOfficeTrack =
+                hiringPendingOfficeTrack &&
+                !!hiringPendingOfficeTrack.requires_selection
+              if (
+                mustSelectOfficeTrack &&
+                Number(a.activePlayerId) === Number(this.player_id)
+              ) {
+                this.notif_officeTrackChoiceRequired({
+                  args: {
+                    player_id: this.player_id,
+                    amount: Number(hiringPendingOfficeTrack.amount || 1),
+                    founder_name: hiringPendingOfficeTrack.founder_name || '',
+                    track_options: hiringPendingOfficeTrack.track_options || [],
+                  },
+                })
+              }
+              const hiringPendingCardGift = a.pendingCardGift ?? null
+              const mustSelectCardGift =
+                hiringPendingCardGift &&
+                !!hiringPendingCardGift.requires_target_player
+              if (
+                mustSelectCardGift &&
+                Number(a.activePlayerId) === Number(this.player_id)
+              ) {
+                this.notif_cardGiftPlayerRequired({
+                  args: {
+                    player_id: this.player_id,
+                    founder_name: hiringPendingCardGift.founder_name || '',
+                    gift_amount: Number(hiringPendingCardGift.gift_amount || 1),
+                    requires_target_player: true,
+                    other_players: this._buildOtherPlayersList(),
+                  },
+                })
+              }
               const hiringPendingTask = a.pendingTaskSelection ?? null
               const mustSelectTasks =
                 hiringPendingTask && Number(hiringPendingTask.amount || 0) > 0
@@ -2203,7 +2278,13 @@ define([
                   : _(
                       'Сначала выберите ${n} задач в бэклог (эффект карты или навыка)',
                     ).replace('${n}', String(amt))
-              const completeHiringTooltip = mustSelectTasks
+              const completeHiringTooltip = mustSelectOfficeTrack
+                ? _('Сначала выберите трек в офисе для улучшения')
+                : mustSelectCardGift
+                ? _(
+                    'Сначала выберите соперника для подарка карты из колоды найма',
+                  )
+                : mustSelectTasks
                 ? hiringTaskBlockMsg
                 : mustConfirmTaskMoves
                   ? _(
@@ -2242,6 +2323,8 @@ define([
                   primary: true,
                   id: 'complete-hiring-phase-button',
                   disabled:
+                    !!mustSelectOfficeTrack ||
+                    !!mustSelectCardGift ||
                     !!mustSelectTasks ||
                     !!mustConfirmTaskMoves ||
                     !!mustConfirmTechDevelopment,
@@ -2984,6 +3067,26 @@ define([
         'taskSelectionRequired',
         this,
         'notif_taskSelectionRequired',
+      )
+      dojo.subscribe(
+        'cardGiftPlayerRequired',
+        this,
+        'notif_cardGiftPlayerRequired',
+      )
+      dojo.subscribe(
+        'cardGiftPlayerCompleted',
+        this,
+        'notif_cardGiftPlayerCompleted',
+      )
+      dojo.subscribe(
+        'officeTrackChoiceRequired',
+        this,
+        'notif_officeTrackChoiceRequired',
+      )
+      dojo.subscribe(
+        'officeTrackChoiceCompleted',
+        this,
+        'notif_officeTrackChoiceCompleted',
       )
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
@@ -5295,6 +5398,59 @@ define([
         } else {
           this.gamedatas.pendingTaskSelection = null
         }
+        if (args.pendingCardGift != null && args.pendingCardGift.requires_target_player) {
+          this.gamedatas.pendingCardGift = {
+            founder_name: args.pendingCardGift.founder_name || '',
+            gift_amount: Number(args.pendingCardGift.gift_amount || 1),
+            requires_target_player: true,
+          }
+          try {
+            if (typeof this.notif_cardGiftPlayerRequired === 'function') {
+              await this.notif_cardGiftPlayerRequired({
+                args: {
+                  player_id: playerId,
+                  founder_name: args.pendingCardGift.founder_name || '',
+                  gift_amount: Number(args.pendingCardGift.gift_amount || 1),
+                  requires_target_player: true,
+                  other_players: this._buildOtherPlayersList(),
+                },
+              })
+            }
+          } catch (e) {
+            console.error(
+              '❌ Failed to activate card gift selection from specialistsHired:',
+              e,
+            )
+          }
+        } else {
+          this.gamedatas.pendingCardGift = null
+        }
+        if (args.pendingOfficeTrackChoice != null && args.pendingOfficeTrackChoice.requires_selection) {
+          this.gamedatas.pendingOfficeTrackChoice = {
+            amount: Number(args.pendingOfficeTrackChoice.amount || 1),
+            founder_name: args.pendingOfficeTrackChoice.founder_name || '',
+            requires_selection: true,
+          }
+          try {
+            if (typeof this.notif_officeTrackChoiceRequired === 'function') {
+              await this.notif_officeTrackChoiceRequired({
+                args: {
+                  player_id: playerId,
+                  amount: Number(args.pendingOfficeTrackChoice.amount || 1),
+                  founder_name: args.pendingOfficeTrackChoice.founder_name || '',
+                  track_options: args.pendingOfficeTrackChoice.track_options || [],
+                },
+              })
+            }
+          } catch (e) {
+            console.error(
+              '❌ Failed to activate office track choice from specialistsHired:',
+              e,
+            )
+          }
+        } else {
+          this.gamedatas.pendingOfficeTrackChoice = null
+        }
         if (
           args.pendingTechnicalDevelopmentMoves != null &&
           Number(args.pendingTechnicalDevelopmentMoves.move_count || 0) > 0
@@ -5318,7 +5474,7 @@ define([
       this._renderPlayerMoney(this.gamedatas.players, playerId)
       this._renderHiredSpecialistsInDepartments(playerId)
 
-      // Эффект 'card' (карты в руку от карты специалиста): добавляем выданные карты в playerSpecialists
+      // Эффект 'card' (карты в руку от карты специалиста): card_gift_player обрабатывается через specialistsDealtToHand
       appliedEffects.forEach((eff) => {
         if (
           (eff.type || '') === 'card' &&
@@ -6925,17 +7081,21 @@ define([
               pl.backOfficeEvolution['column' + columnNum] = newVal
             }
             if (
-              columnNum === 1 &&
-              Number(pid) === Number(this.player_id) &&
-              amount !== 0
+              columnNum === 1
             ) {
-              // визуальный жетон есть только у текущего игрока
-              this._updateBackOfficeEvolutionColumn(
-                pid,
-                'player-department-back-office-evolution-column-1',
-                newVal,
-                amount,
-              )
+              this._syncBackOfficeHiringDerivedColumns(pid, newVal)
+              if (
+                Number(pid) === Number(this.player_id) &&
+                amount !== 0
+              ) {
+                // визуальный жетон есть только у текущего игрока
+                this._updateBackOfficeEvolutionColumn(
+                  pid,
+                  'player-department-back-office-evolution-column-1',
+                  newVal,
+                  amount,
+                )
+              }
             }
             return
           }
@@ -6943,7 +7103,9 @@ define([
           // Трек спринта (sprint-column-tasks)
           if ((trackId || '') === 'sprint-column-tasks' && pl) {
             pl.sprintColumnTasksProgress = newVal
-            this._positionSprintColumnTasksTokenFromGamedatas(pid)
+            if (Number(pid) === Number(this.player_id)) {
+              this._positionSprintColumnTasksTokenFromGamedatas(pid)
+            }
           }
         })
       })
@@ -7383,6 +7545,332 @@ define([
               _('Ошибка при подтверждении выбора задач'),
               'error',
             )
+          }
+        },
+      )
+    },
+
+    notif_cardGiftPlayerRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(playerId) !== Number(this.player_id)) return
+
+      this.gamedatas.pendingCardGift = {
+        founder_name: args.founder_name || '',
+        gift_amount: Number(args.gift_amount || 1),
+        requires_target_player: true,
+      }
+
+      const stateName = this.gamedatas?.gamestate?.name
+      if (stateName === 'RoundHiring') {
+        const completeBtn = document.getElementById(
+          'complete-hiring-phase-button',
+        )
+        if (completeBtn) {
+          completeBtn.disabled = true
+          completeBtn.setAttribute(
+            'title',
+            _(
+              'Сначала выберите соперника для подарка карты из колоды найма',
+            ),
+          )
+        }
+      }
+
+      this._openCardGiftPlayerModal({
+        founderName: args.founder_name || '',
+        giftAmount: Number(args.gift_amount || 1),
+        otherPlayers: Array.isArray(args.other_players)
+          ? args.other_players
+          : this._buildOtherPlayersList(),
+      })
+    },
+
+    notif_cardGiftPlayerCompleted: async function (notif) {
+      const args = notif.args || notif
+      const sourcePlayerId = Number(args.player_id || 0)
+      const targetPlayerId = Number(args.target_player_id || 0)
+      const cardIds = Array.isArray(args.cardIds) ? args.cardIds : []
+
+      if (Number(sourcePlayerId) === Number(this.player_id)) {
+        this.gamedatas.pendingCardGift = null
+        this._closeCardGiftPlayerModal()
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = false
+            completeBtn.setAttribute(
+              'title',
+              _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+            )
+          }
+        }
+      }
+
+      if (cardIds.length > 0 && targetPlayerId > 0) {
+        await this.notif_specialistsDealtToHand({
+          args: {
+            player_id: targetPlayerId,
+            cardIds: cardIds,
+            amount: Number(args.amount || cardIds.length),
+            founder_name: args.founder_name || '',
+            source: args.source || 'specialist_card_gift',
+          },
+        })
+      }
+    },
+
+    _openCardGiftPlayerModal: function (config) {
+      const founderName = config?.founderName || ''
+      const giftAmount = Math.max(1, Number(config?.giftAmount) || 1)
+      const otherPlayers = Array.isArray(config?.otherPlayers)
+        ? config.otherPlayers
+        : this._buildOtherPlayersList()
+
+      const modal = document.getElementById('card-gift-player-modal')
+      const titleEl = document.getElementById('card-gift-player-modal-title')
+      const subtitleEl = document.getElementById(
+        'card-gift-player-modal-subtitle',
+      )
+      const playersEl = document.getElementById('card-gift-player-modal-players')
+      const confirmBtn = document.getElementById(
+        'card-gift-player-modal-confirm-btn',
+      )
+      if (!modal || !titleEl || !subtitleEl || !playersEl || !confirmBtn) return
+
+      this._cardGiftPlayerModalState = { targetPlayerId: null }
+
+      titleEl.textContent = founderName
+        ? _('Эффект «${name}»').replace('${name}', founderName)
+        : _('Подарок карты')
+      subtitleEl.textContent =
+        giftAmount === 1
+          ? _(
+              'Вы получили 4 карты из колоды найма. Выберите соперника — он получит 1 случайную карту.',
+            )
+          : _(
+              'Вы получили 4 карты из колоды найма. Выберите соперника — он получит ${n} случайные карты.',
+            ).replace('${n}', String(giftAmount))
+
+      playersEl.innerHTML = ''
+      otherPlayers.forEach((player) => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'card-gift-player-modal__player-btn'
+        btn.textContent = player.player_name || String(player.player_id)
+        btn.dataset.playerId = String(player.player_id)
+        btn.addEventListener('click', () => {
+          this._cardGiftPlayerModalState.targetPlayerId = Number(
+            player.player_id,
+          )
+          playersEl
+            .querySelectorAll('.card-gift-player-modal__player-btn')
+            .forEach((b) => b.classList.remove('selected'))
+          btn.classList.add('selected')
+          confirmBtn.disabled = false
+        })
+        playersEl.appendChild(btn)
+      })
+
+      confirmBtn.disabled = true
+      confirmBtn.onclick = () => this._confirmCardGiftPlayerSelection()
+
+      modal.classList.add('active')
+      modal.setAttribute('aria-hidden', 'false')
+    },
+
+    _closeCardGiftPlayerModal: function () {
+      const modal = document.getElementById('card-gift-player-modal')
+      const confirmBtn = document.getElementById(
+        'card-gift-player-modal-confirm-btn',
+      )
+      if (modal) {
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+        confirmBtn.onclick = null
+      }
+      this._cardGiftPlayerModalState = null
+    },
+
+    _confirmCardGiftPlayerSelection: function () {
+      const state = this._cardGiftPlayerModalState
+      if (!state?.targetPlayerId) {
+        this.showMessage(_('Выберите соперника'), 'error')
+        return
+      }
+
+      const confirmBtn = document.getElementById(
+        'card-gift-player-modal-confirm-btn',
+      )
+      if (confirmBtn) confirmBtn.disabled = true
+
+      this.bgaPerformAction(
+        'actConfirmCardGiftPlayerSelection',
+        { targetPlayerId: state.targetPlayerId },
+        (result) => {
+          if (result && result.success === false) {
+            if (confirmBtn) confirmBtn.disabled = false
+            this.showMessage(_('Ошибка при подарке карты'), 'error')
+          }
+        },
+      )
+    },
+
+    notif_officeTrackChoiceRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(playerId) !== Number(this.player_id)) return
+
+      this.gamedatas.pendingOfficeTrackChoice = {
+        amount: Number(args.amount || 1),
+        founder_name: args.founder_name || '',
+        requires_selection: true,
+      }
+
+      if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+        const completeBtn = document.getElementById(
+          'complete-hiring-phase-button',
+        )
+        if (completeBtn) {
+          completeBtn.disabled = true
+          completeBtn.setAttribute(
+            'title',
+            _('Сначала выберите трек в офисе для улучшения'),
+          )
+        }
+      }
+
+      this._openOfficeTrackChoiceModal({
+        founderName: args.founder_name || '',
+        amount: Number(args.amount || 1),
+        trackOptions: Array.isArray(args.track_options) ? args.track_options : [],
+      })
+    },
+
+    notif_officeTrackChoiceCompleted: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+
+      if (Number(playerId) === Number(this.player_id)) {
+        this.gamedatas.pendingOfficeTrackChoice = null
+        this._closeOfficeTrackChoiceModal()
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = false
+            completeBtn.setAttribute(
+              'title',
+              _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+            )
+          }
+        }
+      }
+
+      if (Array.isArray(args.appliedEffects) && args.appliedEffects.length > 0) {
+        this._applyUpdateTrackEffectsFromApplied(playerId, args.appliedEffects)
+      }
+    },
+
+    _openOfficeTrackChoiceModal: function (config) {
+      const founderName = config?.founderName || ''
+      const amount = Math.max(1, Number(config?.amount) || 1)
+      const trackOptions = Array.isArray(config?.trackOptions)
+        ? config.trackOptions
+        : []
+
+      const modal = document.getElementById('office-track-choice-modal')
+      const titleEl = document.getElementById('office-track-choice-modal-title')
+      const subtitleEl = document.getElementById(
+        'office-track-choice-modal-subtitle',
+      )
+      const tracksEl = document.getElementById('office-track-choice-modal-tracks')
+      const confirmBtn = document.getElementById(
+        'office-track-choice-modal-confirm-btn',
+      )
+      if (!modal || !titleEl || !subtitleEl || !tracksEl || !confirmBtn) return
+
+      this._officeTrackChoiceModalState = { trackId: null }
+
+      titleEl.textContent = founderName
+        ? _('Эффект «${name}»').replace('${name}', founderName)
+        : _('Улучшение трека')
+      subtitleEl.textContent =
+        amount === 1
+          ? _('Выберите любой трек в офисе и улучшите его на 1 пункт')
+          : _('Выберите любой трек в офисе и улучшите его на ${n} пункта').replace(
+              '${n}',
+              String(amount),
+            )
+
+      tracksEl.innerHTML = ''
+      trackOptions.forEach((option) => {
+        const trackId = option.track_id || option.trackId || ''
+        if (!trackId) return
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'office-track-choice-modal__track-btn'
+        btn.textContent = option.label || trackId
+        btn.dataset.trackId = trackId
+        btn.addEventListener('click', () => {
+          this._officeTrackChoiceModalState.trackId = trackId
+          tracksEl
+            .querySelectorAll('.office-track-choice-modal__track-btn')
+            .forEach((b) => b.classList.remove('selected'))
+          btn.classList.add('selected')
+          confirmBtn.disabled = false
+        })
+        tracksEl.appendChild(btn)
+      })
+
+      confirmBtn.disabled = true
+      confirmBtn.onclick = () => this._confirmOfficeTrackChoice()
+
+      modal.classList.add('active')
+      modal.setAttribute('aria-hidden', 'false')
+    },
+
+    _closeOfficeTrackChoiceModal: function () {
+      const modal = document.getElementById('office-track-choice-modal')
+      const confirmBtn = document.getElementById(
+        'office-track-choice-modal-confirm-btn',
+      )
+      if (modal) {
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+        confirmBtn.onclick = null
+      }
+      this._officeTrackChoiceModalState = null
+    },
+
+    _confirmOfficeTrackChoice: function () {
+      const state = this._officeTrackChoiceModalState
+      if (!state?.trackId) {
+        this.showMessage(_('Выберите трек'), 'error')
+        return
+      }
+
+      const confirmBtn = document.getElementById(
+        'office-track-choice-modal-confirm-btn',
+      )
+      if (confirmBtn) confirmBtn.disabled = true
+
+      this.bgaPerformAction(
+        'actConfirmOfficeTrackChoice',
+        { trackId: state.trackId },
+        (result) => {
+          if (result && result.success === false) {
+            if (confirmBtn) confirmBtn.disabled = false
+            this.showMessage(_('Ошибка при улучшении трека'), 'error')
           }
         },
       )
@@ -12688,6 +13176,36 @@ define([
 
       // Разблокируем кнопку завершения хода
       this._updateFinishTurnButtonForTechnicalDevelopment()
+    },
+
+    /**
+     * Таблица трека найма (колонка 1 → собеседование / найм в колонках 2 и 3).
+     */
+    _mapHiringTrackFromPosition: function (position) {
+      const p = Math.max(1, Math.min(6, Number(position) || 1))
+      const table = {
+        1: { position: 1, interview: 2, hire: 3 },
+        2: { position: 2, interview: 3, hire: 3 },
+        3: { position: 3, interview: 4, hire: 3 },
+        4: { position: 4, interview: 5, hire: 3 },
+        5: { position: 5, interview: 5, hire: 4 },
+        6: { position: 6, interview: 6, hire: 4 },
+      }
+      return table[p] || table[1]
+    },
+
+    _syncBackOfficeHiringDerivedColumns: function (playerId, col1Value) {
+      const pl = this.gamedatas?.players?.[playerId]
+      if (!pl) return
+      const hiring = this._mapHiringTrackFromPosition(col1Value)
+      pl.backOfficeCol2 = hiring.interview
+      pl.backOfficeCol3 = hiring.hire
+      pl.hiringTrackInterview = hiring.interview
+      pl.hiringTrackHire = hiring.hire
+      pl.hiringTrackPosition = hiring.position
+      if (!pl.backOfficeEvolution) pl.backOfficeEvolution = {}
+      pl.backOfficeEvolution.column2 = hiring.interview
+      pl.backOfficeEvolution.column3 = hiring.hire
     },
 
     /**

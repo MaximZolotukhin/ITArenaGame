@@ -3810,6 +3810,186 @@
   filter: brightness(1.08);
 }
 
+/* Модальное окно: выбор соперника для подарка карты (эффект card_gift_player) */
+.card-gift-player-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 2100;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.card-gift-player-modal.active {
+  display: flex;
+}
+.card-gift-player-modal__content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.card-gift-player-modal__header {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.card-gift-player-modal__title {
+  font-size: 1.3em;
+  color: #fff;
+  margin-bottom: 6px;
+}
+.card-gift-player-modal__subtitle {
+  font-size: 0.95em;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.4;
+}
+.card-gift-player-modal__section {
+  margin-bottom: 18px;
+}
+.card-gift-player-modal__section-title {
+  font-size: 1em;
+  color: #a8d4ff;
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+.card-gift-player-modal__players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.card-gift-player-modal__player-btn {
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.card-gift-player-modal__player-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.card-gift-player-modal__player-btn.selected {
+  border-color: #81c784;
+  background: rgba(129, 199, 132, 0.25);
+}
+.card-gift-player-modal__footer {
+  text-align: center;
+  margin-top: 8px;
+}
+.card-gift-player-modal__confirm-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #66bb6a, #388e3c);
+  color: #fff;
+  font-size: 1em;
+  cursor: pointer;
+}
+.card-gift-player-modal__confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.card-gift-player-modal__confirm-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+/* Модальное окно: выбор трека в офисе (эффект choose_office_track) */
+.office-track-choice-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 2100;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.office-track-choice-modal.active {
+  display: flex;
+}
+.office-track-choice-modal__content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.office-track-choice-modal__header {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.office-track-choice-modal__title {
+  font-size: 1.3em;
+  color: #fff;
+  margin-bottom: 6px;
+}
+.office-track-choice-modal__subtitle {
+  font-size: 0.95em;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.4;
+}
+.office-track-choice-modal__section {
+  margin-bottom: 18px;
+}
+.office-track-choice-modal__section-title {
+  font-size: 1em;
+  color: #a8d4ff;
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+.office-track-choice-modal__tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.office-track-choice-modal__track-btn {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.office-track-choice-modal__track-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.office-track-choice-modal__track-btn.selected {
+  border-color: #ffb74d;
+  background: rgba(255, 183, 77, 0.22);
+}
+.office-track-choice-modal__footer {
+  text-align: center;
+  margin-top: 8px;
+}
+.office-track-choice-modal__confirm-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffb74d, #f57c00);
+  color: #fff;
+  font-size: 1em;
+  cursor: pointer;
+}
+.office-track-choice-modal__confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.office-track-choice-modal__confirm-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
 /* Нанятые специалисты в отделах — размер как у карты основателя (founder-card__image max-width: 180px) */
 .hired-specialist-card {
   width: 180px;

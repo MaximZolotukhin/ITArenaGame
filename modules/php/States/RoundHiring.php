@@ -123,6 +123,8 @@ class RoundHiring extends GameState
         $roundOrder = $this->game->getCurrentRoundPlayerOrder();
 
         $pendingTaskSelection = $this->game->getPendingTaskSelectionForPlayer($activePlayerId);
+        $pendingCardGift = $this->game->getPendingCardGiftForPlayer($activePlayerId);
+        $pendingOfficeTrackChoice = $this->game->getPendingOfficeTrackChoiceForPlayer($activePlayerId);
 
         $pendingTaskMoves = null;
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
@@ -160,6 +162,8 @@ class RoundHiring extends GameState
             'sergeyHiringDiscountActive' => $this->isSergeyHiringDiscountActive($activePlayerId),
             'sergeyHiringDiscountPrice' => self::SERGEY_DISCOUNT_PRICE,
             'pendingTaskSelection' => $pendingTaskSelection,
+            'pendingCardGift' => $pendingCardGift,
+            'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
             'pendingTaskMoves' => $pendingTaskMoves,
             'pendingTechnicalDevelopmentMoves' => $this->game->getPendingTechnicalDevelopmentMovesData($activePlayerId),
         ];
@@ -383,6 +387,8 @@ class RoundHiring extends GameState
         $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
         $pendingTaskSelection = null;
         $pendingTaskMoves = null;
+        $pendingCardGift = null;
+        $pendingOfficeTrackChoice = null;
         foreach ($appliedEffects as $eff) {
             if (
                 isset($eff['type'])
@@ -395,6 +401,18 @@ class RoundHiring extends GameState
                     'amount' => (int) $eff['amount'],
                     'founder_name' => $card['name'] ?? '',
                 ];
+            } elseif (
+                isset($eff['type'])
+                && $eff['type'] === 'card_gift_player'
+                && !empty($eff['requires_target_player'])
+            ) {
+                $pendingCardGift = $this->game->getPendingCardGiftForPlayer($playerId);
+            } elseif (
+                isset($eff['type'])
+                && $eff['type'] === 'choose_office_track'
+                && !empty($eff['requires_selection'])
+            ) {
+                $pendingOfficeTrackChoice = $this->game->getPendingOfficeTrackChoiceForPlayer($playerId);
             }
             if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
                 $pendingTaskMoves = [
@@ -422,6 +440,8 @@ class RoundHiring extends GameState
             'specialistEffectApplied' => !empty($appliedEffects),
             'appliedEffects' => $appliedEffects,
             'pendingTaskSelection' => $pendingTaskSelection,
+            'pendingCardGift' => $pendingCardGift,
+            'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
             'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
             'i18n' => ['badgers'],
         ]);
@@ -435,6 +455,33 @@ class RoundHiring extends GameState
         }
         if ($pendingTaskSelection !== null) {
             $this->notifyTaskSelectionRequired($playerId, $pendingTaskSelection);
+        }
+        foreach ($appliedEffects as $eff) {
+            if (
+                ($eff['type'] ?? '') === 'card_gift_player'
+                && !empty($eff['cardIds'])
+                && (int) ($eff['amount'] ?? 0) > 0
+            ) {
+                $this->notify->all(
+                    'specialistsDealtToHand',
+                    clienttranslate('${player_name} получает ${amount} карт из колоды найма (эффект «${founder_name}»)'),
+                    [
+                        'player_id' => $playerId,
+                        'player_name' => $this->game->getPlayerNameById($playerId),
+                        'amount' => (int) $eff['amount'],
+                        'founder_name' => (string) ($eff['founder_name'] ?? $card['name'] ?? ''),
+                        'cardIds' => $eff['cardIds'],
+                        'source' => 'specialist_card_gift',
+                        'i18n' => ['founder_name'],
+                    ],
+                );
+            }
+        }
+        if ($pendingCardGift !== null) {
+            $this->notifyCardGiftPlayerRequired($playerId, $pendingCardGift);
+        }
+        if ($pendingOfficeTrackChoice !== null) {
+            $this->notifyOfficeTrackChoiceRequired($playerId, $pendingOfficeTrackChoice);
         }
         if ($pendingTaskMoves !== null) {
             $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -584,6 +631,8 @@ class RoundHiring extends GameState
                 }
             }
             $pendingTaskSelection = $this->resolvePendingTaskSelectionAfterEffects($playerId, $allAppliedEffects);
+            $pendingCardGift = $this->resolvePendingCardGiftAfterEffects($playerId, $allAppliedEffects);
+            $pendingOfficeTrackChoice = $this->resolvePendingOfficeTrackChoiceAfterEffects($playerId, $allAppliedEffects);
             $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
             $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
@@ -599,6 +648,8 @@ class RoundHiring extends GameState
                 'specialistEffectApplied' => !empty($allAppliedEffects),
                 'appliedEffects' => $allAppliedEffects,
                 'pendingTaskSelection' => $pendingTaskSelection,
+                'pendingCardGift' => $pendingCardGift,
+                'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
                 'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
                 'i18n' => ['badgers'],
             ]);
@@ -613,6 +664,33 @@ class RoundHiring extends GameState
             }
             if ($pendingTaskSelection !== null) {
                 $this->notifyTaskSelectionRequired($playerId, $pendingTaskSelection);
+            }
+            foreach ($allAppliedEffects as $eff) {
+                if (
+                    ($eff['type'] ?? '') === 'card_gift_player'
+                    && !empty($eff['cardIds'])
+                    && (int) ($eff['amount'] ?? 0) > 0
+                ) {
+                    $this->notify->all(
+                        'specialistsDealtToHand',
+                        clienttranslate('${player_name} получает ${amount} карт из колоды найма (эффект «${founder_name}»)'),
+                        [
+                            'player_id' => $playerId,
+                            'player_name' => $this->game->getPlayerNameById($playerId),
+                            'amount' => (int) $eff['amount'],
+                            'founder_name' => (string) ($eff['founder_name'] ?? ''),
+                            'cardIds' => $eff['cardIds'],
+                            'source' => 'specialist_card_gift',
+                            'i18n' => ['founder_name'],
+                        ],
+                    );
+                }
+            }
+            if ($pendingCardGift !== null) {
+                $this->notifyCardGiftPlayerRequired($playerId, $pendingCardGift);
+            }
+            if ($pendingOfficeTrackChoice !== null) {
+                $this->notifyOfficeTrackChoiceRequired($playerId, $pendingOfficeTrackChoice);
             }
             if ($pendingTaskMoves !== null) {
                 $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -663,6 +741,12 @@ class RoundHiring extends GameState
             $amount = (int) ($pendingSelection['amount'] ?? 0);
             $msg = clienttranslate('Вы должны выбрать ${amount} задач в бэклог перед завершением фазы найма');
             throw new UserException(str_replace('${amount}', (string) $amount, $msg));
+        }
+        if ($this->game->getPendingCardGiftForPlayer($playerId) !== null) {
+            throw new UserException(clienttranslate('Сначала выберите соперника для подарка карты из колоды найма'));
+        }
+        if ($this->game->getPendingOfficeTrackChoiceForPlayer($playerId) !== null) {
+            throw new UserException(clienttranslate('Сначала выберите трек в офисе для улучшения'));
         }
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, null);
         if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
@@ -870,6 +954,78 @@ class RoundHiring extends GameState
         );
     }
 
+    /**
+     * Подтверждение выбора трека в офисе (эффект choose_office_track).
+     */
+    #[PossibleAction]
+    public function actConfirmOfficeTrackChoice(string $trackId): void
+    {
+        $this->game->checkAction('actConfirmOfficeTrackChoice');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+
+        $result = $this->game->confirmOfficeTrackChoice($activePlayerId, $trackId);
+
+        $this->notify->all(
+            'officeTrackChoiceCompleted',
+            clienttranslate('${player_name} улучшил «${track_name}» на ${amount} (эффект «${founder_name}»)'),
+            [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'track_id' => (string) ($result['trackId'] ?? $trackId),
+                'track_name' => (string) ($result['trackName'] ?? $trackId),
+                'amount' => (int) ($result['amount'] ?? 1),
+                'founder_name' => (string) ($result['founder_name'] ?? ''),
+                'appliedEffects' => [
+                    [
+                        'type' => 'updateTrack',
+                        'tracks' => [[
+                            'trackId' => (string) ($result['trackId'] ?? $trackId),
+                            'trackName' => (string) ($result['trackName'] ?? $trackId),
+                            'amount' => (int) ($result['amount'] ?? 1),
+                            'oldValue' => (int) ($result['oldValue'] ?? 0),
+                            'newValue' => (int) ($result['newValue'] ?? 0),
+                        ]],
+                    ],
+                ],
+                'i18n' => ['founder_name', 'track_name'],
+            ],
+        );
+    }
+
+    /**
+     * Подтверждение выбора соперника для подарка карты (эффект card_gift_player).
+     */
+    #[PossibleAction]
+    public function actConfirmCardGiftPlayerSelection(int $targetPlayerId): void
+    {
+        $this->game->checkAction('actConfirmCardGiftPlayerSelection');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+
+        $result = $this->game->confirmCardGiftPlayerSelection($activePlayerId, $targetPlayerId);
+
+        $targetId = (int) $result['target_player_id'];
+        $giftCardId = (int) ($result['gift_card_id'] ?? 0);
+        $founderName = (string) ($result['founder_name'] ?? '');
+
+        $this->notify->all(
+            'cardGiftPlayerCompleted',
+            clienttranslate('${player_name} подарил карту «${card_name}» игроку ${target_name} (эффект «${founder_name}»)'),
+            [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'target_player_id' => $targetId,
+                'target_name' => $this->game->getPlayerNameById($targetId),
+                'gift_card_id' => $giftCardId,
+                'card_name' => (string) ($result['gift_card_name'] ?? ''),
+                'founder_name' => $founderName,
+                'cardIds' => [$giftCardId],
+                'amount' => 1,
+                'source' => 'specialist_card_gift',
+                'i18n' => ['founder_name', 'target_name', 'card_name'],
+            ],
+        );
+    }
+
     private function resolvePendingTaskSelectionAfterEffects(int $playerId, array $appliedEffects): ?array
     {
         foreach ($appliedEffects as $eff) {
@@ -900,6 +1056,55 @@ class RoundHiring extends GameState
             'amount' => $taskAmountSum,
             'founder_name' => $founderName,
         ];
+    }
+
+    private function resolvePendingCardGiftAfterEffects(int $playerId, array $appliedEffects): ?array
+    {
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'card_gift_player' && !empty($eff['requires_target_player'])) {
+                return $this->game->getPendingCardGiftForPlayer($playerId);
+            }
+        }
+
+        return null;
+    }
+
+    private function resolvePendingOfficeTrackChoiceAfterEffects(int $playerId, array $appliedEffects): ?array
+    {
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'choose_office_track' && !empty($eff['requires_selection'])) {
+                return $this->game->getPendingOfficeTrackChoiceForPlayer($playerId);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $pendingCardGift
+     */
+    private function notifyCardGiftPlayerRequired(int $playerId, array $pendingCardGift): void
+    {
+        $this->notify->player($playerId, 'cardGiftPlayerRequired', '', [
+            'player_id' => $playerId,
+            'founder_name' => (string) ($pendingCardGift['founder_name'] ?? ''),
+            'gift_amount' => (int) ($pendingCardGift['gift_amount'] ?? 1),
+            'requires_target_player' => true,
+            'other_players' => $this->buildOtherPlayersPayload($playerId),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $pendingOfficeTrackChoice
+     */
+    private function notifyOfficeTrackChoiceRequired(int $playerId, array $pendingOfficeTrackChoice): void
+    {
+        $this->notify->player($playerId, 'officeTrackChoiceRequired', '', [
+            'player_id' => $playerId,
+            'amount' => (int) ($pendingOfficeTrackChoice['amount'] ?? 1),
+            'founder_name' => (string) ($pendingOfficeTrackChoice['founder_name'] ?? ''),
+            'track_options' => $pendingOfficeTrackChoice['track_options'] ?? $this->game->getOfficeTrackChoiceOptions(),
+        ]);
     }
 
     /**
