@@ -299,13 +299,14 @@ define([
                                       <div class="player-penalty-tokens__column start-position-1"></div>
                                       <div class="player-penalty-tokens__column start-position-2"></div>
                                       <div class="player-penalty-tokens__column penalty-position-empty"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-1"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-2"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-3"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-4"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-5"></div>
-                                      <div class="player-penalty-tokens__column penalty-position-10"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-1" data-penalty-label="1"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-2" data-penalty-label="2"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-3" data-penalty-label="3"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-4" data-penalty-label="4"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-5" data-penalty-label="5"></div>
+                                      <div class="player-penalty-tokens__column penalty-position-10" data-penalty-label="10"></div>
                                     </div>
+                                    <div class="player-penalty-total" id="player-penalty-total">0</div>
                                   </div>
                                   <div class="player-board-block--left-cell player-exchange-block">
                                     <div class="player-exchange-block__column player-exchange-block__column--bonus"></div>
@@ -684,6 +685,21 @@ define([
                     </div>
                     <div class="counter-advertising-modal__footer">
                       <button type="button" id="counter-advertising-modal-confirm-btn" class="counter-advertising-modal__confirm-btn" disabled>${_('Применить контррекламу')}</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="defamation-modal" class="defamation-modal" aria-hidden="true">
+                  <div class="defamation-modal__content">
+                    <div class="defamation-modal__header">
+                      <div class="defamation-modal__title" id="defamation-modal-title"></div>
+                      <div class="defamation-modal__subtitle" id="defamation-modal-subtitle"></div>
+                    </div>
+                    <div class="defamation-modal__section">
+                      <div class="defamation-modal__section-title">${_('Выберите соперника')}</div>
+                      <div class="defamation-modal__players" id="defamation-modal-players"></div>
+                    </div>
+                    <div class="defamation-modal__footer">
+                      <button type="button" id="defamation-modal-confirm-btn" class="defamation-modal__confirm-btn" disabled>${_('Применить диффамацию')}</button>
                     </div>
                   </div>
                 </div>
@@ -2183,6 +2199,11 @@ define([
               } else {
                 this.gamedatas.pendingCounterAdvertising = null
               }
+              if (a.pendingDefamation != null) {
+                this.gamedatas.pendingDefamation = a.pendingDefamation
+              } else {
+                this.gamedatas.pendingDefamation = null
+              }
               const pendingTaskMovesArg = a.pendingTaskMoves ?? null
               if (
                 pendingTaskMovesArg &&
@@ -2277,7 +2298,29 @@ define([
                     founder_name:
                       hiringPendingCounterAdvertising.founder_name || '',
                     requires_target_player: true,
-                    other_players: this._buildOtherPlayersList(),
+                    other_players: this._buildEligiblePlayersListFromPending(
+                      hiringPendingCounterAdvertising,
+                    ),
+                  },
+                })
+              }
+              const hiringPendingDefamation = a.pendingDefamation ?? null
+              const mustSelectDefamation =
+                hiringPendingDefamation &&
+                !!hiringPendingDefamation.requires_target_player
+              if (
+                mustSelectDefamation &&
+                Number(a.activePlayerId) === Number(this.player_id)
+              ) {
+                this.notif_defamationRequired({
+                  args: {
+                    player_id: this.player_id,
+                    amount: Number(hiringPendingDefamation.amount || 1),
+                    founder_name: hiringPendingDefamation.founder_name || '',
+                    requires_target_player: true,
+                    other_players: this._buildEligiblePlayersListFromPending(
+                      hiringPendingDefamation,
+                    ),
                   },
                 })
               }
@@ -2326,6 +2369,8 @@ define([
                   )
                 : mustSelectCounterAdvertising
                   ? _('Сначала выберите соперника для контррекламы')
+                : mustSelectDefamation
+                  ? _('Сначала выберите соперника для диффамации')
                 : mustSelectTasks
                 ? hiringTaskBlockMsg
                 : mustConfirmTaskMoves
@@ -2368,6 +2413,7 @@ define([
                     !!mustSelectOfficeTrack ||
                     !!mustSelectCardGift ||
                     !!mustSelectCounterAdvertising ||
+                    !!mustSelectDefamation ||
                     !!mustSelectTasks ||
                     !!mustConfirmTaskMoves ||
                     !!mustConfirmTechDevelopment,
@@ -3141,6 +3187,14 @@ define([
         this,
         'notif_counterAdvertisingCompleted',
       )
+      dojo.subscribe(
+        'penaltyTokensChanged',
+        this,
+        'notif_penaltyTokensChanged',
+      )
+      dojo.subscribe('defamationRequired', this, 'notif_defamationRequired')
+      dojo.subscribe('defamationCompleted', this, 'notif_defamationCompleted')
+      dojo.subscribe('defamationSkipped', this, 'notif_defamationSkipped')
       dojo.subscribe('tasksSelected', this, 'notif_tasksSelected')
       dojo.subscribe('taskMovesRequired', this, 'notif_taskMovesRequired')
       dojo.subscribe('taskMovesCompleted', this, 'notif_taskMovesCompleted')
@@ -4662,8 +4716,12 @@ define([
 
       console.log('🎯 Current position:', currentPosition, 'amount:', amount)
 
-      // Вычисляем новую позицию: текущая позиция + изменение
-      const newPosition = Math.max(1, Math.min(6, currentPosition + amount))
+      // Если сервер прислал newValue — ставим жетон в абсолютную позицию (надёжнее, чем сдвиг от DOM).
+      const absoluteNewValue = Number(newValue || 0)
+      const newPosition =
+        absoluteNewValue >= 1 && absoluteNewValue <= 6
+          ? absoluteNewValue
+          : Math.max(1, Math.min(6, currentPosition + amount))
       console.log(
         '🎯 New position:',
         newPosition,
@@ -4671,6 +4729,7 @@ define([
         currentPosition,
         '+ amount:',
         amount,
+        absoluteNewValue >= 1 ? ', absolute newValue:' + absoluteNewValue : '',
         ')',
       )
 
@@ -5512,6 +5571,8 @@ define([
             amount: Number(args.pendingCounterAdvertising.amount || 1),
             founder_name: args.pendingCounterAdvertising.founder_name || '',
             requires_target_player: true,
+            eligible_target_ids:
+              args.pendingCounterAdvertising.eligible_target_ids || [],
           }
           try {
             if (typeof this.notif_counterAdvertisingRequired === 'function') {
@@ -5521,7 +5582,9 @@ define([
                   amount: Number(args.pendingCounterAdvertising.amount || 1),
                   founder_name: args.pendingCounterAdvertising.founder_name || '',
                   requires_target_player: true,
-                  other_players: this._buildOtherPlayersList(),
+                  other_players: this._buildEligiblePlayersListFromPending(
+                    args.pendingCounterAdvertising,
+                  ),
                 },
               })
             }
@@ -5533,6 +5596,39 @@ define([
           }
         } else {
           this.gamedatas.pendingCounterAdvertising = null
+        }
+        if (
+          args.pendingDefamation != null &&
+          args.pendingDefamation.requires_target_player
+        ) {
+          this.gamedatas.pendingDefamation = {
+            amount: Number(args.pendingDefamation.amount || 1),
+            founder_name: args.pendingDefamation.founder_name || '',
+            requires_target_player: true,
+            eligible_target_ids: args.pendingDefamation.eligible_target_ids || [],
+          }
+          try {
+            if (typeof this.notif_defamationRequired === 'function') {
+              await this.notif_defamationRequired({
+                args: {
+                  player_id: playerId,
+                  amount: Number(args.pendingDefamation.amount || 1),
+                  founder_name: args.pendingDefamation.founder_name || '',
+                  requires_target_player: true,
+                  other_players: this._buildEligiblePlayersListFromPending(
+                    args.pendingDefamation,
+                  ),
+                },
+              })
+            }
+          } catch (e) {
+            console.error(
+              '❌ Failed to activate defamation selection from specialistsHired:',
+              e,
+            )
+          }
+        } else {
+          this.gamedatas.pendingDefamation = null
         }
         if (
           args.pendingTechnicalDevelopmentMoves != null &&
@@ -7345,6 +7441,29 @@ define([
         .filter((p) => p.player_id > 0 && p.player_id !== Number(this.player_id))
     },
 
+    _buildEligiblePlayersListFromPending: function (pendingOrArgs) {
+      const otherPlayers = Array.isArray(pendingOrArgs?.other_players)
+        ? pendingOrArgs.other_players
+        : []
+      if (otherPlayers.length > 0) {
+        return otherPlayers
+      }
+
+      const eligibleIds = Array.isArray(pendingOrArgs?.eligible_target_ids)
+        ? pendingOrArgs.eligible_target_ids
+            .map((id) => Number(id))
+            .filter((id) => id > 0)
+        : []
+      if (eligibleIds.length === 0) {
+        return []
+      }
+
+      const idSet = new Set(eligibleIds)
+      return this._buildOtherPlayersList().filter((player) =>
+        idSet.has(Number(player.player_id)),
+      )
+    },
+
     _openTaskGiftPlayerModal: function (config) {
       const amount = Math.max(1, Number(config?.amount) || 1)
       const giftAmount = Math.max(1, Number(config?.giftAmount) || 1)
@@ -7809,10 +7928,21 @@ define([
       const playerId = Number(args.player_id || 0)
       if (Number(playerId) !== Number(this.player_id)) return
 
+      const otherPlayers = Array.isArray(args.other_players)
+        ? args.other_players
+        : this._buildEligiblePlayersListFromPending(args)
+      if (otherPlayers.length === 0) {
+        this.gamedatas.pendingCounterAdvertising = null
+        return
+      }
+
       this.gamedatas.pendingCounterAdvertising = {
         amount: Number(args.amount || 1),
         founder_name: args.founder_name || '',
         requires_target_player: true,
+        eligible_target_ids: (otherPlayers || []).map((p) =>
+          Number(p.player_id),
+        ),
       }
 
       const stateName = this.gamedatas?.gamestate?.name
@@ -7834,7 +7964,7 @@ define([
         amount: Number(args.amount || 1),
         otherPlayers: Array.isArray(args.other_players)
           ? args.other_players
-          : this._buildOtherPlayersList(),
+          : this._buildEligiblePlayersListFromPending(args),
       })
     },
 
@@ -7865,7 +7995,10 @@ define([
       const amount = Math.max(1, Number(config?.amount) || 1)
       const otherPlayers = Array.isArray(config?.otherPlayers)
         ? config.otherPlayers
-        : this._buildOtherPlayersList()
+        : []
+      if (otherPlayers.length === 0) {
+        return
+      }
 
       const modal = document.getElementById('counter-advertising-modal')
       const titleEl = document.getElementById('counter-advertising-modal-title')
@@ -7888,11 +8021,13 @@ define([
       subtitleEl.textContent =
         amount === 1
           ? _(
-              'Выберите соперника: у него −1Б к треку дохода, у вас +1Б.',
+              'Выберите соперника с треком дохода не менее 2: у него −1Б, у вас +1Б.',
             )
           : _(
-              'Выберите соперника: у него −${n}Б к треку дохода, у вас +${n}Б.',
-            ).replace(/\$\{n\}/g, String(amount))
+              'Выберите соперника с треком дохода не менее ${min}: у него −${n}Б, у вас +${n}Б.',
+            )
+              .replace(/\$\{n\}/g, String(amount))
+              .replace('${min}', String(amount + 1))
 
       playersEl.innerHTML = ''
       otherPlayers.forEach((player) => {
@@ -7956,6 +8091,201 @@ define([
           if (result && result.success === false) {
             if (confirmBtn) confirmBtn.disabled = false
             this.showMessage(_('Ошибка при применении контррекламы'), 'error')
+          }
+        },
+      )
+    },
+
+    notif_defamationRequired: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(playerId) !== Number(this.player_id)) return
+
+      const otherPlayers = Array.isArray(args.other_players)
+        ? args.other_players
+        : this._buildEligiblePlayersListFromPending(args)
+      if (otherPlayers.length === 0) {
+        this.gamedatas.pendingDefamation = null
+        return
+      }
+
+      this.gamedatas.pendingDefamation = {
+        amount: Number(args.amount || 1),
+        founder_name: args.founder_name || '',
+        requires_target_player: true,
+        eligible_target_ids:
+          args.eligible_target_ids ||
+          (otherPlayers || []).map((p) => Number(p.player_id)),
+      }
+
+      const stateName = this.gamedatas?.gamestate?.name
+      if (stateName === 'RoundHiring') {
+        const completeBtn = document.getElementById(
+          'complete-hiring-phase-button',
+        )
+        if (completeBtn) {
+          completeBtn.disabled = true
+          completeBtn.setAttribute(
+            'title',
+            _('Сначала выберите соперника для диффамации'),
+          )
+        }
+      }
+
+      this._openDefamationModal({
+        founderName: args.founder_name || '',
+        amount: Number(args.amount || 1),
+        otherPlayers,
+      })
+    },
+
+    notif_defamationCompleted: async function (notif) {
+      const args = notif.args || notif
+      const sourcePlayerId = Number(args.player_id || 0)
+      const targetPlayerId = Number(args.target_player_id || 0)
+      const sourceTrack = args.source_track || null
+      const targetTrack = args.target_track || null
+
+      const applyHiringTrackChange = (playerId, trackData) => {
+        if (!trackData || playerId <= 0) return
+        const trackId =
+          trackData.trackId ||
+          trackData.track_id ||
+          'player-department-back-office-evolution-column-1'
+        this._applyUpdateTrackEffectsFromApplied(playerId, [
+          {
+            type: 'updateTrack',
+            tracks: [
+              {
+                trackId,
+                amount: Number(trackData.amount ?? 0),
+                oldValue: Number(trackData.oldValue ?? trackData.old_value ?? 0),
+                newValue: Number(trackData.newValue ?? trackData.new_value ?? 0),
+              },
+            ],
+          },
+        ])
+      }
+
+      applyHiringTrackChange(sourcePlayerId, sourceTrack)
+      applyHiringTrackChange(targetPlayerId, targetTrack)
+
+      if (Number(sourcePlayerId) === Number(this.player_id)) {
+        this.gamedatas.pendingDefamation = null
+        this._closeDefamationModal()
+        if (this.gamedatas?.gamestate?.name === 'RoundHiring') {
+          const completeBtn = document.getElementById(
+            'complete-hiring-phase-button',
+          )
+          if (completeBtn) {
+            completeBtn.disabled = false
+            completeBtn.setAttribute(
+              'title',
+              _('Нажмите, когда закончите нанимать (или если не нанимаете)'),
+            )
+          }
+        }
+      }
+    },
+
+    notif_defamationSkipped: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      if (Number(playerId) !== Number(this.player_id)) return
+
+      this.gamedatas.pendingDefamation = null
+      const founderName = (args.founder_name || '').trim()
+      const msg = founderName
+        ? _('Диффамация «${name}» не применена: нет подходящего соперника.')
+            .replace('${name}', founderName)
+        : _(
+            'Диффамация не применена: у соперников трек найма должен быть выше 1.',
+          )
+      this.showMessage(msg, 'info')
+    },
+
+    _openDefamationModal: function (config) {
+      const founderName = config?.founderName || ''
+      const amount = Math.max(1, Number(config?.amount) || 1)
+      const otherPlayers = Array.isArray(config?.otherPlayers)
+        ? config.otherPlayers
+        : []
+      if (otherPlayers.length === 0) {
+        return
+      }
+
+      const modal = document.getElementById('defamation-modal')
+      const titleEl = document.getElementById('defamation-modal-title')
+      const subtitleEl = document.getElementById('defamation-modal-subtitle')
+      const playersEl = document.getElementById('defamation-modal-players')
+      const confirmBtn = document.getElementById('defamation-modal-confirm-btn')
+      if (!modal || !titleEl || !subtitleEl || !playersEl || !confirmBtn) return
+
+      this._defamationModalState = { targetPlayerId: null }
+
+      titleEl.textContent = founderName
+        ? _('Эффект «${name}»').replace('${name}', founderName)
+        : _('Диффамация')
+      subtitleEl.textContent = _(
+        'Выберите соперника: у него −1 к треку найма, у вас +1.',
+      )
+
+      playersEl.innerHTML = ''
+      otherPlayers.forEach((player) => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'defamation-modal__player-btn'
+        btn.textContent = player.player_name || String(player.player_id)
+        btn.dataset.playerId = String(player.player_id)
+        btn.addEventListener('click', () => {
+          this._defamationModalState.targetPlayerId = Number(player.player_id)
+          playersEl
+            .querySelectorAll('.defamation-modal__player-btn')
+            .forEach((b) => b.classList.remove('selected'))
+          btn.classList.add('selected')
+          confirmBtn.disabled = false
+        })
+        playersEl.appendChild(btn)
+      })
+
+      confirmBtn.disabled = true
+      confirmBtn.onclick = () => this._confirmDefamationSelection()
+
+      modal.classList.add('active')
+      modal.setAttribute('aria-hidden', 'false')
+    },
+
+    _closeDefamationModal: function () {
+      const modal = document.getElementById('defamation-modal')
+      const confirmBtn = document.getElementById('defamation-modal-confirm-btn')
+      if (modal) {
+        modal.classList.remove('active')
+        modal.setAttribute('aria-hidden', 'true')
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true
+        confirmBtn.onclick = null
+      }
+      this._defamationModalState = null
+    },
+
+    _confirmDefamationSelection: function () {
+      const state = this._defamationModalState
+      if (!state?.targetPlayerId) {
+        this.showMessage(_('Выберите соперника'), 'error')
+        return
+      }
+
+      const confirmBtn = document.getElementById('defamation-modal-confirm-btn')
+      if (confirmBtn) confirmBtn.disabled = true
+
+      this.bgaPerformAction(
+        'actConfirmDefamationSelection',
+        { targetPlayerId: state.targetPlayerId },
+        (result) => {
+          if (result && result.success === false) {
+            if (confirmBtn) confirmBtn.disabled = false
+            this.showMessage(_('Ошибка при применении диффамации'), 'error')
           }
         },
       )
@@ -9382,7 +9712,28 @@ define([
         )
       }, 0)
 
-      return fromBadgers + fromSpecialists + fromFounder + fromProjectTokens
+      return fromBadgers + fromSpecialists + fromFounder + fromProjectTokens - this._getPlayerPenaltyTotal(pid)
+    },
+
+    _getPlayerPenaltyTotal: function (playerId) {
+      const pid = Number(playerId)
+      if (!pid || !this.gamedatas?.players) {
+        return 0
+      }
+      const p =
+        this.gamedatas.players[pid] ||
+        this._findPlayerData(this.gamedatas.players, pid)
+      if (!p) {
+        return 0
+      }
+      if (p.penaltyTotal != null) {
+        return Math.max(0, parseInt(String(p.penaltyTotal), 10) || 0)
+      }
+      const tokens = Array.isArray(p.penaltyTokens) ? p.penaltyTokens : []
+      return tokens.reduce(
+        (sum, token) => sum + Math.abs(Number(token?.value || 0)),
+        0,
+      )
     },
     _renderPlayerMoney: function (players, targetPlayerId, overrideAmount) {
       const panelBody = document.querySelector('.player-money-panel__body')
@@ -9485,7 +9836,7 @@ define([
       const vpTotal = this._computeVictoryPointsForPlayer(playerId)
       const vpDetail =
         typeof vpTotal === 'number' && Number.isFinite(vpTotal)
-          ? Math.max(0, Math.floor(vpTotal))
+          ? Math.floor(vpTotal)
           : 0
 
       // ВАЖНО: Полностью заменяем содержимое, чтобы убрать старые данные
@@ -9497,7 +9848,7 @@ define([
           <span class="player-money-panel__amount">${amount}</span>
         </div>
         <div class="player-money-panel__vp" title="${_(
-          'Победные очки: 3 баджерса = 1 ПО; карты нанятых специалистов, основатель и IT-проекты',
+          'Победные очки: 3 баджерса = 1 ПО; карты, основатель и IT-проекты; минус штрафные очки',
         )}">
           <span class="player-money-panel__vp-label">${_('Победа')}</span>
           <span class="player-money-panel__vp-value">${vpDetail}</span>
@@ -10224,6 +10575,10 @@ define([
         if (penaltyValue !== 0) {
           token.dataset.penaltyValue = penaltyValue
           token.classList.add('player-penalty-token--filled') // Добавляем класс для заполненного жетона
+          const valueLabel = document.createElement('span')
+          valueLabel.className = 'player-penalty-token__value'
+          valueLabel.textContent = String(Math.abs(penaltyValue))
+          token.appendChild(valueLabel)
         }
 
         // Определяем колонку для размещения жетона
@@ -10259,6 +10614,50 @@ define([
       }
 
       console.log('Penalty tokens rendered:', container.children.length)
+
+      // Обновляем индикатор текущего суммарного штрафа (0..-20)
+      const totalEl = document.getElementById('player-penalty-total')
+      if (totalEl) {
+        const total = Math.max(
+          0,
+          Math.min(20, this._getPlayerPenaltyTotal(currentPlayerId)),
+        )
+        totalEl.textContent = total === 0 ? '0' : `-${total}`
+      }
+    },
+
+    notif_penaltyTokensChanged: async function (notif) {
+      const args = notif.args || notif
+      const playerId = Number(args.player_id || 0)
+      const penaltyTokens = Array.isArray(args.penalty_tokens)
+        ? args.penalty_tokens
+        : []
+      const penaltyTotal = Number(args.penalty_total || 0)
+      const penaltyAdded = Number(args.penalty_added || 0)
+
+      if (playerId > 0 && this.gamedatas?.players?.[playerId]) {
+        this.gamedatas.players[playerId].penaltyTokens = penaltyTokens
+        this.gamedatas.players[playerId].penaltyTotal = penaltyTotal
+      }
+
+      if (Number(playerId) === Number(this.player_id)) {
+        this._renderPenaltyTokens(this.gamedatas.players)
+        this._renderPlayerMoney(this.gamedatas.players, playerId)
+      }
+
+      if (penaltyAdded > 0) {
+        const founderName = args.founder_name || ''
+        const reasonText = founderName
+          ? _('${name}: +${n} штрафных очков (−${n} ПО)').replace(
+              /\$\{n\}/g,
+              String(penaltyAdded),
+            ).replace('${name}', founderName)
+          : _('+${n} штрафных очков (−${n} ПО)').replace(
+              /\$\{n\}/g,
+              String(penaltyAdded),
+            )
+        this.showMessage(reasonText, 'info')
+      }
     },
 
     _renderProjectTokensOnBoard: function (projectTokens) {

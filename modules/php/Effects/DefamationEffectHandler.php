@@ -7,9 +7,9 @@ namespace Bga\Games\itarenagame\Effects;
 use Bga\Games\itarenagame\Game;
 
 /**
- * Эффект «Контрреклама»: игрок выбирает соперника с достаточным треком дохода; у того −N, у себя +N.
+ * Эффект «Диффамация»: −1 к треку найма соперника, +1 к своему (колонка 1 бэк-офиса).
  */
-class CounterAdvertisingEffectHandler implements EffectHandlerInterface
+class DefamationEffectHandler implements EffectHandlerInterface
 {
     public function __construct(
         private Game $game
@@ -24,22 +24,22 @@ class CounterAdvertisingEffectHandler implements EffectHandlerInterface
         }
 
         $sourceName = (string) ($cardData['name'] ?? '');
-        $eligibleTargetIds = $this->game->getCounterAdvertisingEligibleTargetIds($playerId, $amount);
+        $eligibleTargetIds = $this->game->getDefamationEligibleTargetIds($playerId);
 
         if ($eligibleTargetIds === []) {
             return [
-                'type' => 'counter_advertising',
+                'type' => 'defamation',
                 'amount' => $amount,
                 'skipped' => true,
                 'requires_target_player' => false,
                 'founder_name' => $sourceName,
                 'founderName' => $sourceName,
-                'message' => 'Контрреклама не применена: нет подходящих соперников',
+                'message' => 'Диффамация не применена: нет подходящих соперников',
             ];
         }
 
         $this->game->globals->set(
-            'pending_counter_advertising_' . $playerId,
+            'pending_defamation_' . $playerId,
             json_encode([
                 'amount' => $amount,
                 'founder_name' => $sourceName,
@@ -50,14 +50,14 @@ class CounterAdvertisingEffectHandler implements EffectHandlerInterface
         );
 
         return [
-            'type' => 'counter_advertising',
+            'type' => 'defamation',
             'amount' => $amount,
             'requires_target_player' => true,
             'requires_selection' => true,
             'founder_name' => $sourceName,
             'founderName' => $sourceName,
             'eligible_target_ids' => $eligibleTargetIds,
-            'message' => "Игрок должен выбрать соперника для контррекламы (−$amount / +$amount трек дохода)",
+            'message' => 'Игрок должен выбрать соперника для диффамации (−1 / +1 трек найма)',
         ];
     }
 

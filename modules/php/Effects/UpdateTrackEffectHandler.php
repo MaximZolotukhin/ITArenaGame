@@ -243,6 +243,36 @@ class UpdateTrackEffectHandler implements EffectHandlerInterface
                 error_log("🔵🔵🔵 UpdateTrackEffectHandler::apply - Processing income-track! Counter found: " . get_class($trackCounter));
             }
 
+            if ($trackId === 'income-track') {
+                $incomeResult = $this->game->applyIncomeTrackDelta($playerId, $amount);
+                $penaltyOverflow = (int) ($incomeResult['penaltyOverflow'] ?? 0);
+                $penaltyResult = null;
+                if ($penaltyOverflow > 0) {
+                    $penaltyResult = $this->game->addPenaltyPoints($playerId, $penaltyOverflow);
+                }
+
+                $currentValue = (int) ($incomeResult['oldValue'] ?? 0);
+                $newValue = (int) ($incomeResult['newValue'] ?? 0);
+                $actualAmount = (int) ($incomeResult['amount'] ?? 0);
+
+                $trackUpdateEntry = [
+                    'trackId' => $trackId,
+                    'trackName' => $this->getTrackName($trackId),
+                    'amount' => $actualAmount,
+                    'oldValue' => $currentValue,
+                    'newValue' => $newValue,
+                ];
+                if ($penaltyOverflow > 0) {
+                    $trackUpdateEntry['penaltyOverflow'] = $penaltyOverflow;
+                    $trackUpdateEntry['penaltyResult'] = $penaltyResult;
+                }
+
+                $updatedTracks[] = $trackUpdateEntry;
+                $processedTracks[$trackId] = true;
+                $totalAmount += abs($actualAmount) + $penaltyOverflow;
+                continue;
+            }
+
             // Получаем текущую позицию трека ДО изменения
             $currentValue = $trackCounter->get($playerId);
             error_log("UpdateTrackEffectHandler::apply - Current value for track $trackId: $currentValue, amount to add: $amount");

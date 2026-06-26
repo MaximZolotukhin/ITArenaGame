@@ -126,6 +126,7 @@ class RoundHiring extends GameState
         $pendingCardGift = $this->game->getPendingCardGiftForPlayer($activePlayerId);
         $pendingOfficeTrackChoice = $this->game->getPendingOfficeTrackChoiceForPlayer($activePlayerId);
         $pendingCounterAdvertising = $this->game->getPendingCounterAdvertisingForPlayer($activePlayerId);
+        $pendingDefamation = $this->game->getPendingDefamationForPlayer($activePlayerId);
 
         $pendingTaskMoves = null;
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $activePlayerId, '');
@@ -166,6 +167,7 @@ class RoundHiring extends GameState
             'pendingCardGift' => $pendingCardGift,
             'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
             'pendingCounterAdvertising' => $pendingCounterAdvertising,
+            'pendingDefamation' => $pendingDefamation,
             'pendingTaskMoves' => $pendingTaskMoves,
             'pendingTechnicalDevelopmentMoves' => $this->game->getPendingTechnicalDevelopmentMovesData($activePlayerId),
         ];
@@ -392,6 +394,7 @@ class RoundHiring extends GameState
         $pendingCardGift = null;
         $pendingOfficeTrackChoice = null;
         $pendingCounterAdvertising = null;
+        $pendingDefamation = null;
         foreach ($appliedEffects as $eff) {
             if (
                 isset($eff['type'])
@@ -422,6 +425,12 @@ class RoundHiring extends GameState
                 && !empty($eff['requires_target_player'])
             ) {
                 $pendingCounterAdvertising = $this->game->getPendingCounterAdvertisingForPlayer($playerId);
+            } elseif (
+                isset($eff['type'])
+                && $eff['type'] === 'defamation'
+                && !empty($eff['requires_target_player'])
+            ) {
+                $pendingDefamation = $this->game->getPendingDefamationForPlayer($playerId);
             }
             if (isset($eff['type']) && $eff['type'] === 'move_task' && isset($eff['move_count']) && (int) $eff['move_count'] > 0) {
                 $pendingTaskMoves = [
@@ -452,6 +461,7 @@ class RoundHiring extends GameState
             'pendingCardGift' => $pendingCardGift,
             'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
             'pendingCounterAdvertising' => $pendingCounterAdvertising,
+            'pendingDefamation' => $pendingDefamation,
             'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
             'i18n' => ['badgers'],
         ]);
@@ -495,6 +505,11 @@ class RoundHiring extends GameState
         }
         if ($pendingCounterAdvertising !== null) {
             $this->notifyCounterAdvertisingRequired($playerId, $pendingCounterAdvertising);
+        }
+        if ($pendingDefamation !== null) {
+            $this->notifyDefamationRequired($playerId, $pendingDefamation);
+        } else {
+            $this->notifyDefamationSkippedIfNeeded($playerId, $appliedEffects);
         }
         if ($pendingTaskMoves !== null) {
             $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -647,6 +662,7 @@ class RoundHiring extends GameState
             $pendingCardGift = $this->resolvePendingCardGiftAfterEffects($playerId, $allAppliedEffects);
             $pendingOfficeTrackChoice = $this->resolvePendingOfficeTrackChoiceAfterEffects($playerId, $allAppliedEffects);
             $pendingCounterAdvertising = $this->resolvePendingCounterAdvertisingAfterEffects($playerId, $allAppliedEffects);
+            $pendingDefamation = $this->resolvePendingDefamationAfterEffects($playerId, $allAppliedEffects);
             $pendingTechnicalDevelopment = $this->game->triggerTechnicalDepartmentBonusIfEligible($playerId);
             $maxHire = $this->game->getEffectiveHiringMaxCount($playerId);
             $this->notify->all('specialistsHired', clienttranslate('${player_name} нанимает ${amount} специалистов за ${badgers} баджерсов'), [
@@ -665,6 +681,7 @@ class RoundHiring extends GameState
                 'pendingCardGift' => $pendingCardGift,
                 'pendingOfficeTrackChoice' => $pendingOfficeTrackChoice,
                 'pendingCounterAdvertising' => $pendingCounterAdvertising,
+                'pendingDefamation' => $pendingDefamation,
                 'pendingTechnicalDevelopmentMoves' => $pendingTechnicalDevelopment,
                 'i18n' => ['badgers'],
             ]);
@@ -709,6 +726,11 @@ class RoundHiring extends GameState
             }
             if ($pendingCounterAdvertising !== null) {
                 $this->notifyCounterAdvertisingRequired($playerId, $pendingCounterAdvertising);
+            }
+            if ($pendingDefamation !== null) {
+                $this->notifyDefamationRequired($playerId, $pendingDefamation);
+            } else {
+                $this->notifyDefamationSkippedIfNeeded($playerId, $allAppliedEffects);
             }
             if ($pendingTaskMoves !== null) {
                 $this->notify->player($playerId, 'taskMovesRequired', '', [
@@ -768,6 +790,9 @@ class RoundHiring extends GameState
         }
         if ($this->game->getPendingCounterAdvertisingForPlayer($playerId) !== null) {
             throw new UserException(clienttranslate('Сначала выберите соперника для контррекламы'));
+        }
+        if ($this->game->getPendingDefamationForPlayer($playerId) !== null) {
+            throw new UserException(clienttranslate('Сначала выберите соперника для диффамации'));
         }
         $pendingMovesJson = $this->game->globals->get('pending_task_moves_' . $playerId, null);
         if ($pendingMovesJson !== null && $pendingMovesJson !== '') {
@@ -1014,6 +1039,44 @@ class RoundHiring extends GameState
     }
 
     /**
+     * Подтверждение выбора соперника для диффамации (эффект defamation).
+     */
+    #[PossibleAction]
+    public function actConfirmDefamationSelection(int $targetPlayerId): void
+    {
+        $this->game->checkAction('actConfirmDefamationSelection');
+        $activePlayerId = (int) $this->game->getActivePlayerId();
+
+        $result = $this->game->confirmDefamationSelection($activePlayerId, $targetPlayerId);
+
+        $targetId = (int) $result['target_player_id'];
+        $amount = (int) ($result['amount'] ?? 1);
+        $founderName = (string) ($result['founder_name'] ?? '');
+        $sourceTrack = is_array($result['source_track'] ?? null) ? $result['source_track'] : [];
+        $targetTrack = is_array($result['target_track'] ?? null) ? $result['target_track'] : [];
+        $trackId = (string) ($sourceTrack['trackId'] ?? 'player-department-back-office-evolution-column-1');
+
+        $this->notifyVisualHiringTrackChange($activePlayerId, $sourceTrack, $founderName, $trackId);
+        $this->notifyVisualHiringTrackChange($targetId, $targetTrack, $founderName, $trackId);
+
+        $this->notify->all(
+            'defamationCompleted',
+            clienttranslate('${player_name} применил диффамацию к ${target_name}: −${amount} / +${amount} трек найма (эффект «${founder_name}»)'),
+            [
+                'player_id' => $activePlayerId,
+                'player_name' => $this->game->getPlayerNameById($activePlayerId),
+                'target_player_id' => $targetId,
+                'target_name' => $this->game->getPlayerNameById($targetId),
+                'amount' => $amount,
+                'founder_name' => $founderName,
+                'source_track' => $sourceTrack,
+                'target_track' => $targetTrack,
+                'i18n' => ['founder_name', 'target_name'],
+            ],
+        );
+    }
+
+    /**
      * Подтверждение выбора соперника для контррекламы (эффект counter_advertising).
      */
     #[PossibleAction]
@@ -1169,12 +1232,114 @@ class RoundHiring extends GameState
      */
     private function notifyCounterAdvertisingRequired(int $playerId, array $pendingCounterAdvertising): void
     {
+        $eligibleIds = array_map('intval', $pendingCounterAdvertising['eligible_target_ids'] ?? []);
         $this->notify->player($playerId, 'counterAdvertisingRequired', '', [
             'player_id' => $playerId,
             'amount' => (int) ($pendingCounterAdvertising['amount'] ?? 1),
             'founder_name' => (string) ($pendingCounterAdvertising['founder_name'] ?? ''),
-            'other_players' => $this->buildOtherPlayersPayload($playerId),
+            'other_players' => $this->buildEligiblePlayersPayload($playerId, $eligibleIds),
         ]);
+    }
+
+    private function resolvePendingDefamationAfterEffects(int $playerId, array $appliedEffects): ?array
+    {
+        foreach ($appliedEffects as $eff) {
+            if (($eff['type'] ?? '') === 'defamation' && !empty($eff['requires_target_player'])) {
+                return $this->game->getPendingDefamationForPlayer($playerId);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $pendingDefamation
+     */
+    private function notifyDefamationRequired(int $playerId, array $pendingDefamation): void
+    {
+        $eligibleIds = array_map('intval', $pendingDefamation['eligible_target_ids'] ?? []);
+        $this->notify->player($playerId, 'defamationRequired', '', [
+            'player_id' => $playerId,
+            'amount' => (int) ($pendingDefamation['amount'] ?? 1),
+            'founder_name' => (string) ($pendingDefamation['founder_name'] ?? ''),
+            'eligible_target_ids' => $eligibleIds,
+            'other_players' => $this->buildEligiblePlayersPayload($playerId, $eligibleIds),
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $appliedEffects
+     */
+    private function notifyDefamationSkippedIfNeeded(int $playerId, array $appliedEffects): void
+    {
+        foreach ($appliedEffects as $eff) {
+            if (!is_array($eff) || ($eff['type'] ?? '') !== 'defamation' || empty($eff['skipped'])) {
+                continue;
+            }
+
+            $this->notify->player(
+                $playerId,
+                'defamationSkipped',
+                clienttranslate('Диффамация «${founder_name}» не применена: нет соперника с треком найма выше 1 (или ваш трек уже на максимуме)'),
+                [
+                    'player_id' => $playerId,
+                    'founder_name' => (string) ($eff['founder_name'] ?? ''),
+                    'i18n' => ['founder_name'],
+                ],
+            );
+
+            return;
+        }
+    }
+
+    /**
+     * @param list<int> $eligibleIds
+     * @return array<int, array{player_id: int, player_name: string}>
+     */
+    private function buildEligiblePlayersPayload(int $playerId, array $eligibleIds): array
+    {
+        if ($eligibleIds === []) {
+            return [];
+        }
+
+        $eligibleSet = array_flip(array_map('intval', $eligibleIds));
+        $result = [];
+        foreach ($this->buildOtherPlayersPayload($playerId) as $row) {
+            $otherId = (int) ($row['player_id'] ?? 0);
+            if (isset($eligibleSet[$otherId])) {
+                $result[] = $row;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array{trackId?: string, trackName?: string, amount?: int, oldValue?: int, newValue?: int} $trackData
+     */
+    private function notifyVisualHiringTrackChange(int $playerId, array $trackData, string $founderName, string $trackId): void
+    {
+        $amount = (int) ($trackData['amount'] ?? 0);
+        if ($amount === 0) {
+            return;
+        }
+
+        $this->notify->all(
+            'visualTrackChanged',
+            clienttranslate('${player_name} ${action_text} ${track_name} на ${amount} благодаря эффекту «${founder_name}»'),
+            [
+                'player_id' => $playerId,
+                'player_name' => $this->game->getPlayerNameById($playerId),
+                'track_id' => $trackId,
+                'track_name' => clienttranslate('трек найма'),
+                'amount' => $amount,
+                'oldValue' => (int) ($trackData['oldValue'] ?? 0),
+                'newValue' => (int) ($trackData['newValue'] ?? 0),
+                'founder_name' => $founderName,
+                'action_text' => $amount > 0 ? clienttranslate('увеличивает') : clienttranslate('уменьшает'),
+                'i18n' => ['founder_name', 'track_name', 'action_text'],
+            ],
+        );
     }
 
     private function resolvePendingCardGiftAfterEffects(int $playerId, array $appliedEffects): ?array

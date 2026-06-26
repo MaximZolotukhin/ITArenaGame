@@ -526,6 +526,27 @@ class FounderSelection extends GameState
                                 $this->notify->all('incomeTrackChanged', clienttranslate('${player_name} ${action_text} трек дохода на ${amount} благодаря эффекту карты «${founder_name}»'), $notificationData);
                                 
                                 error_log('✅✅✅ FounderSelection - incomeTrackChanged notification SENT for player ' . $targetPlayerId . ' from ' . $oldValue . ' to ' . $newValue);
+
+                                $penaltyOverflow = (int) ($trackUpdate['penaltyOverflow'] ?? 0);
+                                $penaltyResult = is_array($trackUpdate['penaltyResult'] ?? null)
+                                    ? $trackUpdate['penaltyResult']
+                                    : null;
+                                if ($penaltyOverflow > 0 && is_array($penaltyResult)) {
+                                    $this->notify->all(
+                                        'penaltyTokensChanged',
+                                        clienttranslate('${player_name} получает ${penalty_added} штрафных очков (−${penalty_added} ПО)'),
+                                        [
+                                            'player_id' => $targetPlayerId,
+                                            'player_name' => $this->game->getPlayerNameById($targetPlayerId),
+                                            'penalty_added' => (int) ($penaltyResult['added'] ?? $penaltyOverflow),
+                                            'penalty_total' => (int) ($penaltyResult['total'] ?? 0),
+                                            'penalty_tokens' => $penaltyResult['tokens'] ?? [],
+                                            'reason' => 'income_track_overflow',
+                                            'founder_name' => $effect['founderName'] ?? 'Основатель',
+                                            'i18n' => ['founder_name'],
+                                        ],
+                                    );
+                                }
                             }
                             // Для визуальных треков отделов и панели спринта отправляем уведомление для обновления на клиенте
                             elseif (str_starts_with($trackId, 'player-department-') || $trackId === 'sprint-column-tasks') {

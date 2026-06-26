@@ -40,6 +40,7 @@ use Bga\Games\itarenagame\Effects\TaskGiftPlayerEffectHandler;
 use Bga\Games\itarenagame\Effects\CardGiftPlayerEffectHandler;
 use Bga\Games\itarenagame\Effects\ChooseOfficeTrackEffectHandler;
 use Bga\Games\itarenagame\Effects\CounterAdvertisingEffectHandler;
+use Bga\Games\itarenagame\Effects\DefamationEffectHandler;
 
 class Game extends \Bga\GameFramework\Table
 {
@@ -513,6 +514,7 @@ class Game extends \Bga\GameFramework\Table
             }
             // Добавляем жетоны штрафа для игрока
             $player['penaltyTokens'] = $penaltyTokensByPlayer[$playerId] ?? [];
+            $player['penaltyTotal'] = $this->getPlayerPenaltyTotal($playerId);
             
             // ВАЖНО: При старте хода игрока считываем ВСЕ данные из player_game_data
             // Это основной источник данных для отображения на планшете игрока
@@ -1968,6 +1970,7 @@ class Game extends \Bga\GameFramework\Table
             'card_gift_player' => new CardGiftPlayerEffectHandler($this),
             'choose_office_track' => new ChooseOfficeTrackEffectHandler($this),
             'counter_advertising' => new CounterAdvertisingEffectHandler($this),
+            'defamation' => new DefamationEffectHandler($this),
             'move_task' => new MoveTaskEffectHandler($this),
             'updateTrack' => new UpdateTrackEffectHandler($this),
             'updateTrackDepartmentTechnical' => new UpdateTrackEffectHandler($this),
@@ -2381,8 +2384,11 @@ class Game extends \Bga\GameFramework\Table
             if (!is_array($eff)) {
                 continue;
             }
+            if (!empty($eff['skipped'])) {
+                return true;
+            }
             $type = (string) ($eff['type'] ?? '');
-            if ($type === 'task' || $type === 'task_gift_player' || $type === 'card_gift_player' || $type === 'choose_office_track' || $type === 'counter_advertising') {
+            if ($type === 'task' || $type === 'task_gift_player' || $type === 'card_gift_player' || $type === 'choose_office_track' || $type === 'counter_advertising' || $type === 'defamation') {
                 if ((int) ($eff['amount'] ?? 0) > 0 || !empty($eff['requires_selection'])) {
                     return true;
                 }
@@ -2978,6 +2984,82 @@ class Game extends \Bga\GameFramework\Table
     }
 
     /**
+     * Сумма штрафных очков игрока (1 очко = −1 ПО).
+     */
+    public function getPlayerPenaltyTotal(int $playerId): int
+    {
+        $tokens = $this->getPenaltyTokensByPlayer()[$playerId] ?? [];
+        $total = 0;
+        foreach ($tokens as $token) {
+            $total += abs((int) ($token['value'] ?? 0));
+        }
+
+        return $total;
+    }
+
+    /**
+     * Распределяет суммарный штраф по двум жетонам (значения 0, −1…−5, −10).
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function distributePenaltyAcrossTokens(int $totalPenalty): array
+    {
+        if ($totalPenalty <= 0) {
+            return [0, 0];
+        }
+
+        $totalPenalty = min($totalPenalty, self::MAX_PENALTY_POINTS);
+
+        if ($totalPenalty <= 5) {
+            return [-$totalPenalty, 0];
+        }
+        if ($totalPenalty === 10) {
+            return [-10, 0];
+        }
+        if ($totalPenalty < 10) {
+            return [-5, -($totalPenalty - 5)];
+        }
+
+        $remainder = $totalPenalty - 10;
+
+        return [-10, -min($remainder, 10)];
+    }
+
+    /**
+     * Добавляет штрафные очки игроку и обновляет жетоны на планшете.
+     *
+     * @return array{added: int, total: int, tokens: list<array<string, mixed>>}
+     */
+    public function addPenaltyPoints(int $playerId, int $points): array
+    {
+        if ($points <= 0) {
+            $tokens = array_values($this->getPenaltyTokensByPlayer()[$playerId] ?? []);
+
+            return [
+                'added' => 0,
+                'total' => $this->getPlayerPenaltyTotal($playerId),
+                'tokens' => $tokens,
+            ];
+        }
+
+        $currentTotal = $this->getPlayerPenaltyTotal($playerId);
+        $newTotal = min($currentTotal + $points, self::MAX_PENALTY_POINTS);
+        $added = $newTotal - $currentTotal;
+
+        [$token0, $token1] = $this->distributePenaltyAcrossTokens($newTotal);
+        $this->setPenaltyToken($playerId, 0, $token0);
+        $this->setPenaltyToken($playerId, 1, $token1);
+
+        $tokens = array_values($this->getPenaltyTokensByPlayer()[$playerId] ?? []);
+
+        return [
+            'added' => $added,
+            'total' => $newTotal,
+            'tokens' => $tokens,
+        ];
+    }
+
+    /**
      * Распределяет начальные жетоны задач всем игрокам
      * Каждый игрок получает: 1 розовый жетон и 1 голубой жетон в бэклог
      * 
@@ -3304,6 +3386,167 @@ class Game extends \Bga\GameFramework\Table
         ];
     }
 
+    /** Минимальная позиция на треке найма (колонка 1 бэк-офиса). */
+    public const MIN_HIRING_TRACK_POSITION = 1;
+
+    /** Максимальная позиция на треке найма (колонка 1 бэк-офиса). */
+    public const MAX_HIRING_TRACK_POSITION = 6;
+
+    /**
+     * Позиция трека найма (колонка 1 бэк-офиса), 1–6.
+     */
+    public function getHiringTrackPosition(int $playerId): int
+    {
+        $this->initPlayerGameData($playerId);
+        $gameData = $this->getPlayerGameData($playerId);
+        $position = $gameData ? (int) ($gameData['backOfficeCol1'] ?? 1) : 1;
+
+        return max(self::MIN_HIRING_TRACK_POSITION, min(self::MAX_HIRING_TRACK_POSITION, $position));
+    }
+
+    /**
+     * Соперники, к которым можно применить диффамацию (−1 трек найма / +1 себе).
+     *
+     * @return list<int>
+     */
+    public function getDefamationEligibleTargetIds(int $sourcePlayerId): array
+    {
+        if ($this->getHiringTrackPosition($sourcePlayerId) >= self::MAX_HIRING_TRACK_POSITION) {
+            return [];
+        }
+
+        $eligible = [];
+        foreach ($this->getOtherPlayerIds($sourcePlayerId) as $otherId) {
+            if ($this->getHiringTrackPosition($otherId) > self::MIN_HIRING_TRACK_POSITION) {
+                $eligible[] = $otherId;
+            }
+        }
+
+        return $eligible;
+    }
+
+    /**
+     * Соперники, к которым можно применить контррекламу.
+     *
+     * @return list<int>
+     */
+    public function getCounterAdvertisingEligibleTargetIds(int $sourcePlayerId, int $amount): array
+    {
+        if ($amount <= 0) {
+            return [];
+        }
+
+        $eligible = [];
+        foreach ($this->getOtherPlayerIds($sourcePlayerId) as $otherId) {
+            if ($this->isCounterAdvertisingTargetEligible($sourcePlayerId, $otherId, $amount)) {
+                $eligible[] = $otherId;
+            }
+        }
+
+        return $eligible;
+    }
+
+    public function isCounterAdvertisingTargetEligible(int $sourcePlayerId, int $targetPlayerId, int $amount): bool
+    {
+        if ($targetPlayerId <= 0 || $targetPlayerId === $sourcePlayerId) {
+            return false;
+        }
+        if (!in_array($targetPlayerId, $this->getOtherPlayerIds($sourcePlayerId), true)) {
+            return false;
+        }
+
+        $this->initPlayerGameData($targetPlayerId);
+        $income = (int) $this->playerEnergy->get($targetPlayerId);
+        $reducible = max(0, $income - self::MIN_INCOME_TRACK);
+
+        // Соперник подходит только если можно снять всю сумму эффекта (трек не опускается ниже 1).
+        return $reducible >= $amount;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getPendingDefamationForPlayer(int $playerId): ?array
+    {
+        $pendingJson = $this->globals->get('pending_defamation_' . $playerId, '');
+        if ($pendingJson === null || $pendingJson === '') {
+            return null;
+        }
+        $decoded = json_decode((string) $pendingJson, true);
+        if (!is_array($decoded) || empty($decoded['requires_target_player'])) {
+            return null;
+        }
+        $amount = (int) ($decoded['amount'] ?? 0);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        // Всегда пересчитываем допустимых соперников по актуальному состоянию трека найма в БД.
+        $eligibleTargetIds = $this->getDefamationEligibleTargetIds($playerId);
+        if ($eligibleTargetIds === []) {
+            $this->globals->set('pending_defamation_' . $playerId, null);
+
+            return null;
+        }
+
+        return [
+            'amount' => $amount,
+            'founder_name' => (string) ($decoded['founder_name'] ?? ''),
+            'founder_id' => (int) ($decoded['founder_id'] ?? 0),
+            'requires_target_player' => true,
+            'eligible_target_ids' => $eligibleTargetIds,
+        ];
+    }
+
+    /**
+     * Подтверждает диффамацию: −1 трек найма у соперника, +1 у активного игрока.
+     *
+     * @return array<string, mixed>
+     */
+    public function confirmDefamationSelection(int $playerId, int $targetPlayerId): array
+    {
+        $pending = $this->getPendingDefamationForPlayer($playerId);
+        if ($pending === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нет ожидающего выбора соперника для диффамации'));
+        }
+
+        $targetPlayerId = (int) $targetPlayerId;
+        if ($targetPlayerId <= 0 || $targetPlayerId === $playerId) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Выберите другого игрока'));
+        }
+
+        $eligibleTargetIds = array_map('intval', $pending['eligible_target_ids'] ?? []);
+        if (!in_array($targetPlayerId, $eligibleTargetIds, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нельзя применить диффамацию к этому игроку'));
+        }
+
+        $amount = (int) ($pending['amount'] ?? 1);
+        $targetTrack = $this->applyBackOfficeColumnUpdate($targetPlayerId, 1, -$amount);
+        $sourceTrack = $this->applyBackOfficeColumnUpdate($playerId, 1, $amount);
+
+        if ($targetTrack === null || $sourceTrack === null) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Не удалось применить диффамацию'));
+        }
+
+        $targetOld = (int) ($targetTrack['oldValue'] ?? 0);
+        $targetNew = (int) ($targetTrack['newValue'] ?? 0);
+        $sourceOld = (int) ($sourceTrack['oldValue'] ?? 0);
+        $sourceNew = (int) ($sourceTrack['newValue'] ?? 0);
+        if ($targetNew >= $targetOld || $sourceNew <= $sourceOld) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Не удалось применить диффамацию: трек найма не изменился'));
+        }
+
+        $this->globals->set('pending_defamation_' . $playerId, null);
+
+        return [
+            'amount' => $amount,
+            'founder_name' => (string) ($pending['founder_name'] ?? ''),
+            'target_player_id' => $targetPlayerId,
+            'source_track' => $sourceTrack,
+            'target_track' => $targetTrack,
+        ];
+    }
+
     /**
      * @return array<string, mixed>|null
      */
@@ -3322,28 +3565,47 @@ class Game extends \Bga\GameFramework\Table
             return null;
         }
 
+        $eligibleTargetIds = array_values(array_map('intval', $decoded['eligible_target_ids'] ?? []));
+        if ($eligibleTargetIds === []) {
+            $eligibleTargetIds = $this->getCounterAdvertisingEligibleTargetIds($playerId, $amount);
+        }
+        if ($eligibleTargetIds === []) {
+            return null;
+        }
+
         return [
             'amount' => $amount,
             'founder_name' => (string) ($decoded['founder_name'] ?? ''),
             'founder_id' => (int) ($decoded['founder_id'] ?? 0),
             'requires_target_player' => true,
+            'eligible_target_ids' => $eligibleTargetIds,
         ];
     }
 
     /**
      * Применяет изменение трека дохода (счётчик energy + income_track в БД).
+     * При уменьшении ниже MIN_INCOME_TRACK излишек возвращается в penaltyOverflow.
      *
-     * @return array{oldValue: int, newValue: int, amount: int}
+     * @return array{oldValue: int, newValue: int, amount: int, penaltyOverflow: int, requestedDelta: int}
      */
     public function applyIncomeTrackDelta(int $playerId, int $delta): array
     {
         $this->initPlayerGameData($playerId);
         $oldValue = (int) $this->playerEnergy->get($playerId);
+        $penaltyOverflow = 0;
+
         if ($delta > 0) {
             $this->playerEnergy->inc($playerId, $delta);
         } elseif ($delta < 0) {
-            $this->playerEnergy->inc($playerId, -min(abs($delta), $oldValue));
+            $requested = abs($delta);
+            $reducible = max(0, $oldValue - self::MIN_INCOME_TRACK);
+            $actualReduction = min($requested, $reducible);
+            $penaltyOverflow = $requested - $actualReduction;
+            if ($actualReduction > 0) {
+                $this->playerEnergy->inc($playerId, -$actualReduction);
+            }
         }
+
         $newValue = (int) $this->playerEnergy->get($playerId);
         $this->DbQuery("
             UPDATE `player_game_data`
@@ -3355,6 +3617,8 @@ class Game extends \Bga\GameFramework\Table
             'oldValue' => $oldValue,
             'newValue' => $newValue,
             'amount' => $newValue - $oldValue,
+            'penaltyOverflow' => $penaltyOverflow,
+            'requestedDelta' => $delta,
         ];
     }
 
@@ -3376,6 +3640,11 @@ class Game extends \Bga\GameFramework\Table
         }
         if (!in_array($targetPlayerId, $this->getOtherPlayerIds($playerId), true)) {
             throw new \Bga\GameFramework\UserException(clienttranslate('Неверный игрок'));
+        }
+
+        $eligibleTargetIds = array_map('intval', $pending['eligible_target_ids'] ?? []);
+        if (!in_array($targetPlayerId, $eligibleTargetIds, true)) {
+            throw new \Bga\GameFramework\UserException(clienttranslate('Нельзя применить контррекламу к этому игроку'));
         }
 
         $amount = (int) ($pending['amount'] ?? 1);
@@ -3495,20 +3764,21 @@ class Game extends \Bga\GameFramework\Table
         }
 
         if ($trackId === 'income-track') {
-            $oldValue = (int) $this->playerEnergy->get($playerId);
-            if ($amount > 0) {
-                $this->playerEnergy->inc($playerId, $amount);
-            } else {
-                $this->playerEnergy->inc($playerId, -min(abs($amount), $oldValue));
+            $incomeResult = $this->applyIncomeTrackDelta($playerId, $amount);
+            $penaltyOverflow = (int) ($incomeResult['penaltyOverflow'] ?? 0);
+            $penaltyResult = null;
+            if ($penaltyOverflow > 0) {
+                $penaltyResult = $this->addPenaltyPoints($playerId, $penaltyOverflow);
             }
-            $newValue = (int) $this->playerEnergy->get($playerId);
 
             return [
                 'trackId' => $trackId,
                 'trackName' => clienttranslate('трек дохода'),
-                'amount' => $amount,
-                'oldValue' => $oldValue,
-                'newValue' => $newValue,
+                'amount' => (int) ($incomeResult['amount'] ?? $amount),
+                'oldValue' => (int) ($incomeResult['oldValue'] ?? 0),
+                'newValue' => (int) ($incomeResult['newValue'] ?? 0),
+                'penaltyOverflow' => $penaltyOverflow,
+                'penaltyResult' => $penaltyResult,
             ];
         }
 
@@ -4110,6 +4380,12 @@ class Game extends \Bga\GameFramework\Table
     /** Сколько баджерсов даёт одно победное очко при финальном подсчёте. */
     public const BADGERS_PER_VICTORY_POINT = 3;
 
+    /** Минимальная позиция на треке дохода; ниже нельзя — излишек уходит в штрафные очки (−1 ПО за каждое). */
+    public const MIN_INCOME_TRACK = 1;
+
+    /** Максимальная сумма штрафа на двух жетонах (два по −10). */
+    public const MAX_PENALTY_POINTS = 20;
+
     /**
      * Победные очки: баджерсы на руках (каждые 3 = 1 ПО) + victoryPoints нанятых специалистов,
      * основателя (если выбран) и купленных IT-проектов.
@@ -4122,6 +4398,7 @@ class Game extends \Bga\GameFramework\Table
      *   fromSpecialistCards: int,
      *   fromFounder: int,
      *   fromProjectTokens: int,
+     *   fromPenalty: int,
      *   specialistCardIds: array<int>,
      *   projectTokenIds: array<int>
      * }
@@ -4161,7 +4438,8 @@ class Game extends \Bga\GameFramework\Table
             $fromProjectTokens += (int) ($projectToken['victory_points'] ?? 0);
         }
 
-        $total = $fromBadgers + $fromSpecialistCards + $fromFounder + $fromProjectTokens;
+        $fromPenalty = $this->getPlayerPenaltyTotal($playerId);
+        $total = $fromBadgers + $fromSpecialistCards + $fromFounder + $fromProjectTokens - $fromPenalty;
 
         return [
             'total' => $total,
@@ -4170,6 +4448,7 @@ class Game extends \Bga\GameFramework\Table
             'fromSpecialistCards' => $fromSpecialistCards,
             'fromFounder' => $fromFounder,
             'fromProjectTokens' => $fromProjectTokens,
+            'fromPenalty' => $fromPenalty,
             'specialistCardIds' => $specialistCardIdsList,
             'projectTokenIds' => $projectTokenIds,
         ];
@@ -6111,6 +6390,8 @@ class Game extends \Bga\GameFramework\Table
         require_once $dir . '/TaskGiftPlayerEffectHandler.php';
         require_once $dir . '/CardGiftPlayerEffectHandler.php';
         require_once $dir . '/ChooseOfficeTrackEffectHandler.php';
+        require_once $dir . '/CounterAdvertisingEffectHandler.php';
+        require_once $dir . '/DefamationEffectHandler.php';
         require_once $dir . '/MoveTaskEffectHandler.php';
         require_once $dir . '/TrackEffectHandler.php';
         require_once $dir . '/UpdateTrackEffectHandler.php';
